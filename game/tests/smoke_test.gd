@@ -3236,6 +3236,11 @@ func _initialize() -> void:
     state.datacenter_operating_cost = 0.0
     state.safety_debt = 0.0
     state.cash = 184200.0
+    # The safety_debt=100 spike above can trigger a critical-severity
+    # incident, which auto-pauses (IncidentManager). Reset both so later
+    # test blocks aren't silently frozen by a leftover pause.
+    state.paused = false
+    state.pending_incidents = []
 
     # P38: tutorial and onboarding — contextual, skippable steps walking a
     # new player through training and releasing a first model, plus a
@@ -3403,5 +3408,80 @@ func _initialize() -> void:
     test_agent.queue_free()
     await process_frame
     print("SMOKE_OK: a real StaffAgent builds a visible, role-tinted placeholder body — staff are no longer invisible")
+
+    # P40: character visuals and animation — modular low-poly parts,
+    # procedural idle/walk/work approximations, and 50-agent performance.
+    var p40_nav_region: NavigationRegion3D = NavigationRegion3D.new()
+    var p40_navmesh: NavigationMesh = NavigationMesh.new()
+    p40_navmesh.vertices = PackedVector3Array([
+        Vector3(-7.0, 0.0, -5.0), Vector3(7.0, 0.0, -5.0),
+        Vector3(7.0, 0.0, 5.0), Vector3(-7.0, 0.0, 5.0),
+    ])
+    p40_navmesh.add_polygon(PackedInt32Array([0, 1, 2, 3]))
+    p40_nav_region.navigation_mesh = p40_navmesh
+    get_root().add_child(p40_nav_region)
+
+    var p40_coordinator: RefCounted = load("res://src/world/nav_coordinator.gd").new()
+    var p40_role_ids: Array = StaffRoleCatalog.load_all().keys()
+    var p40_agents: Array = []
+    for i in 50:
+        var p40_agent: Node3D = load("res://src/world/staff_agent.gd").new()
+        p40_agent.coordinator = p40_coordinator
+        p40_agent.rng.seed = 2000 + i
+        p40_agent.role_color = Color(String(StaffRoleCatalog.get_def(String(p40_role_ids[i % p40_role_ids.size()])).get("visual_color", "ffffff")))
+        p40_agent.position = Vector3(randf_range(-6.0, 6.0), 0.0, randf_range(-4.0, 4.0))
+        get_root().add_child(p40_agent)
+        p40_agents.append(p40_agent)
+    await process_frame
+
+    var missing_parts: int = 0
+    for a in p40_agents:
+        var part_names: Array[String] = ["Torso", "Head", "LeftArm", "RightArm", "LeftLeg", "RightLeg", "Accessory"]
+        var found_parts: Dictionary = {}
+        for child in (a as Node3D).get_children():
+            if child is MeshInstance3D:
+                found_parts[String(child.name)] = true
+        for part_name: String in part_names:
+            if not found_parts.has(part_name):
+                missing_parts += 1
+    if missing_parts > 0:
+        push_error("Every staff agent should build all 7 modular body parts (missing %d across 50 agents)" % missing_parts)
+        quit(1)
+        return
+    print("SMOKE_OK: every staff agent builds a complete modular 7-part low-poly body")
+
+    var p40_start_ms: int = Time.get_ticks_msec()
+    for i in 900:
+        await physics_frame
+    var p40_elapsed_ms: int = Time.get_ticks_msec() - p40_start_ms
+    print("50-agent, 900-physics-frame run took %d ms wall-clock" % p40_elapsed_ms)
+    if p40_elapsed_ms > 20000:
+        push_error("50 staff agents animating for 900 physics frames took %d ms — unacceptably slow" % p40_elapsed_ms)
+        quit(1)
+        return
+
+    var nan_found: bool = false
+    var any_moved: bool = false
+    for a in p40_agents:
+        var agent: Node3D = a
+        if agent.total_distance_traveled > 0.01:
+            any_moved = true
+        for child in agent.get_children():
+            if child is MeshInstance3D and (is_nan(child.rotation.x) or is_nan(child.position.y)):
+                nan_found = true
+    if nan_found:
+        push_error("Procedural animation produced a NaN transform on at least one staff agent")
+        quit(1)
+        return
+    if not any_moved:
+        push_error("At least some of the 50 agents should have started moving during the run")
+        quit(1)
+        return
+    print("SMOKE_OK: 50 staff agents run their procedural idle/walk/work animation for 900 physics frames without error, in %d ms" % p40_elapsed_ms)
+
+    for a in p40_agents:
+        (a as Node3D).queue_free()
+    p40_nav_region.queue_free()
+    await process_frame
 
     quit(0)

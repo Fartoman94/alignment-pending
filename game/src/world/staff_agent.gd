@@ -35,6 +35,22 @@ var _has_reservation: bool = false
 var _synced: bool = false
 var _has_work_target: bool = false
 
+# P40: modular low-poly body parts + procedural animation. Each part is
+# its own MeshInstance3D (swappable/extendable independently — "modular"),
+# built once in _build_visual() and then just re-transformed every frame
+# by _animate_visual(), never rebuilt — cheap enough for 50+ agents at
+# once (a handful of sin() calls and Transform assignments per agent).
+var _torso: MeshInstance3D
+var _head: MeshInstance3D
+var _left_arm: MeshInstance3D
+var _right_arm: MeshInstance3D
+var _left_leg: MeshInstance3D
+var _right_leg: MeshInstance3D
+var _accessory: MeshInstance3D
+var _visual_time: float = 0.0
+## Random per-agent phase offset so a crowd doesn't all bob in unison.
+var _visual_phase: float = 0.0
+
 func _ready() -> void:
     _nav_agent = NavigationAgent3D.new()
     _nav_agent.radius = 0.3
@@ -51,17 +67,38 @@ func _ready() -> void:
     await get_tree().physics_frame
     _synced = true
 
-## A minimal procedural placeholder body: a tinted capsule "torso" plus a
-## smaller capsule "head", tinted by department (role_color). Real
-## character art/animation is P40's job — this just makes staff visible
-## and roughly distinguishable by role in the meantime.
+## A modular low-poly placeholder body (P40): 7 independent parts, each
+## its own MeshInstance3D, tinted by department (role_color). Original
+## proportions chosen for silhouette clarity at isometric camera distance
+## — a large head-to-body ratio and a bright accessory accent read clearly
+## even as a small on-screen shape. Real authored character art is a later
+## content pass; this is the procedural floor described in
+## docs/design/ART_ASSET_LIST.md's "Character MVP".
 func _build_visual() -> void:
-    var torso: MeshInstance3D = ProceduralMeshFactory.make_capsule("Torso", 0.28, 1.3, role_color)
-    torso.position.y = 0.75
-    add_child(torso)
-    var head: MeshInstance3D = ProceduralMeshFactory.make_capsule("Head", 0.16, 0.32, role_color.lightened(0.3))
-    head.position.y = 1.55
-    add_child(head)
+    _visual_phase = rng.randf_range(0.0, TAU)
+    _torso = ProceduralMeshFactory.make_capsule("Torso", 0.28, 1.3, role_color)
+    _torso.position.y = 0.75
+    add_child(_torso)
+    _head = ProceduralMeshFactory.make_capsule("Head", 0.18, 0.36, role_color.lightened(0.35))
+    _head.position.y = 1.56
+    add_child(_head)
+    _left_arm = ProceduralMeshFactory.make_capsule("LeftArm", 0.07, 0.7, role_color.darkened(0.1))
+    _left_arm.position = Vector3(-0.32, 1.05, 0.0)
+    add_child(_left_arm)
+    _right_arm = ProceduralMeshFactory.make_capsule("RightArm", 0.07, 0.7, role_color.darkened(0.1))
+    _right_arm.position = Vector3(0.32, 1.05, 0.0)
+    add_child(_right_arm)
+    _left_leg = ProceduralMeshFactory.make_capsule("LeftLeg", 0.09, 0.8, role_color.darkened(0.3))
+    _left_leg.position = Vector3(-0.13, 0.35, 0.0)
+    add_child(_left_leg)
+    _right_leg = ProceduralMeshFactory.make_capsule("RightLeg", 0.09, 0.8, role_color.darkened(0.3))
+    _right_leg.position = Vector3(0.13, 0.35, 0.0)
+    add_child(_right_leg)
+    # A small bright badge — the one "accessory" slot (ART_ASSET_LIST.md);
+    # a distinct authored accessory per role is a later art pass.
+    _accessory = ProceduralMeshFactory.make_box("Accessory", Vector3(0.12, 0.12, 0.05), role_color.lightened(0.6), 0.4)
+    _accessory.position = Vector3(0.0, 0.95, 0.26)
+    add_child(_accessory)
 
 func _physics_process(delta: float) -> void:
     if not _synced or GameState.paused:
@@ -75,6 +112,42 @@ func _physics_process(delta: float) -> void:
             _process_moving(delta)
         State.WORKING:
             pass  # stationary at the workstation until the task ends
+    _animate_visual(delta)
+
+## Procedural animation approximations (P40) — no imported skeleton/
+## AnimationPlayer, just cheap per-frame trig on the modular parts built
+## in _build_visual(). Three readable states: a slow idle bob, a walking
+## limb swing while MOVING, and a smaller, faster "focused" bob while
+## WORKING, so a player can tell what a staff member is doing at a glance
+## even at isometric distance.
+func _animate_visual(delta: float) -> void:
+    _visual_time += delta
+    var t: float = _visual_time * 6.0 + _visual_phase
+    match state:
+        State.MOVING:
+            var swing: float = sin(t) * 0.5
+            _left_leg.rotation.x = swing
+            _right_leg.rotation.x = -swing
+            _left_arm.rotation.x = -swing * 0.6
+            _right_arm.rotation.x = swing * 0.6
+            _torso.position.y = 0.75 + absf(sin(t)) * 0.03
+            _head.position.y = 1.56 + absf(sin(t)) * 0.03
+        State.WORKING:
+            var focus_t: float = _visual_time * 10.0 + _visual_phase
+            _right_arm.rotation.x = -0.9 + sin(focus_t) * 0.15
+            _left_arm.rotation.x = -0.1
+            _left_leg.rotation.x = 0.0
+            _right_leg.rotation.x = 0.0
+            _torso.position.y = 0.75
+            _head.position.y = 1.56 + sin(focus_t * 0.5) * 0.01
+        State.IDLE:
+            var idle_t: float = _visual_time * 1.5 + _visual_phase
+            _left_leg.rotation.x = 0.0
+            _right_leg.rotation.x = 0.0
+            _left_arm.rotation.x = 0.0
+            _right_arm.rotation.x = 0.0
+            _torso.position.y = 0.75 + sin(idle_t) * 0.015
+            _head.position.y = 1.56 + sin(idle_t) * 0.02
 
 func _try_start_moving() -> void:
     for attempt in MAX_RESERVE_ATTEMPTS:
