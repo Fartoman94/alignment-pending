@@ -18,12 +18,17 @@ var calendar_minute: int = 0
 ## Each entry: {buildable_id: String, cell_x: int, cell_y: int, rotated: bool}.
 ## Kept in sync by BuildController on every place/sell.
 var buildings: Array = []
+var next_building_id: int = 1
 ## Each entry is a StaffMember dict (see docs/technical/DATA_SCHEMA.md):
 ## id, generated_name, role, skills, salary, morale, fatigue, values,
 ## relationships, assigned_task, traits, hire_date. Kept in sync by
 ## StaffManager on every hire/fire.
 var staff: Array = []
 var next_staff_id: int = 1
+## Each entry: {id, task_id, staff_id, building_id, progress_minutes,
+## started_day}. Kept in sync by TaskManager.
+var work_orders: Array = []
+var next_work_order_id: int = 1
 
 func toggle_pause() -> void:
     paused = not paused
@@ -47,8 +52,11 @@ func reset_to_defaults() -> void:
     calendar_hour = 9
     calendar_minute = 0
     buildings = []
+    next_building_id = 1
     staff = []
     next_staff_id = 1
+    work_orders = []
+    next_work_order_id = 1
 
 ## Campaign state payload only. The save format version lives one layer up,
 ## in SaveManager's envelope, so it isn't duplicated here.
@@ -67,8 +75,11 @@ func to_dict() -> Dictionary:
         "calendar_hour": calendar_hour,
         "calendar_minute": calendar_minute,
         "buildings": buildings,
+        "next_building_id": next_building_id,
         "staff": staff,
         "next_staff_id": next_staff_id,
+        "work_orders": work_orders,
+        "next_work_order_id": next_work_order_id,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -86,6 +97,10 @@ func from_dict(data: Dictionary) -> void:
     calendar_minute = int(data.get("calendar_minute", calendar_minute))
     var loaded_buildings: Variant = data.get("buildings", [])
     buildings = loaded_buildings if loaded_buildings is Array else []
+    next_building_id = int(data.get("next_building_id", next_building_id))
     var loaded_staff: Variant = data.get("staff", [])
     staff = loaded_staff if loaded_staff is Array else []
     next_staff_id = int(data.get("next_staff_id", next_staff_id))
+    var loaded_work_orders: Variant = data.get("work_orders", [])
+    work_orders = loaded_work_orders if loaded_work_orders is Array else []
+    next_work_order_id = int(data.get("next_work_order_id", next_work_order_id))

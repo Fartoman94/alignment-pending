@@ -25,6 +25,8 @@ const BUILDABLE_REQUIRED_FIELDS: Array[String] = ["id", "name", "category", "foo
 const STAFF_ROLE_REQUIRED_FIELDS: Array[String] = ["id", "name", "base_salary_min", "base_salary_max", "primary_skill"]
 const STAFF_SKILL_KEYS: Array[String] = ["capability", "engineering", "operations", "safety", "communication"]
 
+const WORK_TASK_REQUIRED_FIELDS: Array[String] = ["id", "name", "category", "required_buildable", "required_skill", "duration_minutes"]
+
 ## One validation problem: which file, which record, and why.
 class Issue:
     var source: String
@@ -47,6 +49,7 @@ static func validate_all() -> Array[Issue]:
     issues.append_array(validate_event_file("res://data/events_seed.json"))
     issues.append_array(validate_buildable_file("res://data/buildables.json"))
     issues.append_array(validate_staff_role_file("res://data/staff_roles.json"))
+    issues.append_array(validate_work_task_file("res://data/work_tasks.json"))
     return issues
 
 static func validate_event_file(path: String) -> Array[Issue]:
@@ -262,6 +265,67 @@ static func _validate_staff_role_record(path: String, record: Variant, index: in
         var primary_skill: String = str(entry.get("primary_skill", ""))
         if not STAFF_SKILL_KEYS.has(primary_skill):
             issues.append(Issue.new(path, id_label, "unknown primary_skill '%s' (expected one of %s)" % [primary_skill, STAFF_SKILL_KEYS]))
+
+    if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))
+
+    return issues
+
+static func validate_work_task_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of work task records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_work_task_record(path, records[i], i, seen_ids))
+    return issues
+
+static func _validate_work_task_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "work task record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in WORK_TASK_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+
+    if entry.has("required_skill"):
+        var required_skill: String = str(entry.get("required_skill", ""))
+        if not STAFF_SKILL_KEYS.has(required_skill):
+            issues.append(Issue.new(path, id_label, "unknown required_skill '%s' (expected one of %s)" % [required_skill, STAFF_SKILL_KEYS]))
+
+    if entry.has("required_buildable") and (not (entry["required_buildable"] is String) or String(entry["required_buildable"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'required_buildable' must be a non-empty string"))
+
+    if entry.has("duration_minutes") and not _is_whole_number_at_least(entry.get("duration_minutes"), 1):
+        issues.append(Issue.new(path, id_label, "'duration_minutes' must be a whole number >= 1"))
 
     if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
         issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))

@@ -506,4 +506,83 @@ func _initialize() -> void:
         return
     print("SMOKE_OK: firing removes the staff member from the roster")
 
+    # P11: task assignment and workstations.
+    var task_catalog: Dictionary = WorkTaskCatalog.load_all()
+    for expected_task_id: String in ["research_sprint", "training_run", "safety_audit"]:
+        if not task_catalog.has(expected_task_id):
+            push_error("WorkTaskCatalog missing expected task '%s'" % expected_task_id)
+            quit(1)
+            return
+    print("SMOKE_OK: WorkTaskCatalog loads research/training/safety task templates")
+
+    var task_mgr: Node = get_root().get_node("TaskManager")
+    state.staff = []
+    state.buildings = [{"id": "test_bldg_1", "buildable_id": "desk", "cell_x": 0, "cell_y": 0, "rotated": false}]
+    staff_mgr.refresh_candidates()
+    var assign_err0: Error = staff_mgr.hire(0)
+    if assign_err0 != OK:
+        push_error("Setup for P11 test failed to hire a candidate")
+        quit(1)
+        return
+    var worker_id: String = String(state.staff[0].get("id", ""))
+
+    var assign_err: Error = task_mgr.assign(worker_id, "research_sprint", "test_bldg_1")
+    if assign_err != OK:
+        push_error("TaskManager.assign() failed for a compatible staff/task/building (error %s)" % assign_err)
+        quit(1)
+        return
+    if String(state.staff[0].get("assigned_task", "")).is_empty():
+        push_error("TaskManager.assign() did not set StaffMember.assigned_task")
+        quit(1)
+        return
+    if not task_mgr.is_building_reserved("test_bldg_1"):
+        push_error("TaskManager.assign() did not reserve the workstation")
+        quit(1)
+        return
+
+    # A second, different task can't double-book the same reserved desk.
+    staff_mgr.refresh_candidates()
+    staff_mgr.hire(0)
+    var second_worker_id: String = String(state.staff[1].get("id", ""))
+    var double_book_err: Error = task_mgr.assign(second_worker_id, "research_sprint", "test_bldg_1")
+    if double_book_err == OK:
+        push_error("TaskManager.assign() allowed double-booking an already-reserved workstation")
+        quit(1)
+        return
+    print("SMOKE_OK: assigning a compatible job reserves the workstation and rejects double-booking")
+
+    bus2.simulation_tick.emit(100)
+    var progress_after_one_tick: float = task_mgr.progress_fraction(task_mgr.find_order_for_staff(worker_id))
+    if progress_after_one_tick <= 0.0 or progress_after_one_tick >= 1.0:
+        push_error("TaskManager progress after a single tick should be a partial fraction (got %.3f)" % progress_after_one_tick)
+        quit(1)
+        return
+    print("SMOKE_OK: assigned work consumes worker time and shows partial progress (%.0f%%)" % (progress_after_one_tick * 100.0))
+
+    for i in 5:
+        bus2.simulation_tick.emit(400)
+    if not String(state.staff[0].get("assigned_task", "")).is_empty():
+        push_error("Research task did not complete after enough simulated worker time")
+        quit(1)
+        return
+    if task_mgr.is_building_reserved("test_bldg_1"):
+        push_error("Completing a task did not free the reserved workstation")
+        quit(1)
+        return
+    print("SMOKE_OK: enough consumed worker time completes the task and frees the workstation")
+
+    # Stable building ids survive save/load (task assignment depends on this).
+    var bldg_save_err: Error = save_mgr.save_manual(2)
+    state.buildings = []
+    var bldg_load_err: Error = save_mgr.load_manual(2)
+    if bldg_save_err != OK or bldg_load_err != OK or state.buildings.is_empty() or String(state.buildings[0].get("id", "")) != "test_bldg_1":
+        push_error("Building id was not stable across save/load (save error %s, load error %s)" % [bldg_save_err, bldg_load_err])
+        quit(1)
+        return
+    print("SMOKE_OK: building ids survive save/load (task assignment can reference them reliably)")
+
+    state.staff = []
+    state.buildings = []
+    state.work_orders = []
+
     quit(0)

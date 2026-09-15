@@ -1,13 +1,12 @@
 class_name StaffAgent
 extends Node3D
 
-## Minimal navigation + state machine for an office occupant: idle, then
-## walk to a reserved random destination, then idle again. This prompt owns
-## movement/pathing only — the full roster (roles/skills/salary/hiring) is
-## a later system, so this deliberately stays generic and is not wired into
-## GameState or spawned in the live campaign yet.
+## Navigation + state machine for an office occupant: idle, then walk to a
+## reserved random destination, then idle again — unless a work task is
+## assigned (P11's TaskManager), in which case it walks to the workstation
+## and stays there (WORKING) until the task completes or is cancelled.
 
-enum State { IDLE, MOVING }
+enum State { IDLE, MOVING, WORKING }
 
 const SPEED: float = 2.4
 const IDLE_MIN_SECONDS: float = 1.0
@@ -29,6 +28,7 @@ var _nav_agent: NavigationAgent3D
 var _current_reservation: Vector3
 var _has_reservation: bool = false
 var _synced: bool = false
+var _has_work_target: bool = false
 
 func _ready() -> void:
     _nav_agent = NavigationAgent3D.new()
@@ -55,6 +55,8 @@ func _physics_process(delta: float) -> void:
                 _try_start_moving()
         State.MOVING:
             _process_moving(delta)
+        State.WORKING:
+            pass  # stationary at the workstation until the task ends
 
 func _try_start_moving() -> void:
     for attempt in MAX_RESERVE_ATTEMPTS:
@@ -105,5 +107,26 @@ func _finish_move() -> void:
         coordinator.release(_current_reservation)
     _has_reservation = false
     destinations_reached += 1
-    state = State.IDLE
-    _idle_timer = rng.randf_range(IDLE_MIN_SECONDS, IDLE_MAX_SECONDS)
+    if _has_work_target:
+        state = State.WORKING
+    else:
+        state = State.IDLE
+        _idle_timer = rng.randf_range(IDLE_MIN_SECONDS, IDLE_MAX_SECONDS)
+
+## Walks to target (a workstation's world position) and stays there once
+## arrived, instead of resuming idle wandering. Cancels any pending
+## wander-destination reservation immediately.
+func assign_work(target: Vector3) -> void:
+    _has_work_target = true
+    if _has_reservation and coordinator != null:
+        coordinator.release(_current_reservation)
+        _has_reservation = false
+    _nav_agent.target_position = target
+    state = State.MOVING
+
+## Returns to idle wandering. Safe to call even if not currently working.
+func clear_work() -> void:
+    _has_work_target = false
+    if state == State.WORKING:
+        state = State.IDLE
+        _idle_timer = rng.randf_range(IDLE_MIN_SECONDS, IDLE_MAX_SECONDS)

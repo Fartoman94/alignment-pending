@@ -191,10 +191,46 @@ func _show_staff_detail(staff_id: String) -> void:
     var skill_parts: PackedStringArray = []
     for key: String in skills:
         skill_parts.append("%s %d" % [String(key).capitalize(), int(skills[key])])
-    _inspector_body.text = "Role: %s\nSalary: $%d/day\nMorale: %d%%\nFatigue: %d%%\nHired day %d\nSkills: %s" % [
+    var status_line: String = "Idle"
+    var assigned_task: String = String(member.get("assigned_task", ""))
+    if not assigned_task.is_empty():
+        var order: Dictionary = TaskManager.find_order_for_staff(staff_id)
+        if not order.is_empty():
+            var task_def: Dictionary = WorkTaskCatalog.get_def(String(order.get("task_id", "")))
+            status_line = "Working: %s (%d%%)" % [
+                String(task_def.get("name", "?")), int(round(TaskManager.progress_fraction(order) * 100.0)),
+            ]
+    _inspector_body.text = "Role: %s\nSalary: $%d/day\nMorale: %d%%\nFatigue: %d%%\nHired day %d\nSkills: %s\nStatus: %s" % [
         member.get("role", "?"), int(member.get("salary", 0.0)), int(member.get("morale", 0)),
-        int(member.get("fatigue", 0)), int(member.get("hire_date", 0)), ", ".join(skill_parts),
+        int(member.get("fatigue", 0)), int(member.get("hire_date", 0)), ", ".join(skill_parts), status_line,
     ]
+
+    if not assigned_task.is_empty():
+        var cancel_btn: Button = Button.new()
+        cancel_btn.text = "Cancel task"
+        cancel_btn.pressed.connect(func() -> void:
+            TaskManager.cancel(staff_id)
+            _show_staff_detail(staff_id)
+        )
+        _dynamic_content.add_child(cancel_btn)
+    else:
+        for task_id: String in WorkTaskCatalog.load_all():
+            var task_def: Dictionary = WorkTaskCatalog.load_all()[task_id]
+            var required_skill: String = String(task_def.get("required_skill", ""))
+            if int(skills.get(required_skill, 0)) <= 0:
+                continue
+            var candidates: Array = TaskManager.available_buildings_for_task(task_id)
+            if candidates.is_empty():
+                continue
+            var assign_btn: Button = Button.new()
+            assign_btn.text = "Assign: %s" % String(task_def.get("name", task_id))
+            var target_building_id: String = String((candidates[0] as Dictionary).get("id", ""))
+            assign_btn.pressed.connect(func() -> void:
+                TaskManager.assign(staff_id, task_id, target_building_id)
+                _show_staff_detail(staff_id)
+            )
+            _dynamic_content.add_child(assign_btn)
+
     var fire_btn: Button = Button.new()
     fire_btn.text = "Fire"
     fire_btn.pressed.connect(func() -> void:

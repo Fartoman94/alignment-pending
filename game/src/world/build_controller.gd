@@ -15,8 +15,9 @@ var current_buildable_id: String = ""
 var rotated: bool = false
 
 var _ghost: MeshInstance3D
-var _next_seq: int = 0
-# building instance id (String) -> {mesh, cells: Array[Vector2i], buildable_id, rotated, cell}
+# building instance id (String, stable across save/load via
+# GameState.next_building_id) -> {mesh, cells: Array[Vector2i],
+# buildable_id, rotated, cell}
 var _placed: Dictionary = {}
 
 func _ready() -> void:
@@ -141,8 +142,8 @@ func try_place() -> Error:
         return ERR_INVALID_PARAMETER
 
     GameState.cash -= cost
-    var building_id: String = "b%d" % _next_seq
-    _next_seq += 1
+    var building_id: String = "bldg_%d" % GameState.next_building_id
+    GameState.next_building_id += 1
     grid.occupy(cells, building_id)
     var mesh: MeshInstance3D = _make_mesh(def, Color(1.0, 1.0, 1.0, 1.0))
     mesh.position = grid.cell_to_world(cell)
@@ -179,6 +180,7 @@ func save_to_state() -> Array:
         var entry: Dictionary = _placed[building_id]
         var cell: Vector2i = entry["cell"]
         out.append({
+            "id": building_id,
             "buildable_id": entry["buildable_id"],
             "cell_x": cell.x,
             "cell_y": cell.y,
@@ -186,18 +188,22 @@ func save_to_state() -> Array:
         })
     return out
 
-## Rebuilds placed-building meshes/occupancy from saved data. Skips (with a
-## warning) any entry whose buildable id is unknown or whose cells are no
-## longer free, instead of crashing on stale/corrupt save data.
+## Rebuilds placed-building meshes/occupancy from saved data, reusing each
+## entry's own stable id (assigned once at placement time) rather than
+## regenerating one — other systems (e.g. task assignment) persist
+## references to a specific building id across save/load. Skips (with a
+## warning) any entry whose buildable id is unknown, id is missing/blank,
+## or whose cells are no longer free, instead of crashing on stale data.
 func load_from_state(data: Array) -> void:
     for raw: Variant in data:
         if not (raw is Dictionary):
             continue
         var entry: Dictionary = raw
+        var building_id: String = String(entry.get("id", ""))
         var buildable_id: String = String(entry.get("buildable_id", ""))
         var def: Dictionary = BuildableCatalog.get_def(buildable_id)
-        if def.is_empty():
-            push_warning("BuildController: skipping saved building with unknown buildable id '%s'" % buildable_id)
+        if building_id.is_empty() or def.is_empty():
+            push_warning("BuildController: skipping saved building with missing id or unknown buildable id '%s'" % buildable_id)
             continue
         var cell: Vector2i = Vector2i(int(entry.get("cell_x", 0)), int(entry.get("cell_y", 0)))
         var was_rotated: bool = bool(entry.get("rotated", false))
@@ -207,8 +213,6 @@ func load_from_state(data: Array) -> void:
             push_warning("BuildController: skipping saved building at %s (cells occupied or out of bounds)" % cell)
             continue
 
-        var building_id: String = "b%d" % _next_seq
-        _next_seq += 1
         grid.occupy(cells, building_id)
         var mesh: MeshInstance3D = _make_mesh(def, Color(1.0, 1.0, 1.0, 1.0))
         mesh.position = grid.cell_to_world(cell)
@@ -219,3 +223,9 @@ func load_from_state(data: Array) -> void:
             "mesh": mesh, "cells": cells, "buildable_id": buildable_id,
             "rotated": was_rotated, "cell": cell,
         }
+
+## World position of a placed building, or Vector3.ZERO if unknown.
+func building_position(building_id: String) -> Vector3:
+    if not _placed.has(building_id):
+        return Vector3.ZERO
+    return grid.cell_to_world(_placed[building_id]["cell"])

@@ -22,6 +22,9 @@ func _ready() -> void:
     _build_autosave_timer()
     EventBus.build_tool_changed.connect(_on_build_tool_changed)
     EventBus.staff_roster_changed.connect(_sync_staff_agents)
+    EventBus.task_assigned.connect(_on_task_assigned)
+    EventBus.task_completed.connect(_on_task_completed)
+    EventBus.task_unassigned.connect(_on_task_unassigned)
     build_controller.load_from_state(GameState.buildings)
     _sync_staff_agents()
     SimClock.active = true
@@ -63,6 +66,22 @@ func _on_build_tool_changed(tool_id: String) -> void:
         build_controller.start_sell()
     else:
         build_controller.start_place(tool_id)
+
+func _on_task_assigned(staff_id: String, building_id: String) -> void:
+    if not _staff_agents.has(staff_id):
+        return
+    var pos: Vector3 = build_controller.building_position(building_id)
+    (_staff_agents[staff_id] as StaffAgent).assign_work(pos)
+
+func _on_task_completed(staff_id: String, _task_id: String) -> void:
+    _clear_staff_work(staff_id)
+
+func _on_task_unassigned(staff_id: String) -> void:
+    _clear_staff_work(staff_id)
+
+func _clear_staff_work(staff_id: String) -> void:
+    if _staff_agents.has(staff_id):
+        (_staff_agents[staff_id] as StaffAgent).clear_work()
 
 func _build_environment() -> void:
     var world_env := WorldEnvironment.new()
@@ -165,6 +184,12 @@ func _spawn_staff_agent(staff_id: String) -> void:
     agent.position = Vector3(randf_range(-6.0, 6.0), 0.0, randf_range(-4.0, 4.0))
     add_child(agent)
     _staff_agents[staff_id] = agent
+    # Restores the "walk to workstation and work" visual state for a staff
+    # member who was already mid-task when the campaign was (re)loaded.
+    var order: Dictionary = TaskManager.find_order_for_staff(staff_id)
+    if not order.is_empty():
+        var building_id: String = String(order.get("building_id", ""))
+        agent.assign_work(build_controller.building_position(building_id))
 
 func _build_hud() -> void:
     var packed: PackedScene = load("res://scenes/hud.tscn")

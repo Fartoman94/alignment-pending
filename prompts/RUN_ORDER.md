@@ -13,7 +13,7 @@ Run exactly one prompt at a time. Do not skip quality gates.
 - [x] `phase_01_vertical_slice/P08_build_grid_and_placement.md` — Build grid and placement
 - [x] `phase_01_vertical_slice/P09_navigation_and_staff_movement.md` — Navigation and staff movement
 - [x] `phase_01_vertical_slice/P10_staff_model_and_hiring.md` — Staff model and hiring
-- [ ] `phase_01_vertical_slice/P11_task_assignment_and_workstations.md` — Task assignment and workstations
+- [x] `phase_01_vertical_slice/P11_task_assignment_and_workstations.md` — Task assignment and workstations
 - [ ] `phase_01_vertical_slice/P12_compute,_power_and_heat.md` — Compute, power and heat
 - [ ] `phase_01_vertical_slice/P13_research_tree_mvp.md` — Research tree MVP
 - [ ] `phase_01_vertical_slice/P14_model_training_pipeline.md` — Model training pipeline

@@ -23,6 +23,7 @@ func _process(delta: float) -> void:
 
 func _tick() -> void:
     _advance_minutes(SIM_MINUTES_PER_TICK)
+    EventBus.simulation_tick.emit(SIM_MINUTES_PER_TICK)
 
 func _advance_minutes(amount: int) -> void:
     GameState.calendar_minute += amount

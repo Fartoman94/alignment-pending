@@ -1,0 +1,26 @@
+[
+  {
+    "id": "research_sprint",
+    "name": "Research Sprint",
+    "category": "research",
+    "required_buildable": "desk",
+    "required_skill": "capability",
+    "duration_minutes": 240
+  },
+  {
+    "id": "training_run",
+    "name": "Training Run",
+    "category": "training",
+    "required_buildable": "server_rack",
+    "required_skill": "engineering",
+    "duration_minutes": 360
+  },
+  {
+    "id": "safety_audit",
+    "name": "Safety Audit",
+    "category": "safety",
+    "required_buildable": "safety_lab",
+    "required_skill": "safety",
+    "duration_minutes": 300
+  }
+]
