@@ -1395,8 +1395,9 @@ func _initialize() -> void:
     state.communication_cooldowns = {}
     state.incident_history = []
 
-    # P20: first rival company — doctrine, research pace, launches,
-    # deterministic effect on board/market events.
+    # P20/P26: rival companies — doctrine, research pace, launches,
+    # deterministic effect on board/market events, catch-up mechanics, and
+    # market share across the full 3-5 rival field.
     var rival_mgr: Node = get_root().get_node("RivalManager")
     var doctrine_ids: Array = RivalDoctrineCatalog.load_all().keys()
     if doctrine_ids.size() != 6:
@@ -1405,22 +1406,48 @@ func _initialize() -> void:
         return
     print("SMOKE_OK: RivalDoctrineCatalog seeds 6 doctrines")
 
-    state.campaign_seed = 24680
-    sim.reset_rng_streams()
-    rival_mgr.generate_rival()
-    var rival_name_a: String = String(state.rival.get("name", ""))
-    var rival_doctrine_a: String = String(state.rival.get("doctrine", ""))
+    var forbidden_rival_terms: Array[String] = ["openai", "anthropic", "google", "deepmind", "meta", "microsoft", "xai", "mistral", "cohere", "claude", "gpt", "gemini", "llama"]
+    for rival_name: String in rival_mgr.RIVAL_NAMES:
+        var lowered_name: String = rival_name.to_lower()
+        for term: String in forbidden_rival_terms:
+            if lowered_name.contains(term):
+                push_error("Rival name '%s' must not reference a real AI company ('%s')" % [rival_name, term])
+                quit(1)
+                return
+    print("SMOKE_OK: no rival is named after or mapped to a real company")
 
     state.campaign_seed = 24680
     sim.reset_rng_streams()
     rival_mgr.generate_rival()
-    var rival_name_b: String = String(state.rival.get("name", ""))
-    var rival_doctrine_b: String = String(state.rival.get("doctrine", ""))
-    if rival_name_a != rival_name_b or rival_doctrine_a != rival_doctrine_b or rival_name_a.is_empty():
-        push_error("The same seed should deterministically generate the same rival identity and doctrine")
+    if state.rivals.size() != rival_mgr.RIVAL_NAMES.size():
+        push_error("generate_rival() should create one rival per RIVAL_NAMES entry (3-5 procedural rivals)")
         quit(1)
         return
-    print("SMOKE_OK: the same seed deterministically generates the same rival identity and doctrine")
+    var names_seen_a: Dictionary = {}
+    for r: Variant in state.rivals:
+        var rival_a: Dictionary = r
+        names_seen_a[String(rival_a.get("name", ""))] = true
+    if names_seen_a.size() != state.rivals.size():
+        push_error("Every rival should have a unique name")
+        quit(1)
+        return
+    var roster_a: Array = []
+    for r2: Variant in state.rivals:
+        var rival_a2: Dictionary = r2
+        roster_a.append([rival_a2.get("id"), rival_a2.get("name"), rival_a2.get("doctrine")])
+
+    state.campaign_seed = 24680
+    sim.reset_rng_streams()
+    rival_mgr.generate_rival()
+    var roster_b: Array = []
+    for r3: Variant in state.rivals:
+        var rival_b: Dictionary = r3
+        roster_b.append([rival_b.get("id"), rival_b.get("name"), rival_b.get("doctrine")])
+    if roster_a != roster_b:
+        push_error("The same seed should deterministically generate the same rival roster (ids, names, doctrines)")
+        quit(1)
+        return
+    print("SMOKE_OK: 3-5 procedural rivals are generated with unique names, deterministic per seed")
 
     state.staff = []
     state.deployments = []
@@ -1428,30 +1455,47 @@ func _initialize() -> void:
     state.incident_history = []
     state.incident_cooldowns = {}
     if incident_mgr.eligible_incidents().has("board_says_ship"):
-        push_error("board_says_ship should not be eligible before the rival has launched anything")
+        push_error("board_says_ship should not be eligible before any rival has launched anything")
         quit(1)
         return
 
     var safety_guard: int = 0
-    while int(state.rival.get("generation", 0)) < 3 and safety_guard < 500:
+    while rival_mgr.leading_generation() < 3 and safety_guard < 500:
         bus2.day_advanced.emit(state.calendar_day)
         safety_guard += 1
-    if int(state.rival.get("generation", 0)) != 3:
-        push_error("Rival should be able to launch 3 generations (got %d after %d ticks)" % [int(state.rival.get("generation", 0)), safety_guard])
+    if rival_mgr.leading_generation() != 3:
+        push_error("The leading rival should be able to reach generation 3 (got %d after %d ticks)" % [rival_mgr.leading_generation(), safety_guard])
         quit(1)
         return
-    if state.rival_launch_history.size() != 3:
-        push_error("rival_launch_history should record all 3 launches")
+    if state.rival_launch_history.is_empty():
+        push_error("rival_launch_history should record launches")
         quit(1)
         return
-    var generations_seen: Array = []
     for h: Variant in state.rival_launch_history:
-        generations_seen.append(int((h as Dictionary).get("generation", 0)))
-    if generations_seen != [1, 2, 3]:
-        push_error("Rival generations should launch in order 1, 2, 3 (got %s)" % [generations_seen])
+        var launch_entry: Dictionary = h
+        if rival_mgr.find_rival(String(launch_entry.get("rival_id", ""))).is_empty():
+            push_error("Every launch history entry should reference a real rival_id")
+            quit(1)
+            return
+    print("SMOKE_OK: rivals race independently and the field can reach generation 3")
+
+    # Catch-up mechanic: a rival behind the leader gets a shorter effective
+    # launch cycle than one at the front, bounded so it's never more than
+    # 2x base pace.
+    var leader_gen: int = rival_mgr.leading_generation()
+    var any_doctrine_id: String = String(doctrine_ids[0])
+    var duration_at_front: int = rival_mgr.effective_launch_days(any_doctrine_id, leader_gen)
+    var duration_far_behind: int = rival_mgr.effective_launch_days(any_doctrine_id, 0)
+    if leader_gen > 0 and duration_far_behind > duration_at_front:
+        push_error("A rival far behind the leader should launch at least as fast as one at the front (catch-up mechanic)")
         quit(1)
         return
-    print("SMOKE_OK: the rival can launch 3 generations in order")
+    var floor_multiplier: float = rival_mgr.catch_up_multiplier(-1000)
+    if floor_multiplier < float(rival_mgr.CATCH_UP_FLOOR) - 0.001:
+        push_error("The catch-up speedup must be bounded by CATCH_UP_FLOOR, not unbounded")
+        quit(1)
+        return
+    print("SMOKE_OK: rivals behind the pack catch up faster, bounded so it's never more than 2x base pace")
 
     # The random incident picker may itself have already triggered
     # board_says_ship during those ticks (it became eligible partway
@@ -1459,21 +1503,33 @@ func _initialize() -> void:
     # Reset cooldowns so this specifically re-tests the prerequisite gate.
     state.incident_cooldowns = {}
     if not incident_mgr.eligible_incidents().has("board_says_ship"):
-        push_error("board_says_ship should become eligible once the rival has launched (deterministic board/market effect)")
+        push_error("board_says_ship should become eligible once a rival has launched (deterministic board/market effect)")
         quit(1)
         return
     print("SMOKE_OK: rival launches deterministically affect board/market incident eligibility")
 
-    var pressure: float = rival_mgr.rival_pressure()
-    var doctrine_def: Dictionary = RivalDoctrineCatalog.get_def(String(state.rival.get("doctrine", "")))
-    var expected_pressure: float = 3.0 * float(doctrine_def.get("market_pressure_multiplier", 1.0))
-    if not is_equal_approx(pressure, expected_pressure):
-        push_error("rival_pressure() should be a deterministic function of generation count and doctrine")
+    var expected_pressure: float = 0.0
+    for r4: Variant in state.rivals:
+        var rival_c: Dictionary = r4
+        var doctrine_def_c: Dictionary = RivalDoctrineCatalog.get_def(String(rival_c.get("doctrine", "")))
+        expected_pressure += float(rival_c.get("generation", 0)) * float(doctrine_def_c.get("market_pressure_multiplier", 1.0))
+    if not is_equal_approx(rival_mgr.rival_pressure(), expected_pressure):
+        push_error("rival_pressure() should be the deterministic sum of every rival's own generation-and-doctrine pressure")
         quit(1)
         return
-    print("SMOKE_OK: rival market pressure is a deterministic function of generation and doctrine")
+    print("SMOKE_OK: rival market pressure is a deterministic function of every rival's generation and doctrine")
 
-    state.rival = {}
+    var shares: Dictionary = rival_mgr.market_shares()
+    var share_total: float = float(shares.get("player", 0.0))
+    for r5: Variant in state.rivals:
+        share_total += float(shares.get(String((r5 as Dictionary).get("id", "")), 0.0))
+    if not is_equal_approx(share_total, 1.0):
+        push_error("market_shares() must sum consistently to 1.0 across the player and every rival (got %.4f)" % share_total)
+        quit(1)
+        return
+    print("SMOKE_OK: market share sums consistently to 100% across the player and every rival")
+
+    state.rivals = []
     state.rival_launch_history = []
     state.incident_cooldowns = {}
     state.pending_incidents = []

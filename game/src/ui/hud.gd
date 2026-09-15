@@ -668,15 +668,27 @@ func _show_world_panel() -> void:
     EventBus.build_tool_changed.emit("")
     _clear_dynamic_content()
     _inspector_title.text = "World"
-    if GameState.rival.is_empty():
-        _inspector_body.text = "No rival identified yet."
+    if GameState.rivals.is_empty():
+        _inspector_body.text = "No rivals identified yet."
         return
-    var doctrine_def: Dictionary = RivalDoctrineCatalog.get_def(String(GameState.rival.get("doctrine", "")))
-    _inspector_body.text = "%s\nDoctrine: %s\nGeneration %d launched — next launch in ~%d%% progress\nMarket pressure: %.1f" % [
-        String(GameState.rival.get("name", "?")), String(doctrine_def.get("name", "?")),
-        int(GameState.rival.get("generation", 0)), int(round(RivalManager.launch_progress_fraction() * 100.0)),
-        RivalManager.rival_pressure(),
+
+    var shares: Dictionary = RivalManager.market_shares()
+    _inspector_body.text = "%d rivals racing. Market share — you: %d%%. Aggregate rival market pressure: %.1f" % [
+        GameState.rivals.size(), int(round(float(shares.get("player", 0.0)) * 100.0)), RivalManager.rival_pressure(),
     ]
+
+    for r: Variant in GameState.rivals:
+        var rival: Dictionary = r
+        var rival_id: String = String(rival.get("id", ""))
+        var doctrine_def: Dictionary = RivalDoctrineCatalog.get_def(String(rival.get("doctrine", "")))
+        var label: Label = Label.new()
+        label.text = "%s — %s — gen %d (%d%% to next), market share %d%%" % [
+            String(rival.get("name", "?")), String(doctrine_def.get("name", "?")), int(rival.get("generation", 0)),
+            int(round(RivalManager.launch_progress_fraction(rival_id) * 100.0)), int(round(float(shares.get(rival_id, 0.0)) * 100.0)),
+        ]
+        label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+        _dynamic_content.add_child(label)
+
     if not GameState.rival_launch_history.is_empty():
         var header: Label = Label.new()
         header.text = "Launch history"
@@ -685,9 +697,10 @@ func _show_world_panel() -> void:
         history.reverse()
         for h: Variant in history:
             var entry: Dictionary = h
-            var label: Label = Label.new()
-            label.text = "Day %d — generation %d" % [int(entry.get("day", 0)), int(entry.get("generation", 0))]
-            _dynamic_content.add_child(label)
+            var rival_name: String = String(RivalManager.find_rival(String(entry.get("rival_id", ""))).get("name", entry.get("rival_id", "?")))
+            var hist_label: Label = Label.new()
+            hist_label.text = "Day %d — %s reached generation %d" % [int(entry.get("day", 0)), rival_name, int(entry.get("generation", 0))]
+            _dynamic_content.add_child(hist_label)
 
 func _show_staff_detail(staff_id: String) -> void:
     var member: Dictionary = StaffManager.find(staff_id)

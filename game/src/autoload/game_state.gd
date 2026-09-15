@@ -1,6 +1,8 @@
 extends Node
 
-const SAVE_VERSION: int = 1
+## v2 (P26): GameState.rival (single Dictionary) -> GameState.rivals (Array
+## of several procedural rivals). See SaveManager._migrate_v1_to_v2().
+const SAVE_VERSION: int = 2
 
 # Office infrastructure baselines (P12): before any server rack is built.
 const BASE_COMPUTE_CAPACITY: float = 20.0
@@ -102,11 +104,14 @@ var communication_cooldowns: Dictionary = {}
 ## hype_debt_delta}. Kept in sync by CommunicationManager. This is
 ## presentation history only, never a way to alter incident_history.
 var communication_history: Array = []
-## {name, doctrine, generation, progress_days, cycle_duration_days}. Kept
-## in sync by RivalManager. Empty until the campaign's rival is generated
-## (RivalManager's own _ready(), deterministic per campaign_seed).
-var rival: Dictionary = {}
-## Each entry: {generation, day, doctrine}. Kept in sync by RivalManager.
+## Each entry: {id, name, doctrine, generation, progress_days,
+## cycle_duration_days}. Kept in sync by RivalManager. Empty until the
+## campaign's rivals are generated (RivalManager's own _ready(),
+## deterministic per campaign_seed). 3-5 procedural rivals (P26), each an
+## abstract company with no real-world mapping.
+var rivals: Array = []
+## Each entry: {rival_id, generation, day, doctrine}. Kept in sync by
+## RivalManager.
 var rival_launch_history: Array = []
 ## 0-100 meter, responds to deployed scale and safety_debt (and incident
 ## choices that carry a "regulatory_pressure" effect). Kept in sync by
@@ -207,7 +212,7 @@ func reset_to_defaults() -> void:
     next_incident_instance_id = 1
     communication_cooldowns = {}
     communication_history = []
-    rival = {}
+    rivals = []
     rival_launch_history = []
     regulatory_pressure = 0.0
     active_audit = {}
@@ -265,7 +270,7 @@ func to_dict() -> Dictionary:
         "next_incident_instance_id": next_incident_instance_id,
         "communication_cooldowns": communication_cooldowns,
         "communication_history": communication_history,
-        "rival": rival,
+        "rivals": rivals,
         "rival_launch_history": rival_launch_history,
         "regulatory_pressure": regulatory_pressure,
         "active_audit": active_audit,
@@ -335,8 +340,8 @@ func from_dict(data: Dictionary) -> void:
     communication_cooldowns = loaded_comm_cooldowns if loaded_comm_cooldowns is Dictionary else {}
     var loaded_comm_history: Variant = data.get("communication_history", [])
     communication_history = loaded_comm_history if loaded_comm_history is Array else []
-    var loaded_rival: Variant = data.get("rival", {})
-    rival = loaded_rival if loaded_rival is Dictionary else {}
+    var loaded_rivals: Variant = data.get("rivals", [])
+    rivals = loaded_rivals if loaded_rivals is Array else []
     var loaded_rival_history: Variant = data.get("rival_launch_history", [])
     rival_launch_history = loaded_rival_history if loaded_rival_history is Array else []
     regulatory_pressure = float(data.get("regulatory_pressure", regulatory_pressure))

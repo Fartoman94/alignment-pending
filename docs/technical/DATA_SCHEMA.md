@@ -3,7 +3,7 @@
 ## CampaignState
 ```json
 {
-  "save_version": 1,
+  "save_version": 2,
   "campaign_id": "uuid",
   "seed": 12345,
   "calendar": {"day": 1, "hour": 9, "minute": 0},
@@ -30,6 +30,13 @@ modifiers, see `data/staff_traits.json`). `relationships` is a list of
 `{with: staff_id, affinity: float}` entries, `affinity` clamped to
 `[-20, 20]`. `is_lead` marks the one promoted department lead per role
 (`StaffManager.promote()`), granting a fixed department-wide skill bonus.
+
+## Rival
+`id, name, doctrine, generation, progress_days, cycle_duration_days`
+(v2, P26: `GameState.rivals` is an array of 3-5 of these — see
+`SaveManager._migrate_v1_to_v2()` for the v1 single-`rival` migration).
+`RivalManager.effective_launch_days()` applies a bounded catch-up speedup
+to whichever rivals are behind `RivalManager.leading_generation()`.
 
 ## IncidentDefinition
 `id, category, severity, prerequisites, weight, cooldown_days, title_template, body_template, choices[], tags[]`

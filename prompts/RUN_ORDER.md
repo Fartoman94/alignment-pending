@@ -28,7 +28,7 @@ Run exactly one prompt at a time. Do not skip quality gates.
 - [x] `phase_02_core_sim/P23_economy_production_balance.md` — Economy production balance
 - [x] `phase_02_core_sim/P24_staff_depth.md` — Staff depth
 - [x] `phase_02_core_sim/P25_board_and_funding_rounds.md` — Board and funding rounds
-- [ ] `phase_02_core_sim/P26_full_competitor_simulation.md` — Full competitor simulation
+- [x] `phase_02_core_sim/P26_full_competitor_simulation.md` — Full competitor simulation
 - [ ] `phase_02_core_sim/P27_legal_exposure_system.md` — Legal exposure system
 - [ ] `phase_02_core_sim/P28_autonomous_agents.md` — Autonomous agents
 - [ ] `phase_02_core_sim/P29_automation_and_workforce.md` — Automation and workforce

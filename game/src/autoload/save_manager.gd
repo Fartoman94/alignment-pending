@@ -11,10 +11,38 @@ const MANUAL_SLOT_COUNT: int = 3
 const MANUAL_PREFIX: String = "manual_slot_"
 
 ## vN -> vN+1 migration functions (Callable(Dictionary) -> Dictionary),
-## keyed by the version they migrate FROM. Empty while GameState.SAVE_VERSION
-## is 1. Never delete an old entry before the minimum supported save
-## version is intentionally raised.
-const MIGRATIONS: Dictionary = {}
+## keyed by the version they migrate FROM. Populated in _ready() (a Callable
+## bound to self can't live in a const initializer). Never delete an old
+## entry before the minimum supported save version is intentionally raised.
+var MIGRATIONS: Dictionary = {}
+
+func _ready() -> void:
+    MIGRATIONS[1] = Callable(self, "_migrate_v1_to_v2")
+
+## v1 -> v2 (P26): GameState.rival (a single Dictionary) became
+## GameState.rivals (an Array of several procedural rivals). An old save's
+## one rival becomes rivals[0] with a stable id, and its launch history
+## entries are stamped with that same rival_id.
+func _migrate_v1_to_v2(payload: Dictionary) -> Dictionary:
+    var data: Dictionary = payload.duplicate(true)
+    var legacy_rival: Variant = data.get("rival", {})
+    if legacy_rival is Dictionary and not (legacy_rival as Dictionary).is_empty():
+        var rival: Dictionary = (legacy_rival as Dictionary).duplicate(true)
+        rival["id"] = "rival_1"
+        data["rivals"] = [rival]
+        var history: Variant = data.get("rival_launch_history", [])
+        var migrated_history: Array = []
+        if history is Array:
+            for h: Variant in (history as Array):
+                var entry: Dictionary = (h as Dictionary).duplicate(true)
+                if not entry.has("rival_id"):
+                    entry["rival_id"] = "rival_1"
+                migrated_history.append(entry)
+        data["rival_launch_history"] = migrated_history
+    else:
+        data["rivals"] = []
+    data.erase("rival")
+    return data
 
 func _ensure_save_dir() -> void:
     DirAccess.make_dir_recursive_absolute(SAVE_DIR)
