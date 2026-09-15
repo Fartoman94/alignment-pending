@@ -301,16 +301,34 @@ func _show_models_panel() -> void:
 
     if not GameState.models.is_empty():
         var models_header: Label = Label.new()
-        models_header.text = "Trained models"
+        models_header.text = "Trained models (ranges shown, not exact — evaluate to narrow them)"
         _dynamic_content.add_child(models_header)
         for model: Variant in GameState.models:
             var m: Dictionary = model
+            var model_id: String = String(m.get("id", ""))
+            var depth: int = int(m.get("evals_completed", 0))
+            var cap_range: Vector2 = EvaluationManager.visible_range(model_id, "capability")
+            var safety_range: Vector2 = EvaluationManager.visible_range(model_id, "safety_confidence")
+            var risk_range: Vector2 = EvaluationManager.latent_risk_range(model_id)
+            var risk_text: String = "Unknown" if depth <= 0 else "%d-%d" % [int(risk_range.x), int(risk_range.y)]
+            var row: HBoxContainer = HBoxContainer.new()
             var mlabel: Label = Label.new()
-            mlabel.text = "%s — capability %d, safety %d" % [
-                String(m.get("name", "?")), int(m.get("capability", 0.0)), int(m.get("safety_confidence", 0.0)),
+            mlabel.text = "%s — capability %d-%d, safety %d-%d, latent risk %s (eval depth %d/%d)" % [
+                String(m.get("name", "?")), int(cap_range.x), int(cap_range.y),
+                int(safety_range.x), int(safety_range.y), risk_text, depth, EvaluationManager.MAX_EVAL_DEPTH,
             ]
+            mlabel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
             mlabel.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-            _dynamic_content.add_child(mlabel)
+            row.add_child(mlabel)
+            var eval_btn: Button = Button.new()
+            eval_btn.text = "Evaluate ($%d)" % int(EvaluationManager.EVAL_COST)
+            eval_btn.disabled = not EvaluationManager.can_request(model_id)
+            eval_btn.pressed.connect(func() -> void:
+                EvaluationManager.request_evaluation(model_id)
+                _show_models_panel()
+            )
+            row.add_child(eval_btn)
+            _dynamic_content.add_child(row)
 
 func _show_staff_detail(staff_id: String) -> void:
     var member: Dictionary = StaffManager.find(staff_id)
@@ -339,6 +357,8 @@ func _show_staff_detail(staff_id: String) -> void:
                 elif order_task_id == ModelManager.TRAINING_TASK_ID:
                     var order_tier_id: String = ModelManager.project_tier_id(order_target)
                     target_name = String(ModelTierCatalog.get_def(order_tier_id).get("name", order_tier_id))
+                elif order_task_id == EvaluationManager.EVAL_TASK_ID:
+                    target_name = ModelManager.model_name(order_target)
                 target_suffix = " → %s" % target_name
             status_line = "Working: %s%s (%d%%)" % [
                 String(task_def.get("name", "?")), target_suffix, int(round(TaskManager.progress_fraction(order) * 100.0)),
@@ -378,6 +398,11 @@ func _show_staff_detail(staff_id: String) -> void:
                     continue
                 var tier_id: String = ModelManager.project_tier_id(assign_target)
                 target_label = String(ModelTierCatalog.get_def(tier_id).get("name", tier_id))
+            elif task_id == EvaluationManager.EVAL_TASK_ID:
+                assign_target = EvaluationManager.pick_model_for_evaluation_assignment()
+                if assign_target.is_empty():
+                    continue
+                target_label = ModelManager.model_name(assign_target)
             var candidates: Array = TaskManager.available_buildings_for_task(task_id)
             if candidates.is_empty():
                 continue

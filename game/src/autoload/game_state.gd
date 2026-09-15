@@ -68,6 +68,9 @@ var next_model_project_id: int = 1
 ## created_at. Kept in sync by ModelManager.
 var models: Array = []
 var next_model_id: int = 1
+## model_id -> count of paid-but-not-yet-worked evaluation sessions. Kept
+## in sync by EvaluationManager.
+var pending_evaluations: Dictionary = {}
 
 func toggle_pause() -> void:
     paused = not paused
@@ -115,6 +118,7 @@ func reset_to_defaults() -> void:
     next_model_project_id = 1
     models = []
     next_model_id = 1
+    pending_evaluations = {}
 
 ## Campaign state payload only. The save format version lives one layer up,
 ## in SaveManager's envelope, so it isn't duplicated here.
@@ -148,6 +152,7 @@ func to_dict() -> Dictionary:
         "next_model_project_id": next_model_project_id,
         "models": models,
         "next_model_id": next_model_id,
+        "pending_evaluations": pending_evaluations,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -186,3 +191,5 @@ func from_dict(data: Dictionary) -> void:
     var loaded_models: Variant = data.get("models", [])
     models = loaded_models if loaded_models is Array else []
     next_model_id = int(data.get("next_model_id", next_model_id))
+    var loaded_pending_evals: Variant = data.get("pending_evaluations", {})
+    pending_evaluations = loaded_pending_evals if loaded_pending_evals is Dictionary else {}

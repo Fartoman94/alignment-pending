@@ -54,6 +54,13 @@ func pick_active_project_for_assignment() -> String:
 func project_tier_id(project_id: String) -> String:
     return String(_find_project(project_id).get("tier_id", ""))
 
+func model_name(model_id: String) -> String:
+    for m: Variant in GameState.models:
+        var entry: Dictionary = m
+        if String(entry.get("id", "")) == model_id:
+            return String(entry.get("name", model_id))
+    return model_id
+
 func project_progress_fraction(project_id: String) -> float:
     var project: Dictionary = _find_project(project_id)
     if project.is_empty():

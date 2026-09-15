@@ -888,4 +888,98 @@ func _initialize() -> void:
     state.model_projects = []
     state.models = []
 
+    # P15: evaluation system — uncertainty ranges, hidden latent risk,
+    # repeated evals cost resources and reduce uncertainty.
+    var eval_mgr: Node = get_root().get_node("EvaluationManager")
+    state.cash = 1000000.0
+    state.staff = []
+    state.buildings = [{"id": "lab_1", "buildable_id": "safety_lab", "cell_x": 0, "cell_y": 0, "rotated": false}]
+    state.models = [{
+        "id": "eval_model_1", "name": "Test Model", "generation": 1, "architecture_tier": "small",
+        "capability": 50.0, "reliability": 50.0, "safety_confidence": 50.0, "cost_efficiency": 50.0,
+        "latency_efficiency": 50.0, "autonomy": 50.0, "interpretability": 50.0, "latent_risk": 50.0,
+        "evals_completed": 0, "training_cost": 8000.0, "created_at": 1,
+    }]
+    state.pending_evaluations = {}
+
+    var hidden_range: Vector2 = eval_mgr.latent_risk_range("eval_model_1")
+    if not (is_equal_approx(hidden_range.x, 0.0) and is_equal_approx(hidden_range.y, 100.0)):
+        push_error("latent_risk should be fully hidden ([0,100]) before any evaluation")
+        quit(1)
+        return
+    var initial_cap_range: Vector2 = eval_mgr.visible_range("eval_model_1", "capability")
+    var initial_width: float = initial_cap_range.y - initial_cap_range.x
+    if initial_width <= 0.0:
+        push_error("A regular stat should show an uncertainty range before any evaluation, not a single value")
+        quit(1)
+        return
+    print("SMOKE_OK: unevaluated models show an uncertainty range and a fully hidden latent risk")
+
+    var cash_before_request: float = state.cash
+    var request_err: Error = eval_mgr.request_evaluation("eval_model_1")
+    if request_err != OK or not is_equal_approx(state.cash, cash_before_request - eval_mgr.EVAL_COST):
+        push_error("EvaluationManager.request_evaluation() did not deduct the eval cost (error %s)" % request_err)
+        quit(1)
+        return
+    if int(state.pending_evaluations.get("eval_model_1", 0)) != 1:
+        push_error("EvaluationManager.request_evaluation() did not record a pending evaluation session")
+        quit(1)
+        return
+    print("SMOKE_OK: requesting an evaluation costs cash and queues a worker session")
+
+    staff_mgr.refresh_candidates()
+    staff_mgr.hire(0)
+    var evaluator_id: String = String(state.staff[0].get("id", ""))
+    var assign_err4: Error = task_mgr.assign(evaluator_id, "safety_audit", "lab_1", "eval_model_1")
+    if assign_err4 != OK:
+        push_error("Failed to assign evaluator to safety_audit targeting eval_model_1 (error %s)" % assign_err4)
+        quit(1)
+        return
+    for i in 5:
+        bus2.simulation_tick.emit(400)
+    var model_after: Dictionary = state.models[0]
+    if int(model_after.get("evals_completed", 0)) != 1:
+        push_error("Completing a safety_audit session did not increase evals_completed")
+        quit(1)
+        return
+    if int(state.pending_evaluations.get("eval_model_1", 0)) != 0:
+        push_error("Completing the evaluation session did not clear the pending count")
+        quit(1)
+        return
+    var narrowed_range: Vector2 = eval_mgr.visible_range("eval_model_1", "capability")
+    var narrowed_width: float = narrowed_range.y - narrowed_range.x
+    if narrowed_width >= initial_width:
+        push_error("An evaluation should reduce uncertainty (range width should shrink)")
+        quit(1)
+        return
+    var revealed_risk_range: Vector2 = eval_mgr.latent_risk_range("eval_model_1")
+    if is_equal_approx(revealed_risk_range.x, 0.0) and is_equal_approx(revealed_risk_range.y, 100.0):
+        push_error("latent_risk should be at least partially revealed after one evaluation")
+        quit(1)
+        return
+    print("SMOKE_OK: repeated evals cost resources, reduce uncertainty, and partially reveal latent risk")
+
+    for i in 10:
+        if eval_mgr.can_request("eval_model_1"):
+            eval_mgr.request_evaluation("eval_model_1")
+            task_mgr.assign(evaluator_id, "safety_audit", "lab_1", "eval_model_1")
+            for t in 5:
+                bus2.simulation_tick.emit(400)
+    var final_depth: int = int(state.models[0].get("evals_completed", 0))
+    if final_depth > int(eval_mgr.MAX_EVAL_DEPTH):
+        push_error("evals_completed exceeded MAX_EVAL_DEPTH (%d > %d)" % [final_depth, eval_mgr.MAX_EVAL_DEPTH])
+        quit(1)
+        return
+    if eval_mgr.can_request("eval_model_1"):
+        push_error("A model at max eval depth should no longer accept evaluation requests")
+        quit(1)
+        return
+    print("SMOKE_OK: evaluation depth is capped, and a maxed-out model stops accepting further requests")
+
+    state.staff = []
+    state.buildings = []
+    state.work_orders = []
+    state.models = []
+    state.pending_evaluations = {}
+
     quit(0)
