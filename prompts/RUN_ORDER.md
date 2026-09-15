@@ -4,7 +4,7 @@ Run exactly one prompt at a time. Do not skip quality gates.
 
 - [x] `phase_00_foundation/P00_repository_audit_and_baseline.md` — Repository audit and baseline
 - [x] `phase_00_foundation/P01_scene_router_and_boot_flow.md` — Scene router and boot flow
-- [ ] `phase_00_foundation/P02_settings_and_accessibility_shell.md` — Settings and accessibility shell
+- [x] `phase_00_foundation/P02_settings_and_accessibility_shell.md` — Settings and accessibility shell
 - [ ] `phase_00_foundation/P03_camera_production_pass.md` — Camera production pass
 - [ ] `phase_00_foundation/P04_hud_shell_and_inspector.md` — HUD shell and inspector
 - [ ] `phase_00_foundation/P05_save_system_v1.md` — Save system v1

@@ -43,8 +43,10 @@ func _process(delta: float) -> void:
         yaw_target += deg_to_rad(90.0)
     if Input.is_action_just_pressed("rotate_right"):
         yaw_target -= deg_to_rad(90.0)
-    camera_rig.rotation.y = lerp_angle(camera_rig.rotation.y, yaw_target, min(delta * 7.0, 1.0))
-    camera.size = lerp(camera.size, zoom_target, min(delta * 8.0, 1.0))
+    var camera_lerp: float = 1.0 if SettingsManager.reduced_motion else min(delta * 7.0, 1.0)
+    var zoom_lerp: float = 1.0 if SettingsManager.reduced_motion else min(delta * 8.0, 1.0)
+    camera_rig.rotation.y = lerp_angle(camera_rig.rotation.y, yaw_target, camera_lerp)
+    camera.size = lerp(camera.size, zoom_target, zoom_lerp)
     var pan := Vector3.ZERO
     pan.x = Input.get_axis("pan_left", "pan_right")
     pan.z = Input.get_axis("pan_up", "pan_down")

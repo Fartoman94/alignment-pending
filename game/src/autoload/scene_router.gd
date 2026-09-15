@@ -60,6 +60,9 @@ func go_to(scene_path: String) -> Error:
     return OK
 
 func _fade(target_alpha: float) -> void:
+    if SettingsManager.reduced_motion:
+        _fade_rect.color.a = target_alpha
+        return
     var tween: Tween = create_tween()
     tween.tween_property(_fade_rect, "color:a", target_alpha, FADE_DURATION)
     await tween.finished

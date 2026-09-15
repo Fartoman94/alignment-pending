@@ -18,8 +18,12 @@ renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 environment/defaults/default_clear_color=Color(0.055, 0.071, 0.09, 1)
 
+[audio]
+buses/default_bus_layout="res://default_bus_layout.tres"
+
 [autoload]
 EventBus="*res://src/autoload/event_bus.gd"
 GameState="*res://src/autoload/game_state.gd"
 SaveManager="*res://src/autoload/save_manager.gd"
 SceneRouter="*res://src/autoload/scene_router.gd"
+SettingsManager="*res://src/autoload/settings_manager.gd"
