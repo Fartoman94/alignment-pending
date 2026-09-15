@@ -683,14 +683,14 @@ func _initialize() -> void:
     bc2.queue_free()
     await process_frame
 
-    # P13: research tree — nodes, prerequisites, progress, unlock effects.
+    # P13/P35: research tree — nodes, prerequisites, progress, unlock effects.
     var research_mgr: Node = get_root().get_node("ResearchManager")
     var node_ids: Array = ResearchNodeCatalog.ordered_ids()
-    if node_ids.size() != 8:
-        push_error("ResearchNodeCatalog should seed exactly 8 nodes (got %d)" % node_ids.size())
+    if node_ids.size() < 30:
+        push_error("ResearchNodeCatalog should seed at least 30 nodes (got %d)" % node_ids.size())
         quit(1)
         return
-    print("SMOKE_OK: ResearchNodeCatalog seeds 8 research nodes")
+    print("SMOKE_OK: ResearchNodeCatalog seeds at least 30 research nodes")
 
     state.cash = 1000000.0
     state.staff = []
@@ -3031,5 +3031,62 @@ func _initialize() -> void:
     state.public_trust = 50.0
     state.calendar_day = 1
     state.paused = false
+
+    # P35: research tree expansion — 30 nodes across 6 branches, with
+    # multiple independently-startable paths (no branch requires unlocking
+    # a different branch first).
+    var research_node_ids: Array = ResearchNodeCatalog.ordered_ids()
+    var branch_node_counts: Dictionary = {}
+    var branch_root_counts: Dictionary = {}
+    for research_node_id: String in research_node_ids:
+        var node_def: Dictionary = ResearchNodeCatalog.get_def(research_node_id)
+        var node_branch: String = String(node_def.get("branch", ""))
+        branch_node_counts[node_branch] = int(branch_node_counts.get(node_branch, 0)) + 1
+        if (node_def.get("prerequisites", []) as Array).is_empty():
+            branch_root_counts[node_branch] = int(branch_root_counts.get(node_branch, 0)) + 1
+
+    for branch_name: String in DataValidator.RESEARCH_BRANCHES:
+        if int(branch_node_counts.get(branch_name, 0)) < 5:
+            push_error("Branch '%s' should have at least 5 research nodes (got %d)" % [branch_name, int(branch_node_counts.get(branch_name, 0))])
+            quit(1)
+            return
+        if int(branch_root_counts.get(branch_name, 0)) < 1:
+            push_error("Branch '%s' has no prerequisite-free root node — it would be impossible to start without first investing in a different branch (no mandatory dominant branch requires this)" % branch_name)
+            quit(1)
+            return
+    print("SMOKE_OK: every research branch has at least 5 nodes and its own independently-startable root — multiple viable opening paths")
+
+    state.cash = 1000000.0
+    state.staff = []
+    state.buildings = [{"id": "research_desk_35", "buildable_id": "desk", "cell_x": 0, "cell_y": 0, "rotated": false}]
+    state.research_unlocked = []
+    state.research_progress = {}
+    state.research_compute_bonus = 0.0
+
+    # End-to-end sanity on a newly authored node (not just data validation).
+    var new_node_id: String = "sparse_computation"
+    if not research_mgr.can_start(new_node_id):
+        push_error("A newly authored root node ('%s') should be startable with no prerequisites" % new_node_id)
+        quit(1)
+        return
+    research_mgr.start(new_node_id)
+    research_mgr._on_task_completed("dummy_staff", "research_sprint", new_node_id)
+    research_mgr._on_task_completed("dummy_staff", "research_sprint", new_node_id)
+    if not research_mgr.is_unlocked(new_node_id):
+        push_error("A newly authored node should unlock through the normal research flow")
+        quit(1)
+        return
+    var new_node_expected_bonus: float = float((ResearchNodeCatalog.get_def(new_node_id).get("unlock_effect", {}) as Dictionary).get("amount", 0.0))
+    if not is_equal_approx(state.research_compute_bonus, new_node_expected_bonus):
+        push_error("A newly authored node's unlock_effect should apply correctly")
+        quit(1)
+        return
+    print("SMOKE_OK: a newly authored research node works end-to-end through the real research flow")
+
+    state.research_unlocked = []
+    state.research_progress = {}
+    state.research_compute_bonus = 0.0
+    state.buildings = []
+    state.cash = 184200.0
 
     quit(0)

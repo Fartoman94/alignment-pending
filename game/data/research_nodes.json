@@ -6,7 +6,10 @@
     "cost": 5000,
     "duration_minutes": 480,
     "prerequisites": [],
-    "unlock_effect": { "type": "compute_bonus", "amount": 10 }
+    "unlock_effect": {
+      "type": "compute_bonus",
+      "amount": 10
+    }
   },
   {
     "id": "scaling_laws",
@@ -14,8 +17,13 @@
     "branch": "capability",
     "cost": 9000,
     "duration_minutes": 720,
-    "prerequisites": ["core_architectures"],
-    "unlock_effect": { "type": "compute_bonus", "amount": 15 }
+    "prerequisites": [
+      "core_architectures"
+    ],
+    "unlock_effect": {
+      "type": "compute_bonus",
+      "amount": 15
+    }
   },
   {
     "id": "efficient_inference",
@@ -23,8 +31,13 @@
     "branch": "efficiency",
     "cost": 6000,
     "duration_minutes": 480,
-    "prerequisites": ["core_architectures"],
-    "unlock_effect": { "type": "compute_bonus", "amount": 10 }
+    "prerequisites": [
+      "core_architectures"
+    ],
+    "unlock_effect": {
+      "type": "compute_bonus",
+      "amount": 10
+    }
   },
   {
     "id": "interpretability_basics",
@@ -33,7 +46,10 @@
     "cost": 4000,
     "duration_minutes": 360,
     "prerequisites": [],
-    "unlock_effect": { "type": "safety_debt_delta", "amount": -5 }
+    "unlock_effect": {
+      "type": "safety_debt_delta",
+      "amount": -5
+    }
   },
   {
     "id": "safety_evaluations",
@@ -41,8 +57,13 @@
     "branch": "safety",
     "cost": 7000,
     "duration_minutes": 480,
-    "prerequisites": ["interpretability_basics"],
-    "unlock_effect": { "type": "safety_debt_delta", "amount": -10 }
+    "prerequisites": [
+      "interpretability_basics"
+    ],
+    "unlock_effect": {
+      "type": "safety_debt_delta",
+      "amount": -10
+    }
   },
   {
     "id": "red_teaming_protocols",
@@ -50,8 +71,13 @@
     "branch": "safety",
     "cost": 8000,
     "duration_minutes": 600,
-    "prerequisites": ["safety_evaluations"],
-    "unlock_effect": { "type": "safety_debt_delta", "amount": -15 }
+    "prerequisites": [
+      "safety_evaluations"
+    ],
+    "unlock_effect": {
+      "type": "safety_debt_delta",
+      "amount": -15
+    }
   },
   {
     "id": "datacenter_efficiency",
@@ -60,7 +86,10 @@
     "cost": 6500,
     "duration_minutes": 480,
     "prerequisites": [],
-    "unlock_effect": { "type": "compute_bonus", "amount": 12 }
+    "unlock_effect": {
+      "type": "compute_bonus",
+      "amount": 12
+    }
   },
   {
     "id": "cross_team_processes",
@@ -68,7 +97,313 @@
     "branch": "organization",
     "cost": 5000,
     "duration_minutes": 360,
-    "prerequisites": ["core_architectures"],
-    "unlock_effect": { "type": "trust_delta", "amount": 5 }
+    "prerequisites": [
+      "core_architectures"
+    ],
+    "unlock_effect": {
+      "type": "trust_delta",
+      "amount": 5
+    }
+  },
+  {
+    "id": "multimodal_foundations",
+    "name": "Multimodal Foundations",
+    "branch": "capability",
+    "cost": 6000,
+    "duration_minutes": 480,
+    "prerequisites": [],
+    "unlock_effect": {
+      "type": "compute_bonus",
+      "amount": 12
+    }
+  },
+  {
+    "id": "long_context_windows",
+    "name": "Long Context Windows",
+    "branch": "capability",
+    "cost": 11000,
+    "duration_minutes": 720,
+    "prerequisites": [
+      "scaling_laws"
+    ],
+    "unlock_effect": {
+      "type": "compute_bonus",
+      "amount": 18
+    }
+  },
+  {
+    "id": "emergent_reasoning_patterns",
+    "name": "Emergent Reasoning Patterns",
+    "branch": "capability",
+    "cost": 14000,
+    "duration_minutes": 840,
+    "prerequisites": [
+      "scaling_laws",
+      "multimodal_foundations"
+    ],
+    "unlock_effect": {
+      "type": "compute_bonus",
+      "amount": 22
+    }
+  },
+  {
+    "id": "sparse_computation",
+    "name": "Sparse Computation",
+    "branch": "efficiency",
+    "cost": 4500,
+    "duration_minutes": 420,
+    "prerequisites": [],
+    "unlock_effect": {
+      "type": "compute_bonus",
+      "amount": 8
+    }
+  },
+  {
+    "id": "quantization_techniques",
+    "name": "Quantization Techniques",
+    "branch": "efficiency",
+    "cost": 8000,
+    "duration_minutes": 600,
+    "prerequisites": [
+      "sparse_computation"
+    ],
+    "unlock_effect": {
+      "type": "compute_bonus",
+      "amount": 14
+    }
+  },
+  {
+    "id": "distillation_pipeline",
+    "name": "Distillation Pipeline",
+    "branch": "efficiency",
+    "cost": 9000,
+    "duration_minutes": 660,
+    "prerequisites": [
+      "efficient_inference"
+    ],
+    "unlock_effect": {
+      "type": "compute_bonus",
+      "amount": 16
+    }
+  },
+  {
+    "id": "batch_scheduling_optimization",
+    "name": "Batch Scheduling Optimization",
+    "branch": "efficiency",
+    "cost": 11000,
+    "duration_minutes": 720,
+    "prerequisites": [
+      "quantization_techniques"
+    ],
+    "unlock_effect": {
+      "type": "compute_bonus",
+      "amount": 20
+    }
+  },
+  {
+    "id": "feature_visualization_tools",
+    "name": "Feature Visualization Tools",
+    "branch": "interpretability",
+    "cost": 3500,
+    "duration_minutes": 300,
+    "prerequisites": [],
+    "unlock_effect": {
+      "type": "safety_debt_delta",
+      "amount": -4
+    }
+  },
+  {
+    "id": "activation_mapping",
+    "name": "Activation Mapping",
+    "branch": "interpretability",
+    "cost": 6000,
+    "duration_minutes": 420,
+    "prerequisites": [
+      "interpretability_basics"
+    ],
+    "unlock_effect": {
+      "type": "safety_debt_delta",
+      "amount": -7
+    }
+  },
+  {
+    "id": "circuit_tracing",
+    "name": "Circuit Tracing",
+    "branch": "interpretability",
+    "cost": 8500,
+    "duration_minutes": 600,
+    "prerequisites": [
+      "activation_mapping"
+    ],
+    "unlock_effect": {
+      "type": "safety_debt_delta",
+      "amount": -10
+    }
+  },
+  {
+    "id": "mechanistic_audits",
+    "name": "Mechanistic Audits",
+    "branch": "interpretability",
+    "cost": 11000,
+    "duration_minutes": 720,
+    "prerequisites": [
+      "circuit_tracing",
+      "feature_visualization_tools"
+    ],
+    "unlock_effect": {
+      "type": "safety_debt_delta",
+      "amount": -14
+    }
+  },
+  {
+    "id": "alignment_fundamentals",
+    "name": "Alignment Fundamentals",
+    "branch": "safety",
+    "cost": 5000,
+    "duration_minutes": 420,
+    "prerequisites": [],
+    "unlock_effect": {
+      "type": "safety_debt_delta",
+      "amount": -6
+    }
+  },
+  {
+    "id": "adversarial_robustness",
+    "name": "Adversarial Robustness",
+    "branch": "safety",
+    "cost": 9000,
+    "duration_minutes": 600,
+    "prerequisites": [
+      "alignment_fundamentals"
+    ],
+    "unlock_effect": {
+      "type": "safety_debt_delta",
+      "amount": -11
+    }
+  },
+  {
+    "id": "safety_case_documentation",
+    "name": "Safety Case Documentation",
+    "branch": "safety",
+    "cost": 12000,
+    "duration_minutes": 780,
+    "prerequisites": [
+      "red_teaming_protocols",
+      "alignment_fundamentals"
+    ],
+    "unlock_effect": {
+      "type": "safety_debt_delta",
+      "amount": -18
+    }
+  },
+  {
+    "id": "power_grid_partnerships",
+    "name": "Power Grid Partnerships",
+    "branch": "infrastructure",
+    "cost": 5000,
+    "duration_minutes": 420,
+    "prerequisites": [],
+    "unlock_effect": {
+      "type": "compute_bonus",
+      "amount": 9
+    }
+  },
+  {
+    "id": "cooling_innovation",
+    "name": "Cooling Innovation",
+    "branch": "infrastructure",
+    "cost": 8500,
+    "duration_minutes": 600,
+    "prerequisites": [
+      "datacenter_efficiency"
+    ],
+    "unlock_effect": {
+      "type": "compute_bonus",
+      "amount": 15
+    }
+  },
+  {
+    "id": "network_topology_redesign",
+    "name": "Network Topology Redesign",
+    "branch": "infrastructure",
+    "cost": 7500,
+    "duration_minutes": 540,
+    "prerequisites": [
+      "power_grid_partnerships"
+    ],
+    "unlock_effect": {
+      "type": "compute_bonus",
+      "amount": 13
+    }
+  },
+  {
+    "id": "edge_caching_layer",
+    "name": "Edge Caching Layer",
+    "branch": "infrastructure",
+    "cost": 12000,
+    "duration_minutes": 780,
+    "prerequisites": [
+      "cooling_innovation",
+      "network_topology_redesign"
+    ],
+    "unlock_effect": {
+      "type": "compute_bonus",
+      "amount": 20
+    }
+  },
+  {
+    "id": "onboarding_playbooks",
+    "name": "Onboarding Playbooks",
+    "branch": "organization",
+    "cost": 3500,
+    "duration_minutes": 360,
+    "prerequisites": [],
+    "unlock_effect": {
+      "type": "trust_delta",
+      "amount": 4
+    }
+  },
+  {
+    "id": "incident_postmortem_culture",
+    "name": "Incident Postmortem Culture",
+    "branch": "organization",
+    "cost": 6000,
+    "duration_minutes": 420,
+    "prerequisites": [
+      "cross_team_processes"
+    ],
+    "unlock_effect": {
+      "type": "trust_delta",
+      "amount": 6
+    }
+  },
+  {
+    "id": "decision_rights_framework",
+    "name": "Decision Rights Framework",
+    "branch": "organization",
+    "cost": 7000,
+    "duration_minutes": 480,
+    "prerequisites": [
+      "onboarding_playbooks"
+    ],
+    "unlock_effect": {
+      "type": "trust_delta",
+      "amount": 7
+    }
+  },
+  {
+    "id": "external_advisory_board",
+    "name": "External Advisory Board",
+    "branch": "organization",
+    "cost": 10000,
+    "duration_minutes": 660,
+    "prerequisites": [
+      "decision_rights_framework",
+      "incident_postmortem_culture"
+    ],
+    "unlock_effect": {
+      "type": "trust_delta",
+      "amount": 10
+    }
   }
 ]
