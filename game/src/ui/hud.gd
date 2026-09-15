@@ -80,6 +80,9 @@ func _on_section_pressed(section_name: String) -> void:
     if section_name == "Build":
         _show_build_palette()
         return
+    if section_name == "Staff":
+        _show_staff_panel()
+        return
     EventBus.build_tool_changed.emit("")
     _clear_dynamic_content()
     _inspector_title.text = section_name
@@ -121,3 +124,85 @@ func _show_build_palette() -> void:
     cancel_btn.text = "Cancel"
     cancel_btn.pressed.connect(func() -> void: EventBus.build_tool_changed.emit(""))
     _dynamic_content.add_child(cancel_btn)
+
+func _show_staff_panel() -> void:
+    EventBus.build_tool_changed.emit("")
+    _clear_dynamic_content()
+    _inspector_title.text = "Staff"
+    _inspector_body.text = "Roster: %d   Daily payroll: $%d" % [GameState.staff.size(), int(StaffManager.total_payroll())]
+
+    for member: Variant in GameState.staff:
+        var entry: Dictionary = member
+        var row: HBoxContainer = HBoxContainer.new()
+        var label: Label = Label.new()
+        label.text = "%s — %s ($%d/day, morale %d%%)" % [
+            entry.get("generated_name", "?"), entry.get("role", "?"),
+            int(entry.get("salary", 0.0)), int(entry.get("morale", 0)),
+        ]
+        label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+        row.add_child(label)
+        var staff_id: String = String(entry.get("id", ""))
+        var inspect_btn: Button = Button.new()
+        inspect_btn.text = "Inspect"
+        inspect_btn.pressed.connect(func() -> void: _show_staff_detail(staff_id))
+        row.add_child(inspect_btn)
+        var fire_btn: Button = Button.new()
+        fire_btn.text = "Fire"
+        fire_btn.pressed.connect(func() -> void:
+            StaffManager.fire(staff_id)
+            _show_staff_panel()
+        )
+        row.add_child(fire_btn)
+        _dynamic_content.add_child(row)
+
+    var separator: Label = Label.new()
+    separator.text = "Candidates"
+    _dynamic_content.add_child(separator)
+
+    for i in StaffManager.candidates.size():
+        var candidate: Dictionary = StaffManager.candidates[i]
+        var row2: HBoxContainer = HBoxContainer.new()
+        var label2: Label = Label.new()
+        label2.text = "%s — %s ($%d/day)" % [
+            candidate.get("generated_name", "?"), candidate.get("role", "?"), int(candidate.get("salary", 0.0)),
+        ]
+        label2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        label2.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+        row2.add_child(label2)
+        var hire_btn: Button = Button.new()
+        hire_btn.text = "Hire"
+        var candidate_index: int = i
+        hire_btn.pressed.connect(func() -> void:
+            StaffManager.hire(candidate_index)
+            _show_staff_panel()
+        )
+        row2.add_child(hire_btn)
+        _dynamic_content.add_child(row2)
+
+func _show_staff_detail(staff_id: String) -> void:
+    var member: Dictionary = StaffManager.find(staff_id)
+    if member.is_empty():
+        _show_staff_panel()
+        return
+    _clear_dynamic_content()
+    _inspector_title.text = String(member.get("generated_name", "Staff"))
+    var skills: Dictionary = member.get("skills", {})
+    var skill_parts: PackedStringArray = []
+    for key: String in skills:
+        skill_parts.append("%s %d" % [String(key).capitalize(), int(skills[key])])
+    _inspector_body.text = "Role: %s\nSalary: $%d/day\nMorale: %d%%\nFatigue: %d%%\nHired day %d\nSkills: %s" % [
+        member.get("role", "?"), int(member.get("salary", 0.0)), int(member.get("morale", 0)),
+        int(member.get("fatigue", 0)), int(member.get("hire_date", 0)), ", ".join(skill_parts),
+    ]
+    var fire_btn: Button = Button.new()
+    fire_btn.text = "Fire"
+    fire_btn.pressed.connect(func() -> void:
+        StaffManager.fire(staff_id)
+        _show_staff_panel()
+    )
+    _dynamic_content.add_child(fire_btn)
+    var back_btn: Button = Button.new()
+    back_btn.text = "Back"
+    back_btn.pressed.connect(_show_staff_panel)
+    _dynamic_content.add_child(back_btn)

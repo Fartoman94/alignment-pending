@@ -9,6 +9,7 @@ var build_controller: BuildController
 var nav_region: NavigationRegion3D
 var nav_coordinator: NavCoordinator
 var _autosave_timer: Timer
+var _staff_agents: Dictionary = {}
 
 func _ready() -> void:
     _ensure_input_actions()
@@ -20,7 +21,9 @@ func _ready() -> void:
     _build_hud()
     _build_autosave_timer()
     EventBus.build_tool_changed.connect(_on_build_tool_changed)
+    EventBus.staff_roster_changed.connect(_sync_staff_agents)
     build_controller.load_from_state(GameState.buildings)
+    _sync_staff_agents()
     SimClock.active = true
 
 func _exit_tree() -> void:
@@ -135,6 +138,33 @@ func _build_navigation() -> void:
     nav_region.navigation_mesh = navmesh
     add_child(nav_region)
     nav_coordinator = NavCoordinator.new()
+
+## Spawns/despawns a StaffAgent per current GameState.staff entry. Called on
+## load and whenever StaffManager fires EventBus.staff_roster_changed.
+func _sync_staff_agents() -> void:
+    var current_ids: Dictionary = {}
+    for member: Dictionary in GameState.staff:
+        var staff_id: String = String(member.get("id", ""))
+        if staff_id.is_empty():
+            continue
+        current_ids[staff_id] = true
+        if not _staff_agents.has(staff_id):
+            _spawn_staff_agent(staff_id)
+    for staff_id: String in _staff_agents.keys():
+        if not current_ids.has(staff_id):
+            (_staff_agents[staff_id] as Node3D).queue_free()
+            _staff_agents.erase(staff_id)
+
+func _spawn_staff_agent(staff_id: String) -> void:
+    var agent: StaffAgent = StaffAgent.new()
+    agent.name = "Staff_%s" % staff_id
+    agent.coordinator = nav_coordinator
+    agent.bounds_min = Vector2(-7.0, -5.0)
+    agent.bounds_max = Vector2(7.0, 5.0)
+    agent.rng.randomize()
+    agent.position = Vector3(randf_range(-6.0, 6.0), 0.0, randf_range(-4.0, 4.0))
+    add_child(agent)
+    _staff_agents[staff_id] = agent
 
 func _build_hud() -> void:
     var packed: PackedScene = load("res://scenes/hud.tscn")

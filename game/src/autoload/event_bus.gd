@@ -8,3 +8,4 @@ signal day_advanced(day: int)
 ## tool_id is a BuildableCatalog id to start placing, "sell" for sell mode,
 ## or "" to cancel/exit build mode.
 signal build_tool_changed(tool_id: String)
+signal staff_roster_changed()

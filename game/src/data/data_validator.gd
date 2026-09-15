@@ -22,6 +22,9 @@ const EVENT_REQUIRED_FIELDS: Array[String] = ["id", "category", "severity", "tit
 
 const BUILDABLE_REQUIRED_FIELDS: Array[String] = ["id", "name", "category", "footprint", "cost", "refund_ratio"]
 
+const STAFF_ROLE_REQUIRED_FIELDS: Array[String] = ["id", "name", "base_salary_min", "base_salary_max", "primary_skill"]
+const STAFF_SKILL_KEYS: Array[String] = ["capability", "engineering", "operations", "safety", "communication"]
+
 ## One validation problem: which file, which record, and why.
 class Issue:
     var source: String
@@ -43,6 +46,7 @@ static func validate_all() -> Array[Issue]:
     var issues: Array[Issue] = []
     issues.append_array(validate_event_file("res://data/events_seed.json"))
     issues.append_array(validate_buildable_file("res://data/buildables.json"))
+    issues.append_array(validate_staff_role_file("res://data/staff_roles.json"))
     return issues
 
 static func validate_event_file(path: String) -> Array[Issue]:
@@ -195,6 +199,69 @@ static func _validate_buildable_record(path: String, record: Variant, index: int
             # matching note in SaveManager._wrap_envelope).
             if not _is_whole_number_at_least(w, 1) or not _is_whole_number_at_least(d, 1):
                 issues.append(Issue.new(path, id_label, "'footprint.w'/'footprint.d' must be whole numbers >= 1"))
+
+    if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))
+
+    return issues
+
+static func validate_staff_role_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of staff role records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_staff_role_record(path, records[i], i, seen_ids))
+    return issues
+
+static func _validate_staff_role_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "staff role record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in STAFF_ROLE_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+
+    if entry.has("base_salary_min") and entry.has("base_salary_max"):
+        var salary_min: Variant = entry.get("base_salary_min")
+        var salary_max: Variant = entry.get("base_salary_max")
+        var min_ok: bool = (salary_min is int or salary_min is float) and float(salary_min) > 0.0
+        var max_ok: bool = (salary_max is int or salary_max is float) and float(salary_max) >= float(salary_min) if min_ok else false
+        if not min_ok or not max_ok:
+            issues.append(Issue.new(path, id_label, "'base_salary_min'/'base_salary_max' must be numbers with min > 0 and max >= min"))
+
+    if entry.has("primary_skill"):
+        var primary_skill: String = str(entry.get("primary_skill", ""))
+        if not STAFF_SKILL_KEYS.has(primary_skill):
+            issues.append(Issue.new(path, id_label, "unknown primary_skill '%s' (expected one of %s)" % [primary_skill, STAFF_SKILL_KEYS]))
 
     if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
         issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))

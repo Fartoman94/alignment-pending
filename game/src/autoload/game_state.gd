@@ -18,6 +18,12 @@ var calendar_minute: int = 0
 ## Each entry: {buildable_id: String, cell_x: int, cell_y: int, rotated: bool}.
 ## Kept in sync by BuildController on every place/sell.
 var buildings: Array = []
+## Each entry is a StaffMember dict (see docs/technical/DATA_SCHEMA.md):
+## id, generated_name, role, skills, salary, morale, fatigue, values,
+## relationships, assigned_task, traits, hire_date. Kept in sync by
+## StaffManager on every hire/fire.
+var staff: Array = []
+var next_staff_id: int = 1
 
 func toggle_pause() -> void:
     paused = not paused
@@ -41,6 +47,8 @@ func reset_to_defaults() -> void:
     calendar_hour = 9
     calendar_minute = 0
     buildings = []
+    staff = []
+    next_staff_id = 1
 
 ## Campaign state payload only. The save format version lives one layer up,
 ## in SaveManager's envelope, so it isn't duplicated here.
@@ -59,6 +67,8 @@ func to_dict() -> Dictionary:
         "calendar_hour": calendar_hour,
         "calendar_minute": calendar_minute,
         "buildings": buildings,
+        "staff": staff,
+        "next_staff_id": next_staff_id,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -76,3 +86,6 @@ func from_dict(data: Dictionary) -> void:
     calendar_minute = int(data.get("calendar_minute", calendar_minute))
     var loaded_buildings: Variant = data.get("buildings", [])
     buildings = loaded_buildings if loaded_buildings is Array else []
+    var loaded_staff: Variant = data.get("staff", [])
+    staff = loaded_staff if loaded_staff is Array else []
+    next_staff_id = int(data.get("next_staff_id", next_staff_id))

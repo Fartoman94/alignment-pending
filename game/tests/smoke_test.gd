@@ -431,4 +431,79 @@ func _initialize() -> void:
     test_nav_region.queue_free()
     await process_frame
 
+    # P10: staff model, hiring/firing/payroll, stable IDs across save/load.
+    var role_catalog: Dictionary = StaffRoleCatalog.load_all()
+    var expected_roles: Array[String] = ["researcher", "engineer", "data_ops", "safety_analyst", "product_manager", "support_specialist"]
+    for role_id: String in expected_roles:
+        if not role_catalog.has(role_id):
+            push_error("StaffRoleCatalog missing expected role '%s'" % role_id)
+            quit(1)
+            return
+    print("SMOKE_OK: StaffRoleCatalog loads all 6 staff roles")
+
+    var staff_mgr: Node = get_root().get_node("StaffManager")
+    state.campaign_seed = 77777
+    state.staff = []
+    state.next_staff_id = 1
+    state.cash = 50000.0
+    sim.reset_rng_streams()
+    staff_mgr.refresh_candidates()
+    var first_candidate_name: String = String(staff_mgr.candidates[0].get("generated_name", ""))
+
+    sim.reset_rng_streams()
+    staff_mgr.refresh_candidates()
+    var second_candidate_name: String = String(staff_mgr.candidates[0].get("generated_name", ""))
+    if first_candidate_name != second_candidate_name or first_candidate_name.is_empty():
+        push_error("StaffManager candidate generation is not deterministic for the same seed")
+        quit(1)
+        return
+    print("SMOKE_OK: same seed produces the same generated staff candidates")
+
+    var candidate_salary: float = float(staff_mgr.candidates[0].get("salary", 0.0))
+    var hire_err: Error = staff_mgr.hire(0)
+    if hire_err != OK or state.staff.size() != 1:
+        push_error("StaffManager.hire() failed to add the candidate to the roster (error %s)" % hire_err)
+        quit(1)
+        return
+    var hired_id: String = String(state.staff[0].get("id", ""))
+    if hired_id.is_empty():
+        push_error("StaffManager.hire() did not assign a stable id")
+        quit(1)
+        return
+    if not is_equal_approx(staff_mgr.total_payroll(), candidate_salary):
+        push_error("StaffManager.total_payroll() does not match the hired candidate's salary")
+        quit(1)
+        return
+    print("SMOKE_OK: hiring adds the candidate to the roster with a stable id and correct payroll")
+
+    var cash_before_payroll: float = state.cash
+    var bus2: Node = get_root().get_node("EventBus")
+    bus2.day_advanced.emit(state.calendar_day)
+    if not is_equal_approx(state.cash, cash_before_payroll - candidate_salary):
+        push_error("StaffManager did not deduct daily payroll on day_advanced")
+        quit(1)
+        return
+    print("SMOKE_OK: daily payroll is deducted from cash on day_advanced")
+
+    # Stable IDs across save/load: same id, not regenerated.
+    var staff_save_err: Error = save_mgr.save_manual(1)
+    if staff_save_err != OK:
+        push_error("SaveManager failed to save staff roster (error %s)" % staff_save_err)
+        quit(1)
+        return
+    state.staff = []
+    var staff_load_err: Error = save_mgr.load_manual(1)
+    if staff_load_err != OK or state.staff.size() != 1 or String(state.staff[0].get("id", "")) != hired_id:
+        push_error("Staff id was not stable across save/load (error %s)" % staff_load_err)
+        quit(1)
+        return
+    print("SMOKE_OK: staff roster and stable ids survive save/load")
+
+    var fire_err: Error = staff_mgr.fire(hired_id)
+    if fire_err != OK or not state.staff.is_empty():
+        push_error("StaffManager.fire() failed to remove the staff member (error %s)" % fire_err)
+        quit(1)
+        return
+    print("SMOKE_OK: firing removes the staff member from the roster")
+
     quit(0)
