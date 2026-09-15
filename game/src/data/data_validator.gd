@@ -84,6 +84,13 @@ const AGENT_PERMISSION_REQUIRED_FIELDS: Array[String] = ["id", "name", "category
 const AGENT_PERMISSION_CATEGORIES: Array[String] = ["coding", "support", "research", "tool_access", "spending"]
 const AGENT_PERMISSION_EFFECT_KEYS: Array[String] = ["cash", "public_trust", "safety_debt", "regulatory_pressure", "legal_exposure"]
 
+# P29: automation and workforce policy. Bounded per-pressure multipliers.
+const WORKFORCE_POLICY_REQUIRED_FIELDS: Array[String] = ["id", "name", "description", "cash_per_pressure", "morale_per_pressure", "trust_per_pressure", "safety_debt_per_pressure"]
+const WORKFORCE_POLICY_AXES: Array[String] = ["cash_per_pressure", "morale_per_pressure", "trust_per_pressure", "safety_debt_per_pressure"]
+const WORKFORCE_CASH_PER_PRESSURE_MAX: float = 200.0
+const WORKFORCE_MORALE_TRUST_PER_PRESSURE_MAX: float = 10.0
+const WORKFORCE_SAFETY_DEBT_PER_PRESSURE_MAX: float = 5.0
+
 ## One validation problem: which file, which record, and why.
 class Issue:
     var source: String
@@ -119,6 +126,7 @@ static func validate_all() -> Array[Issue]:
     issues.append_array(validate_board_track_file("res://data/board_track.json"))
     issues.append_array(validate_legal_case_type_file("res://data/legal_case_types.json"))
     issues.append_array(validate_agent_permission_file("res://data/agent_permissions.json"))
+    issues.append_array(validate_workforce_policy_file("res://data/workforce_policies.json"))
     issues.append_array(validate_epilogue_file("res://data/epilogues.json"))
     return issues
 
@@ -1296,6 +1304,117 @@ static func _validate_agent_permission_record(path: String, record: Variant, ind
                 var effect_value: Variant = (effects as Dictionary)[effect_key]
                 if not (effect_value is int or effect_value is float):
                     issues.append(Issue.new(path, id_label, "'%s' effect '%s' value must be numeric" % [effect_field, effect_key]))
+
+    return issues
+
+static func validate_workforce_policy_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of workforce policy records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_workforce_policy_record(path, records[i], i, seen_ids))
+
+    # Acceptance criterion: "no forced political conclusion; outcomes
+    # depend on policy choices". Enforced structurally: no single policy
+    # may be at-least-as-good on every axis (cash/morale/trust, and lower
+    # safety_debt accrual) and strictly better on at least one — that
+    # would make it the obviously-correct pick regardless of player
+    # values, which is exactly the forced conclusion this must avoid.
+    if records.size() >= 2:
+        var goodness: Dictionary = {}
+        for record: Variant in records:
+            var entry: Dictionary = record
+            if not entry.has("id"):
+                continue
+            goodness[String(entry["id"])] = {
+                "cash": float(entry.get("cash_per_pressure", 0.0)),
+                "morale": float(entry.get("morale_per_pressure", 0.0)),
+                "trust": float(entry.get("trust_per_pressure", 0.0)),
+                "safety": -float(entry.get("safety_debt_per_pressure", 0.0)),
+            }
+        for id_a: String in goodness:
+            var dominates_everyone: bool = true
+            for id_b: String in goodness:
+                if id_a == id_b:
+                    continue
+                if not _dominates(goodness[id_a], goodness[id_b]):
+                    dominates_everyone = false
+                    break
+            if dominates_everyone:
+                issues.append(Issue.new(path, id_a, "dominates every other policy on every axis — this forces a single 'correct' choice instead of a real tradeoff"))
+
+    return issues
+
+## True if `a` is at least as good as `b` on every axis and strictly
+## better on at least one (Pareto dominance).
+static func _dominates(a: Dictionary, b: Dictionary) -> bool:
+    var strictly_better_somewhere: bool = false
+    for axis: String in a:
+        var av: float = float(a[axis])
+        var bv: float = float(b[axis])
+        if av < bv:
+            return false
+        if av > bv:
+            strictly_better_somewhere = true
+    return strictly_better_somewhere
+
+static func _validate_workforce_policy_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "workforce policy record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in WORKFORCE_POLICY_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+
+    if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))
+    if entry.has("description") and (not (entry["description"] is String) or String(entry["description"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'description' must be a non-empty string"))
+
+    if entry.has("cash_per_pressure"):
+        var cash_val: Variant = entry.get("cash_per_pressure")
+        if not (cash_val is int or cash_val is float) or absf(float(cash_val)) > WORKFORCE_CASH_PER_PRESSURE_MAX:
+            issues.append(Issue.new(path, id_label, "'cash_per_pressure' must be a number with |value| <= %s" % WORKFORCE_CASH_PER_PRESSURE_MAX))
+
+    for axis: String in ["morale_per_pressure", "trust_per_pressure"]:
+        if entry.has(axis):
+            var value: Variant = entry.get(axis)
+            if not (value is int or value is float) or absf(float(value)) > WORKFORCE_MORALE_TRUST_PER_PRESSURE_MAX:
+                issues.append(Issue.new(path, id_label, "'%s' must be a number with |value| <= %s" % [axis, WORKFORCE_MORALE_TRUST_PER_PRESSURE_MAX]))
+
+    if entry.has("safety_debt_per_pressure"):
+        var safety_val: Variant = entry.get("safety_debt_per_pressure")
+        if not (safety_val is int or safety_val is float) or absf(float(safety_val)) > WORKFORCE_SAFETY_DEBT_PER_PRESSURE_MAX:
+            issues.append(Issue.new(path, id_label, "'safety_debt_per_pressure' must be a number with |value| <= %s" % WORKFORCE_SAFETY_DEBT_PER_PRESSURE_MAX))
 
     return issues
 

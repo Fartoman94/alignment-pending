@@ -164,6 +164,11 @@ var legal_case_history: Array = []
 ## case_type_id -> the calendar_day it becomes eligible to trigger again.
 var legal_case_cooldowns: Dictionary = {}
 var next_legal_case_instance_id: int = 1
+## WorkforcePolicyCatalog id: how the company responds to automation
+## pressure (AgentPermissionManager grants). "status_quo" (no effect) by
+## default — the player opts into a tradeoff, none is forced. Kept in sync
+## by AutomationManager.
+var workforce_policy: String = "status_quo"
 
 func toggle_pause() -> void:
     paused = not paused
@@ -244,6 +249,7 @@ func reset_to_defaults() -> void:
     legal_case_history = []
     legal_case_cooldowns = {}
     next_legal_case_instance_id = 1
+    workforce_policy = "status_quo"
 
 ## Campaign state payload only. The save format version lives one layer up,
 ## in SaveManager's envelope, so it isn't duplicated here.
@@ -307,6 +313,7 @@ func to_dict() -> Dictionary:
         "legal_case_history": legal_case_history,
         "legal_case_cooldowns": legal_case_cooldowns,
         "next_legal_case_instance_id": next_legal_case_instance_id,
+        "workforce_policy": workforce_policy,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -392,3 +399,4 @@ func from_dict(data: Dictionary) -> void:
     var loaded_legal_case_cooldowns: Variant = data.get("legal_case_cooldowns", {})
     legal_case_cooldowns = loaded_legal_case_cooldowns if loaded_legal_case_cooldowns is Dictionary else {}
     next_legal_case_instance_id = int(data.get("next_legal_case_instance_id", next_legal_case_instance_id))
+    workforce_policy = String(data.get("workforce_policy", workforce_policy))

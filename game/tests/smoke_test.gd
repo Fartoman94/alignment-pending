@@ -2378,4 +2378,111 @@ func _initialize() -> void:
     state.safety_debt = 0.0
     state.cash = 184200.0
 
+    # P29: automation and workforce — automation pressure from granted
+    # agent permissions, and policy-dependent (never forced) outcomes.
+    var automation_mgr: Node = get_root().get_node("AutomationManager")
+    var policy_ids: Array = WorkforcePolicyCatalog.ordered_ids()
+    if policy_ids.size() != 4:
+        push_error("WorkforcePolicyCatalog should seed exactly 4 workforce policies (got %d)" % policy_ids.size())
+        quit(1)
+        return
+    print("SMOKE_OK: WorkforcePolicyCatalog seeds 4 workforce policies")
+
+    state.workforce_policy = "status_quo"
+    state.models = [{
+        "id": "automation_model_1", "name": "Automation Test Model", "generation": 1, "architecture_tier": "small",
+        "capability": 50.0, "reliability": 50.0, "safety_confidence": 50.0, "cost_efficiency": 50.0,
+        "latency_efficiency": 50.0, "autonomy": 50.0, "interpretability": 50.0, "latent_risk": 50.0,
+        "evals_completed": 0, "training_cost": 8000.0, "created_at": 1,
+    }]
+    state.deployments = []
+    state.cash = 100000.0
+    state.safety_debt = 0.0
+    state.public_trust = 50.0
+    state.staff = []
+
+    if not is_equal_approx(automation_mgr.automation_pressure(), 0.0):
+        push_error("automation_pressure() should be 0 with no deployments")
+        quit(1)
+        return
+
+    release_mgr.deploy("automation_model_1")
+    var automation_deployment_id: String = String(state.deployments[0].get("id", ""))
+    release_mgr.set_rate_limit(automation_deployment_id, 0.0)
+    agent_mgr.grant(automation_deployment_id, "coding_assistance")
+    agent_mgr.grant(automation_deployment_id, "tool_access")
+    if not is_equal_approx(automation_mgr.automation_pressure(), 2.0):
+        push_error("automation_pressure() should equal the total granted permissions across all deployments (expected 2, got %.1f)" % automation_mgr.automation_pressure())
+        quit(1)
+        return
+    print("SMOKE_OK: automation pressure is a deterministic function of granted agent permissions")
+
+    var bad_policy_err: Error = automation_mgr.set_policy("not_a_real_policy")
+    if bad_policy_err == OK:
+        push_error("set_policy() should reject an unknown policy id")
+        quit(1)
+        return
+
+    var downsize_err: Error = automation_mgr.set_policy("downsize")
+    if downsize_err != OK or state.workforce_policy != "downsize":
+        push_error("set_policy() should switch the active policy (error %s)" % downsize_err)
+        quit(1)
+        return
+
+    staff_mgr.refresh_candidates()
+    staff_mgr.hire(0)
+    var automation_staff_id: String = String(state.staff[0].get("id", ""))
+    state.staff[0]["morale"] = 50.0
+    # Neutral fatigue band (30-70): StaffManager's own P24 fatigue-based
+    # morale drift only kicks in outside this range, so it contributes 0
+    # this tick and doesn't confound the automation-policy morale check.
+    state.staff[0]["fatigue"] = 50.0
+
+    var downsize_def: Dictionary = WorkforcePolicyCatalog.get_def("downsize")
+    var pressure: float = automation_mgr.automation_pressure()
+    var expected_cash_delta: float = float(downsize_def.get("cash_per_pressure", 0.0)) * pressure
+    var expected_morale_delta: float = float(downsize_def.get("morale_per_pressure", 0.0)) * pressure
+    var expected_trust_delta: float = float(downsize_def.get("trust_per_pressure", 0.0)) * pressure
+    # The 2 granted permissions from earlier in this block (coding_assistance,
+    # tool_access) are still active and also apply their own daily cash
+    # productivity on this same tick — isolate that too.
+    var granted_permission_cash: float = float(agent_mgr.deployment_permission_ledger(automation_deployment_id).get("total_productivity_cash", 0.0))
+    var other_daily_delta3: float = revenue_mgr.total_daily_net() - economy_mgr.rent_cost() - economy_mgr.legal_cost() - economy_mgr.support_cost() - economy_mgr.investor_obligation_cost() - staff_mgr.total_payroll() + granted_permission_cash
+
+    var cash_before_automation_tick: float = state.cash
+    var trust_before_automation_tick: float = state.public_trust
+    bus2.day_advanced.emit(state.calendar_day)
+    if not is_equal_approx(state.cash, cash_before_automation_tick + expected_cash_delta + other_daily_delta3):
+        push_error("The active policy's cash_per_pressure * automation_pressure should apply daily (expected %+.1f)" % expected_cash_delta)
+        quit(1)
+        return
+    if not is_equal_approx(state.public_trust, clampf(trust_before_automation_tick + expected_trust_delta, 0.0, 100.0)):
+        push_error("The active policy's trust_per_pressure * automation_pressure should apply daily")
+        quit(1)
+        return
+    if not is_equal_approx(float(staff_mgr.find(automation_staff_id).get("morale", -1.0)), clampf(50.0 + expected_morale_delta, 0.0, 100.0)):
+        push_error("The active policy's morale_per_pressure * automation_pressure should apply to every staff member daily")
+        quit(1)
+        return
+    print("SMOKE_OK: the chosen workforce policy's effects scale with automation pressure and apply daily, exactly matching its data")
+
+    # No forced conclusion: switching to a different policy produces a
+    # genuinely different outcome (not just a smaller/larger version of
+    # the same one), since no policy dominates every axis.
+    automation_mgr.set_policy("retrain")
+    var retrain_def: Dictionary = WorkforcePolicyCatalog.get_def("retrain")
+    if float(retrain_def.get("cash_per_pressure", 0.0)) >= float(downsize_def.get("cash_per_pressure", 0.0)) and float(retrain_def.get("morale_per_pressure", 0.0)) <= float(downsize_def.get("morale_per_pressure", 0.0)):
+        push_error("retrain and downsize should trade off differently (retrain should cost more cash but help morale more than downsize)")
+        quit(1)
+        return
+    print("SMOKE_OK: different policies trade off differently — outcomes depend on the policy chosen, not a forced conclusion")
+
+    state.workforce_policy = "status_quo"
+    state.staff = []
+    state.models = []
+    state.deployments = []
+    state.safety_debt = 0.0
+    state.public_trust = 50.0
+    state.cash = 184200.0
+
     quit(0)

@@ -678,6 +678,35 @@ func _show_company_panel() -> void:
         case_row.add_child(fight_btn)
         _dynamic_content.add_child(case_row)
 
+    var automation_header: Label = Label.new()
+    var automation_effects: Dictionary = AutomationManager.daily_effects()
+    var active_policy_def: Dictionary = AutomationManager.active_policy()
+    automation_header.text = "Automation pressure: %d — policy \"%s\": %s (cash %+.0f, morale %+.1f, trust %+.1f, safety debt %+.1f per day)" % [
+        int(automation_effects.get("pressure", 0.0)), String(active_policy_def.get("name", GameState.workforce_policy)),
+        String(active_policy_def.get("description", "")), float(automation_effects.get("cash", 0.0)),
+        float(automation_effects.get("morale", 0.0)), float(automation_effects.get("trust", 0.0)), float(automation_effects.get("safety_debt", 0.0)),
+    ]
+    automation_header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    _dynamic_content.add_child(automation_header)
+    for policy_id: String in WorkforcePolicyCatalog.ordered_ids():
+        if policy_id == GameState.workforce_policy:
+            continue
+        var policy_def: Dictionary = WorkforcePolicyCatalog.get_def(policy_id)
+        var policy_row: HBoxContainer = HBoxContainer.new()
+        var policy_label: Label = Label.new()
+        policy_label.text = "  %s — %s" % [String(policy_def.get("name", policy_id)), String(policy_def.get("description", ""))]
+        policy_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        policy_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+        policy_row.add_child(policy_label)
+        var adopt_btn: Button = Button.new()
+        adopt_btn.text = "Adopt"
+        adopt_btn.pressed.connect(func() -> void:
+            AutomationManager.set_policy(policy_id)
+            _show_company_panel()
+        )
+        policy_row.add_child(adopt_btn)
+        _dynamic_content.add_child(policy_row)
+
     var actions_header: Label = Label.new()
     actions_header.text = "Communication actions"
     _dynamic_content.add_child(actions_header)

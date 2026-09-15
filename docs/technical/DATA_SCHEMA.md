@@ -59,6 +59,17 @@ deployment's `agent_permissions` field is an array of permission ids
 (`AgentPermissionManager.grant()`/`revoke()`); both effect sets apply
 daily to every deployment holding that permission.
 
+## WorkforcePolicy
+Config (`data/workforce_policies.json`): `id, name, description,
+cash_per_pressure, morale_per_pressure, trust_per_pressure,
+safety_debt_per_pressure`, applied daily scaled by
+`AutomationManager.automation_pressure()` (total granted
+`AgentPermission`s across every deployment). `GameState.workforce_policy`
+picks the active one (default `"status_quo"`, no effect). `DataValidator`
+rejects a policy set where one policy is at-least-as-good as every other
+on every axis and strictly better on at least one — no single policy may
+be the forced "correct" answer.
+
 ## IncidentDefinition
 `id, category, severity, prerequisites, weight, cooldown_days, title_template, body_template, choices[], tags[]`
 

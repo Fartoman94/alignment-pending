@@ -1,0 +1,38 @@
+[
+  {
+    "id": "status_quo",
+    "name": "Status Quo",
+    "description": "Don't touch staffing in response to automation. No gain, no risk.",
+    "cash_per_pressure": 0.0,
+    "morale_per_pressure": 0.0,
+    "trust_per_pressure": 0.0,
+    "safety_debt_per_pressure": 0.0
+  },
+  {
+    "id": "downsize",
+    "name": "Downsize",
+    "description": "Cut headcount to match automated capacity. Cheapest option; hits morale and trust.",
+    "cash_per_pressure": 40.0,
+    "morale_per_pressure": -3.0,
+    "trust_per_pressure": -0.5,
+    "safety_debt_per_pressure": 0.0
+  },
+  {
+    "id": "retrain",
+    "name": "Retrain",
+    "description": "Invest in upskilling staff alongside automation. Costs cash; builds morale and trust.",
+    "cash_per_pressure": -25.0,
+    "morale_per_pressure": 2.0,
+    "trust_per_pressure": 0.3,
+    "safety_debt_per_pressure": 0.0
+  },
+  {
+    "id": "augment",
+    "name": "Augment",
+    "description": "Keep staff on as oversight for automated work. Modest savings, modest unease, safer outcomes.",
+    "cash_per_pressure": 10.0,
+    "morale_per_pressure": -0.5,
+    "trust_per_pressure": 0.0,
+    "safety_debt_per_pressure": -0.5
+  }
+]
