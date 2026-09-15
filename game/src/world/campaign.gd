@@ -1,7 +1,7 @@
 extends Node3D
 
 var camera_controller: CameraController
-var hud_label: Label
+var hud: Hud
 
 func _ready() -> void:
     _ensure_input_actions()
@@ -29,7 +29,6 @@ func _process(_delta: float) -> void:
     if Input.is_action_just_pressed("return_to_menu") and not SceneRouter.is_busy():
         await SceneRouter.go_to("res://scenes/main_menu.tscn")
         return
-    _refresh_hud()
 
 func _build_environment() -> void:
     var world_env := WorldEnvironment.new()
@@ -89,17 +88,6 @@ func _build_camera() -> void:
     add_child(camera_controller)
 
 func _build_hud() -> void:
-    var layer := CanvasLayer.new(); add_child(layer)
-    var panel := ColorRect.new(); panel.color=Color(0.04,0.055,0.075,.92); panel.set_anchors_preset(Control.PRESET_TOP_WIDE); panel.offset_bottom=68; layer.add_child(panel)
-    hud_label=Label.new(); hud_label.position=Vector2(22,20); hud_label.add_theme_font_size_override("font_size",20); panel.add_child(hud_label)
-    var help:=Label.new(); help.text="WASD/middle-drag pan   Q/E rotate   wheel zoom   F focus   Space pause   Esc menu"; help.position=Vector2(22,680); help.add_theme_font_size_override("font_size",16); layer.add_child(help)
-
-func _refresh_hud() -> void:
-    if hud_label == null: return
-    var state := "PAUSED" if GameState.paused else "RUNNING"
-    hud_label.text = "$%s     COMPUTE %.0f%%     POWER %.0f%%     TRUST %.0f     SAFETY DEBT %.0f     %s" % [
-        _money(GameState.cash), GameState.compute_used/GameState.compute_capacity*100.0,
-        GameState.power_used/GameState.power_capacity*100.0, GameState.public_trust, GameState.safety_debt, state]
-
-func _money(v: float) -> String:
-    return "%d" % int(v)
+    var packed: PackedScene = load("res://scenes/hud.tscn")
+    hud = packed.instantiate()
+    add_child(hud)

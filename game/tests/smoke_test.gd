@@ -17,6 +17,7 @@ func _init() -> void:
         "res://scenes/main_menu.tscn",
         "res://scenes/campaign.tscn",
         "res://scenes/settings.tscn",
+        "res://scenes/hud.tscn",
     ]
     for scene_path: String in scene_paths:
         if not ResourceLoader.exists(scene_path, "PackedScene"):
@@ -92,5 +93,30 @@ func _initialize() -> void:
         inst.queue_free()
         await process_frame
     print("SMOKE_OK: main_menu/settings/campaign scenes instantiate and process a frame without error")
+
+    var hud_packed: PackedScene = load("res://scenes/hud.tscn")
+    var hud_inst: Node = hud_packed.instantiate()
+    get_root().add_child(hud_inst)
+    await process_frame
+    # Every strip must be anchor-driven (not fixed-pixel positioned), so the
+    # layout stays correct at both 1280x720 and 1920x1080 without per-
+    # resolution tuning.
+    var top_bar: Control = hud_inst.get_node("TopBar")
+    var bottom_bar: Control = hud_inst.get_node("BottomBar")
+    var left_panel: Control = hud_inst.get_node("LeftPanel")
+    var right_panel: Control = hud_inst.get_node("RightPanel")
+    var anchors_ok: bool = (
+        is_equal_approx(top_bar.anchor_left, 0.0) and is_equal_approx(top_bar.anchor_right, 1.0)
+        and is_equal_approx(bottom_bar.anchor_top, 1.0) and is_equal_approx(bottom_bar.anchor_bottom, 1.0)
+        and is_equal_approx(left_panel.anchor_right, 0.0) and is_equal_approx(left_panel.anchor_bottom, 1.0)
+        and is_equal_approx(right_panel.anchor_left, 1.0) and is_equal_approx(right_panel.anchor_right, 1.0)
+    )
+    if not anchors_ok:
+        push_error("Hud strips are not fully anchor-driven; layout would break at other resolutions")
+        quit(1)
+        return
+    hud_inst.queue_free()
+    await process_frame
+    print("SMOKE_OK: HUD strips are anchor-driven (responsive at 1280x720 and 1920x1080)")
 
     quit(0)

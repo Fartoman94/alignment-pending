@@ -12,5 +12,10 @@ else
 fi
 "$GODOT" --version
 python3 tools/generate_audio.py
+# Re-import + rescan global class_name scripts first: running the smoke
+# test script directly does not reliably refresh the class cache, so a
+# newly added `class_name` (e.g. CameraController, Hud) can resolve as
+# "Could not find type" on the very run that introduces it.
+"$GODOT" --headless --editor --quit --path game
 "$GODOT" --headless --path game --script res://tests/smoke_test.gd
 printf '\nBootstrap checks passed. Open project: %s/game/project.godot\n' "$ROOT"
