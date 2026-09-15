@@ -150,6 +150,20 @@ var funding_rounds_raised: Array = []
 var active_board_demand: Dictionary = {}
 ## Each entry: {id, triggered_day, resolved_day, choice, effects_applied}.
 var board_demand_history: Array = []
+## 0-100 meter: abstract legal risk. Rises with deployed scale and
+## safety_debt, offset by compliance staffing. Kept in sync by LegalManager.
+var legal_exposure: float = 0.0
+## {case_type_id, instance_id, filed_day, deadline_day}, or {} when no case
+## is open. Case types are abstract archetypes — no real plaintiffs. Kept
+## in sync by LegalManager.
+var active_legal_case: Dictionary = {}
+## Each entry: {case_type_id, instance_id, filed_day, resolved_day,
+## outcome ("settle"/"fight"/"injunction"/"deadline_default"),
+## effects_applied}.
+var legal_case_history: Array = []
+## case_type_id -> the calendar_day it becomes eligible to trigger again.
+var legal_case_cooldowns: Dictionary = {}
+var next_legal_case_instance_id: int = 1
 
 func toggle_pause() -> void:
     paused = not paused
@@ -225,6 +239,11 @@ func reset_to_defaults() -> void:
     funding_rounds_raised = []
     active_board_demand = {}
     board_demand_history = []
+    legal_exposure = 0.0
+    active_legal_case = {}
+    legal_case_history = []
+    legal_case_cooldowns = {}
+    next_legal_case_instance_id = 1
 
 ## Campaign state payload only. The save format version lives one layer up,
 ## in SaveManager's envelope, so it isn't duplicated here.
@@ -283,6 +302,11 @@ func to_dict() -> Dictionary:
         "funding_rounds_raised": funding_rounds_raised,
         "active_board_demand": active_board_demand,
         "board_demand_history": board_demand_history,
+        "legal_exposure": legal_exposure,
+        "active_legal_case": active_legal_case,
+        "legal_case_history": legal_case_history,
+        "legal_case_cooldowns": legal_case_cooldowns,
+        "next_legal_case_instance_id": next_legal_case_instance_id,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -360,3 +384,11 @@ func from_dict(data: Dictionary) -> void:
     active_board_demand = loaded_board_demand if loaded_board_demand is Dictionary else {}
     var loaded_board_demand_history: Variant = data.get("board_demand_history", [])
     board_demand_history = loaded_board_demand_history if loaded_board_demand_history is Array else []
+    legal_exposure = float(data.get("legal_exposure", legal_exposure))
+    var loaded_active_legal_case: Variant = data.get("active_legal_case", {})
+    active_legal_case = loaded_active_legal_case if loaded_active_legal_case is Dictionary else {}
+    var loaded_legal_case_history: Variant = data.get("legal_case_history", [])
+    legal_case_history = loaded_legal_case_history if loaded_legal_case_history is Array else []
+    var loaded_legal_case_cooldowns: Variant = data.get("legal_case_cooldowns", {})
+    legal_case_cooldowns = loaded_legal_case_cooldowns if loaded_legal_case_cooldowns is Dictionary else {}
+    next_legal_case_instance_id = int(data.get("next_legal_case_instance_id", next_legal_case_instance_id))

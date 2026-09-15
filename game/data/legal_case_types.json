@@ -1,0 +1,35 @@
+[
+  {
+    "id": "user_harm_claim",
+    "name": "User Harm Claim",
+    "trigger_min_exposure": 40.0,
+    "case_deadline_days": 20,
+    "cooldown_days": 15,
+    "injunction_probability_per_day": 0.04,
+    "settle": { "cash": -6000.0, "legal_exposure": -25.0, "public_trust": -2.0 },
+    "fight": { "cash": -1500.0, "legal_exposure": -5.0, "public_trust": -6.0 },
+    "injunction": { "cash": -12000.0, "public_trust": -10.0, "legal_exposure": -15.0 }
+  },
+  {
+    "id": "ip_dispute_claim",
+    "name": "Intellectual Property Dispute",
+    "trigger_min_exposure": 55.0,
+    "case_deadline_days": 25,
+    "cooldown_days": 15,
+    "injunction_probability_per_day": 0.03,
+    "settle": { "cash": -9000.0, "legal_exposure": -25.0, "public_trust": -1.0 },
+    "fight": { "cash": -2500.0, "legal_exposure": -5.0, "public_trust": -4.0 },
+    "injunction": { "cash": -16000.0, "public_trust": -8.0, "legal_exposure": -15.0 }
+  },
+  {
+    "id": "labor_practices_claim",
+    "name": "Labor Practices Claim",
+    "trigger_min_exposure": 30.0,
+    "case_deadline_days": 15,
+    "cooldown_days": 15,
+    "injunction_probability_per_day": 0.05,
+    "settle": { "cash": -4000.0, "legal_exposure": -20.0, "public_trust": -1.0 },
+    "fight": { "cash": -1000.0, "legal_exposure": -4.0, "public_trust": -7.0 },
+    "injunction": { "cash": -8000.0, "public_trust": -12.0, "legal_exposure": -12.0 }
+  }
+]

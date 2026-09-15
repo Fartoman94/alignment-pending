@@ -2142,4 +2142,140 @@ func _initialize() -> void:
     state.deployments = []
     state.cash = 184200.0
 
+    # P27: legal exposure system — abstract cases (no real plaintiffs),
+    # settlements, injunction probability, compliance staffing.
+    var legal_mgr: Node = get_root().get_node("LegalManager")
+    state.calendar_day = 1
+    state.cash = 500000.0
+    state.legal_exposure = 0.0
+    state.active_legal_case = {}
+    state.legal_case_history = []
+    state.legal_case_cooldowns = {}
+    state.staff = []
+    state.deployments = []
+    state.safety_debt = 0.0
+
+    if not is_equal_approx(legal_mgr.daily_exposure_gain(), 0.0):
+        push_error("With no deployed scale and no safety debt, daily legal exposure gain should be 0")
+        quit(1)
+        return
+    state.safety_debt = 100.0
+    var gain_no_compliance: float = legal_mgr.daily_exposure_gain()
+    if gain_no_compliance <= 0.0:
+        push_error("Safety debt should drive legal exposure gain upward")
+        quit(1)
+        return
+
+    staff_mgr.refresh_candidates()
+    for i in 10:
+        staff_mgr.hire(0)
+    for member: Dictionary in state.staff:
+        member["role"] = "safety_analyst"
+    if legal_mgr.compliance_staff_count() != 10:
+        push_error("compliance_staff_count() should count safety_analyst staff (expected 10, got %d)" % legal_mgr.compliance_staff_count())
+        quit(1)
+        return
+    if legal_mgr.daily_exposure_gain() > 0.001:
+        push_error("Enough compliance staffing should be able to fully offset a day's exposure gain, floored at 0 (got %.4f)" % legal_mgr.daily_exposure_gain())
+        quit(1)
+        return
+    print("SMOKE_OK: legal exposure rises with safety debt/deployed scale and compliance staffing offsets it, floored at 0")
+
+    state.staff = []
+    state.legal_exposure = 60.0  # above every case type's trigger_min_exposure
+    bus2.day_advanced.emit(state.calendar_day)
+    if state.active_legal_case.is_empty():
+        push_error("Crossing a case type's exposure threshold should file a case")
+        quit(1)
+        return
+    var filed_case_type: String = String(state.active_legal_case.get("case_type_id", ""))
+    var filed_case_def: Dictionary = LegalCaseTypeCatalog.get_def(filed_case_type)
+    if filed_case_def.is_empty():
+        push_error("A filed case should reference a real, known case type")
+        quit(1)
+        return
+    if int(state.active_legal_case.get("deadline_day", 0)) != int(state.active_legal_case.get("filed_day", 0)) + int(filed_case_def.get("case_deadline_days", 0)):
+        push_error("A filed case's deadline should be filed_day + case_deadline_days")
+        quit(1)
+        return
+    print("SMOKE_OK: cases follow player actions — crossing the exposure threshold files a real, data-driven case")
+
+    var bad_resolve_err: Error = legal_mgr.resolve_case("not_a_real_choice")
+    if bad_resolve_err == OK:
+        push_error("resolve_case() should reject an unknown choice id")
+        quit(1)
+        return
+
+    var cash_before_settle: float = state.cash
+    var exposure_before_settle: float = state.legal_exposure
+    var settle_effects: Dictionary = filed_case_def.get("settle", {})
+    var settle_err: Error = legal_mgr.resolve_case("settle")
+    if settle_err != OK:
+        push_error("Resolving an active case with a valid choice failed unexpectedly (error %s)" % settle_err)
+        quit(1)
+        return
+    if not state.active_legal_case.is_empty():
+        push_error("Resolving a case should clear active_legal_case")
+        quit(1)
+        return
+    if not is_equal_approx(state.cash, cash_before_settle + float(settle_effects.get("cash", 0.0))):
+        push_error("Settling a case should apply its data-driven cash effect")
+        quit(1)
+        return
+    if not is_equal_approx(state.legal_exposure, clampf(exposure_before_settle + float(settle_effects.get("legal_exposure", 0.0)), 0.0, 100.0)):
+        push_error("Settling a case should apply its data-driven legal_exposure effect")
+        quit(1)
+        return
+    if state.legal_case_history.is_empty() or String((state.legal_case_history[-1] as Dictionary).get("outcome", "")) != "settle":
+        push_error("Resolving a case should record it in legal_case_history with the outcome chosen")
+        quit(1)
+        return
+    print("SMOKE_OK: settling a case applies its documented, bounded effects and records it in history")
+
+    state.legal_exposure = 90.0
+    if legal_mgr.eligible_case_types().has(filed_case_type):
+        push_error("A just-resolved case type should be on cooldown, not immediately eligible again")
+        quit(1)
+        return
+    print("SMOKE_OK: a resolved case type goes on cooldown instead of re-triggering immediately")
+
+    # Injunction probability / deadline default: an active case must
+    # always resolve within its deadline window, one way or another —
+    # never left open indefinitely.
+    var forced_case_type: String = "labor_practices_claim"
+    var forced_def: Dictionary = LegalCaseTypeCatalog.get_def(forced_case_type)
+    state.legal_case_cooldowns = {}
+    state.active_legal_case = {
+        "case_type_id": forced_case_type, "instance_id": "legal_test_forced",
+        "filed_day": state.calendar_day, "deadline_day": state.calendar_day + int(forced_def.get("case_deadline_days", 15)),
+    }
+    var deadline_days: int = int(forced_def.get("case_deadline_days", 15))
+    for i in deadline_days + 1:
+        state.calendar_day += 1
+        bus2.day_advanced.emit(state.calendar_day)
+        if state.active_legal_case.is_empty():
+            break
+    if not state.active_legal_case.is_empty():
+        push_error("An active case must always resolve by its deadline (injunction roll or deadline default), never stay open indefinitely")
+        quit(1)
+        return
+    var forced_outcome: String = String((state.legal_case_history[-1] as Dictionary).get("outcome", ""))
+    if forced_outcome != "injunction" and forced_outcome != "deadline_default":
+        push_error("Expected the forced case to resolve via injunction or deadline_default, got '%s'" % forced_outcome)
+        quit(1)
+        return
+    if (state.legal_case_history[-1] as Dictionary).get("effects_applied", {}).is_empty():
+        push_error("Every case outcome should apply a documented (non-empty) effect set")
+        quit(1)
+        return
+    print("SMOKE_OK: an unresolved case always resolves within its deadline via a bounded, documented outcome (injunction or default)")
+
+    state.staff = []
+    state.legal_exposure = 0.0
+    state.active_legal_case = {}
+    state.legal_case_history = []
+    state.legal_case_cooldowns = {}
+    state.safety_debt = 0.0
+    state.cash = 184200.0
+
     quit(0)

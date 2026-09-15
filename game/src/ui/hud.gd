@@ -619,6 +619,37 @@ func _show_company_panel() -> void:
         demand_row.add_child(hold_btn)
         _dynamic_content.add_child(demand_row)
 
+    var legal_header: Label = Label.new()
+    legal_header.text = "Legal exposure: %d/100 (compliance staff: %d)" % [
+        int(round(GameState.legal_exposure)), LegalManager.compliance_staff_count(),
+    ]
+    _dynamic_content.add_child(legal_header)
+    if LegalManager.has_active_case():
+        var case_type_id: String = String(GameState.active_legal_case.get("case_type_id", ""))
+        var case_def: Dictionary = LegalCaseTypeCatalog.get_def(case_type_id)
+        var case_header: Label = Label.new()
+        case_header.text = "%s (due day %d)" % [
+            String(case_def.get("name", case_type_id)), int(GameState.active_legal_case.get("deadline_day", 0)),
+        ]
+        case_header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+        _dynamic_content.add_child(case_header)
+        var case_row: HBoxContainer = HBoxContainer.new()
+        var settle_btn: Button = Button.new()
+        settle_btn.text = "Settle"
+        settle_btn.pressed.connect(func() -> void:
+            LegalManager.resolve_case("settle")
+            _show_company_panel()
+        )
+        case_row.add_child(settle_btn)
+        var fight_btn: Button = Button.new()
+        fight_btn.text = "Fight it"
+        fight_btn.pressed.connect(func() -> void:
+            LegalManager.resolve_case("fight")
+            _show_company_panel()
+        )
+        case_row.add_child(fight_btn)
+        _dynamic_content.add_child(case_row)
+
     var actions_header: Label = Label.new()
     actions_header.text = "Communication actions"
     _dynamic_content.add_child(actions_header)

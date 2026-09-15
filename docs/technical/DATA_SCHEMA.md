@@ -38,6 +38,17 @@ modifiers, see `data/staff_traits.json`). `relationships` is a list of
 `RivalManager.effective_launch_days()` applies a bounded catch-up speedup
 to whichever rivals are behind `RivalManager.leading_generation()`.
 
+## LegalCaseType
+Config (`data/legal_case_types.json`, one array of abstract archetypes —
+no real plaintiffs): `id, name, trigger_min_exposure, case_deadline_days,
+cooldown_days, injunction_probability_per_day, settle, fight, injunction`.
+Active instance: `GameState.active_legal_case = {case_type_id,
+instance_id, filed_day, deadline_day}`. Resolved either by the player
+(`LegalManager.resolve_case("settle"|"fight")`) or by the system (a daily
+`injunction_probability_per_day` roll, or hitting `deadline_day` — so a
+case can never sit open forever); every path applies one of the type's
+own bounded, data-driven effect sets.
+
 ## IncidentDefinition
 `id, category, severity, prerequisites, weight, cooldown_days, title_template, body_template, choices[], tags[]`
 

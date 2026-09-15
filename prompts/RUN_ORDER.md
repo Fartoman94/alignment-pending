@@ -29,7 +29,7 @@ Run exactly one prompt at a time. Do not skip quality gates.
 - [x] `phase_02_core_sim/P24_staff_depth.md` — Staff depth
 - [x] `phase_02_core_sim/P25_board_and_funding_rounds.md` — Board and funding rounds
 - [x] `phase_02_core_sim/P26_full_competitor_simulation.md` — Full competitor simulation
-- [ ] `phase_02_core_sim/P27_legal_exposure_system.md` — Legal exposure system
+- [x] `phase_02_core_sim/P27_legal_exposure_system.md` — Legal exposure system
 - [ ] `phase_02_core_sim/P28_autonomous_agents.md` — Autonomous agents
 - [ ] `phase_02_core_sim/P29_automation_and_workforce.md` — Automation and workforce
 - [ ] `phase_02_core_sim/P30_datacenter_progression.md` — Datacenter progression
