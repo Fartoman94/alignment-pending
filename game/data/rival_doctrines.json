@@ -1,0 +1,8 @@
+[
+  { "id": "safety_first", "name": "Safety-First", "research_pace_multiplier": 0.8, "market_pressure_multiplier": 0.7 },
+  { "id": "speed_first", "name": "Speed-First", "research_pace_multiplier": 1.4, "market_pressure_multiplier": 1.3 },
+  { "id": "open_tech", "name": "Open-Tech", "research_pace_multiplier": 1.1, "market_pressure_multiplier": 1.0 },
+  { "id": "enterprise", "name": "Enterprise", "research_pace_multiplier": 0.9, "market_pressure_multiplier": 1.1 },
+  { "id": "consumer", "name": "Consumer", "research_pace_multiplier": 1.2, "market_pressure_multiplier": 1.2 },
+  { "id": "research_prestige", "name": "Research Prestige", "research_pace_multiplier": 0.7, "market_pressure_multiplier": 0.6 }
+]

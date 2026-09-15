@@ -33,6 +33,10 @@ func _metric_value(metric: String) -> float:
             return ReleaseManager.total_user_scale()
         "total_incident_exposure":
             return ReleaseManager.total_incident_exposure()
+        "rival_generation":
+            return float(RivalManager.rival_generation())
+        "rival_pressure":
+            return RivalManager.rival_pressure()
         _:
             return 0.0
 

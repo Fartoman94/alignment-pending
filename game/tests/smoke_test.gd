@@ -1382,4 +1382,88 @@ func _initialize() -> void:
     state.communication_cooldowns = {}
     state.incident_history = []
 
+    # P20: first rival company — doctrine, research pace, launches,
+    # deterministic effect on board/market events.
+    var rival_mgr: Node = get_root().get_node("RivalManager")
+    var doctrine_ids: Array = RivalDoctrineCatalog.load_all().keys()
+    if doctrine_ids.size() != 6:
+        push_error("RivalDoctrineCatalog should seed exactly 6 doctrines (got %d)" % doctrine_ids.size())
+        quit(1)
+        return
+    print("SMOKE_OK: RivalDoctrineCatalog seeds 6 doctrines")
+
+    state.campaign_seed = 24680
+    sim.reset_rng_streams()
+    rival_mgr.generate_rival()
+    var rival_name_a: String = String(state.rival.get("name", ""))
+    var rival_doctrine_a: String = String(state.rival.get("doctrine", ""))
+
+    state.campaign_seed = 24680
+    sim.reset_rng_streams()
+    rival_mgr.generate_rival()
+    var rival_name_b: String = String(state.rival.get("name", ""))
+    var rival_doctrine_b: String = String(state.rival.get("doctrine", ""))
+    if rival_name_a != rival_name_b or rival_doctrine_a != rival_doctrine_b or rival_name_a.is_empty():
+        push_error("The same seed should deterministically generate the same rival identity and doctrine")
+        quit(1)
+        return
+    print("SMOKE_OK: the same seed deterministically generates the same rival identity and doctrine")
+
+    state.staff = []
+    state.deployments = []
+    state.pending_incidents = []
+    state.incident_history = []
+    state.incident_cooldowns = {}
+    if incident_mgr.eligible_incidents().has("board_says_ship"):
+        push_error("board_says_ship should not be eligible before the rival has launched anything")
+        quit(1)
+        return
+
+    var safety_guard: int = 0
+    while int(state.rival.get("generation", 0)) < 3 and safety_guard < 500:
+        bus2.day_advanced.emit(state.calendar_day)
+        safety_guard += 1
+    if int(state.rival.get("generation", 0)) != 3:
+        push_error("Rival should be able to launch 3 generations (got %d after %d ticks)" % [int(state.rival.get("generation", 0)), safety_guard])
+        quit(1)
+        return
+    if state.rival_launch_history.size() != 3:
+        push_error("rival_launch_history should record all 3 launches")
+        quit(1)
+        return
+    var generations_seen: Array = []
+    for h: Variant in state.rival_launch_history:
+        generations_seen.append(int((h as Dictionary).get("generation", 0)))
+    if generations_seen != [1, 2, 3]:
+        push_error("Rival generations should launch in order 1, 2, 3 (got %s)" % [generations_seen])
+        quit(1)
+        return
+    print("SMOKE_OK: the rival can launch 3 generations in order")
+
+    # The random incident picker may itself have already triggered
+    # board_says_ship during those ticks (it became eligible partway
+    # through), which would put it on cooldown and confound this check.
+    # Reset cooldowns so this specifically re-tests the prerequisite gate.
+    state.incident_cooldowns = {}
+    if not incident_mgr.eligible_incidents().has("board_says_ship"):
+        push_error("board_says_ship should become eligible once the rival has launched (deterministic board/market effect)")
+        quit(1)
+        return
+    print("SMOKE_OK: rival launches deterministically affect board/market incident eligibility")
+
+    var pressure: float = rival_mgr.rival_pressure()
+    var doctrine_def: Dictionary = RivalDoctrineCatalog.get_def(String(state.rival.get("doctrine", "")))
+    var expected_pressure: float = 3.0 * float(doctrine_def.get("market_pressure_multiplier", 1.0))
+    if not is_equal_approx(pressure, expected_pressure):
+        push_error("rival_pressure() should be a deterministic function of generation count and doctrine")
+        quit(1)
+        return
+    print("SMOKE_OK: rival market pressure is a deterministic function of generation and doctrine")
+
+    state.rival = {}
+    state.rival_launch_history = []
+    state.incident_cooldowns = {}
+    state.pending_incidents = []
+    state.incident_history = []
+
     quit(0)

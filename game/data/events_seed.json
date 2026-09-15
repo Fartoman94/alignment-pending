@@ -20,7 +20,7 @@
     "severity": 1,
     "weight": 8,
     "cooldown_days": 25,
-    "prerequisites": {},
+    "prerequisites": { "min_rival_generation": 1 },
     "title": "The Board Says Ship",
     "body": "A rival launch moves your board meeting forward by three days.",
     "choices": [

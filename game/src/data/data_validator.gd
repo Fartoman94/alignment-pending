@@ -24,6 +24,7 @@ const EVENT_CONDITION_METRICS: Array[String] = [
     "safety_debt", "public_trust", "cash", "deployed_models_count",
     "staff_count", "models_count", "calendar_day", "compute_used_ratio",
     "total_user_scale", "total_incident_exposure",
+    "rival_generation", "rival_pressure",
 ]
 
 const BUILDABLE_REQUIRED_FIELDS: Array[String] = ["id", "name", "category", "footprint", "cost", "refund_ratio"]
@@ -49,6 +50,8 @@ const COMMUNICATION_ACTION_REQUIRED_FIELDS: Array[String] = ["id", "name", "cost
 # A single action nudging trust by more than this would let PR erase severe
 # evidence in one click; keep it small (see docs P19 acceptance criteria).
 const COMMUNICATION_MAX_TRUST_DELTA: float = 10.0
+
+const RIVAL_DOCTRINE_REQUIRED_FIELDS: Array[String] = ["id", "name", "research_pace_multiplier", "market_pressure_multiplier"]
 
 ## One validation problem: which file, which record, and why.
 class Issue:
@@ -78,6 +81,7 @@ static func validate_all() -> Array[Issue]:
     issues.append_array(validate_deployment_mode_file("res://data/deployment_modes.json"))
     issues.append_array(validate_user_segment_file("res://data/user_segments.json"))
     issues.append_array(validate_communication_action_file("res://data/communication_actions.json"))
+    issues.append_array(validate_rival_doctrine_file("res://data/rival_doctrines.json"))
     return issues
 
 static func validate_event_file(path: String) -> Array[Issue]:
@@ -785,6 +789,62 @@ static func _validate_communication_action_record(path: String, record: Variant,
 
     if entry.has("cooldown_days") and not _is_whole_number_at_least(entry.get("cooldown_days"), 0):
         issues.append(Issue.new(path, id_label, "'cooldown_days' must be a whole number >= 0"))
+
+    if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))
+
+    return issues
+
+static func validate_rival_doctrine_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of rival doctrine records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_rival_doctrine_record(path, records[i], i, seen_ids))
+    return issues
+
+static func _validate_rival_doctrine_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "rival doctrine record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in RIVAL_DOCTRINE_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+
+    for mult_field: String in ["research_pace_multiplier", "market_pressure_multiplier"]:
+        if entry.has(mult_field):
+            var value: Variant = entry.get(mult_field)
+            if not (value is int or value is float) or float(value) <= 0.0:
+                issues.append(Issue.new(path, id_label, "'%s' must be a number > 0" % mult_field))
 
     if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
         issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))

@@ -102,6 +102,12 @@ var communication_cooldowns: Dictionary = {}
 ## hype_debt_delta}. Kept in sync by CommunicationManager. This is
 ## presentation history only, never a way to alter incident_history.
 var communication_history: Array = []
+## {name, doctrine, generation, progress_days, cycle_duration_days}. Kept
+## in sync by RivalManager. Empty until the campaign's rival is generated
+## (RivalManager's own _ready(), deterministic per campaign_seed).
+var rival: Dictionary = {}
+## Each entry: {generation, day, doctrine}. Kept in sync by RivalManager.
+var rival_launch_history: Array = []
 
 func toggle_pause() -> void:
     paused = not paused
@@ -164,6 +170,8 @@ func reset_to_defaults() -> void:
     next_incident_instance_id = 1
     communication_cooldowns = {}
     communication_history = []
+    rival = {}
+    rival_launch_history = []
 
 ## Campaign state payload only. The save format version lives one layer up,
 ## in SaveManager's envelope, so it isn't duplicated here.
@@ -209,6 +217,8 @@ func to_dict() -> Dictionary:
         "next_incident_instance_id": next_incident_instance_id,
         "communication_cooldowns": communication_cooldowns,
         "communication_history": communication_history,
+        "rival": rival,
+        "rival_launch_history": rival_launch_history,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -266,3 +276,7 @@ func from_dict(data: Dictionary) -> void:
     communication_cooldowns = loaded_comm_cooldowns if loaded_comm_cooldowns is Dictionary else {}
     var loaded_comm_history: Variant = data.get("communication_history", [])
     communication_history = loaded_comm_history if loaded_comm_history is Array else []
+    var loaded_rival: Variant = data.get("rival", {})
+    rival = loaded_rival if loaded_rival is Dictionary else {}
+    var loaded_rival_history: Variant = data.get("rival_launch_history", [])
+    rival_launch_history = loaded_rival_history if loaded_rival_history is Array else []

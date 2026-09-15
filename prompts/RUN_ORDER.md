@@ -22,7 +22,7 @@ Run exactly one prompt at a time. Do not skip quality gates.
 - [x] `phase_01_vertical_slice/P17_users,_pricing_and_revenue.md` — Users, pricing and revenue
 - [x] `phase_01_vertical_slice/P18_incident_engine_mvp.md` — Incident engine MVP
 - [x] `phase_01_vertical_slice/P19_trust_and_communication.md` — Trust and communication
-- [ ] `phase_01_vertical_slice/P20_first_rival_company.md` — First rival company
+- [x] `phase_01_vertical_slice/P20_first_rival_company.md` — First rival company
 - [ ] `phase_01_vertical_slice/P21_regulator_track_mvp.md` — Regulator track MVP
 - [ ] `phase_01_vertical_slice/P22_vertical_slice_ending.md` — Vertical slice ending
 - [ ] `phase_02_core_sim/P23_economy_production_balance.md` — Economy production balance
