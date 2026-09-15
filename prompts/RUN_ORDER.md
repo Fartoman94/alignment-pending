@@ -43,7 +43,7 @@ Run exactly one prompt at a time. Do not skip quality gates.
 - [x] `phase_03_content/P38_tutorial_and_onboarding.md` — Tutorial and onboarding
 - [x] `phase_04_polish/P39_art_production_tools.md` — Art production tools
 - [x] `phase_04_polish/P40_character_visuals_and_animation.md` — Character visuals and animation
-- [ ] `phase_04_polish/P41_audio_system_and_adaptive_music.md` — Audio system and adaptive music
+- [x] `phase_04_polish/P41_audio_system_and_adaptive_music.md` — Audio system and adaptive music
 - [ ] `phase_04_polish/P42_accessibility_completion.md` — Accessibility completion
 - [ ] `phase_04_polish/P43_controller_support.md` — Controller support
 - [ ] `phase_04_polish/P44_performance_and_stress_pass.md` — Performance and stress pass

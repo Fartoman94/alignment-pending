@@ -1,0 +1,62 @@
+[
+  {
+    "id": "ui_click",
+    "bus": "UI",
+    "waveform": "square",
+    "base_freq": 880.0,
+    "duration_sec": 0.06,
+    "attack_sec": 0.005,
+    "decay_sec": 0.03,
+    "gain_db": -14.0
+  },
+  {
+    "id": "build_place",
+    "bus": "SFX",
+    "waveform": "sine",
+    "base_freq": 220.0,
+    "duration_sec": 0.14,
+    "attack_sec": 0.01,
+    "decay_sec": 0.09,
+    "gain_db": -8.0
+  },
+  {
+    "id": "staff_hired",
+    "bus": "SFX",
+    "waveform": "triangle",
+    "base_freq": 440.0,
+    "duration_sec": 0.2,
+    "attack_sec": 0.01,
+    "decay_sec": 0.14,
+    "gain_db": -8.0
+  },
+  {
+    "id": "research_unlocked",
+    "bus": "SFX",
+    "waveform": "triangle",
+    "base_freq": 660.0,
+    "duration_sec": 0.24,
+    "attack_sec": 0.01,
+    "decay_sec": 0.18,
+    "gain_db": -8.0
+  },
+  {
+    "id": "model_trained",
+    "bus": "SFX",
+    "waveform": "sine",
+    "base_freq": 550.0,
+    "duration_sec": 0.3,
+    "attack_sec": 0.015,
+    "decay_sec": 0.2,
+    "gain_db": -7.0
+  },
+  {
+    "id": "incident_alert",
+    "bus": "SFX",
+    "waveform": "square",
+    "base_freq": 180.0,
+    "duration_sec": 0.35,
+    "attack_sec": 0.01,
+    "decay_sec": 0.25,
+    "gain_db": -6.0
+  }
+]

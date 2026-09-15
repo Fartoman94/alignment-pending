@@ -150,6 +150,7 @@ func hire(candidate_index: int) -> Error:
     candidates.remove_at(candidate_index)
     candidates.append(_generate_candidate())
     EventBus.staff_roster_changed.emit()
+    AudioManager.play_sfx("staff_hired")
     return OK
 
 func fire(staff_id: String) -> Error:

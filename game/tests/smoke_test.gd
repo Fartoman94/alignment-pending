@@ -3484,4 +3484,152 @@ func _initialize() -> void:
     p40_nav_region.queue_free()
     await process_frame
 
+    # P41: audio system and adaptive music — procedurally synthesized SFX
+    # cues + a calm/tense music state machine + incident ducking. No
+    # imported/downloaded audio anywhere (see AudioSynth's own docstring).
+    var audio_mgr: Node = get_root().get_node("AudioManager")
+
+    var p41_tone: AudioStreamWAV = AudioSynth.generate_tone("sine", 440.0, 0.2, 0.02, 0.05, -6.0)
+    var p41_expected_frames: int = int(round(0.2 * AudioSynth.SAMPLE_RATE))
+    if p41_tone.data.size() / 2 != p41_expected_frames:
+        push_error("AudioSynth.generate_tone() produced %d frames, expected %d" % [p41_tone.data.size() / 2, p41_expected_frames])
+        quit(1)
+        return
+    # Click-free by construction: the very first and very last samples must
+    # be silent (start/end of the attack/decay envelope), never an abrupt
+    # full-amplitude jump.
+    var p41_first_sample: int = p41_tone.data.decode_s16(0)
+    var p41_last_sample: int = p41_tone.data.decode_s16(p41_tone.data.size() - 2)
+    if absi(p41_first_sample) > 50 or absi(p41_last_sample) > 50:
+        push_error("AudioSynth.generate_tone() should start/end near silence (got first=%d last=%d)" % [p41_first_sample, p41_last_sample])
+        quit(1)
+        return
+    print("SMOKE_OK: AudioSynth.generate_tone() produces a correctly-sized, click-free envelope")
+
+    # Loop phase continuity: every partial (root * each chord ratio) must
+    # complete a whole number of cycles over the loop's actual duration,
+    # so the waveform value one full loop later exactly matches sample 0
+    # — a click-free loop seam without needing a fade.
+    var p41_root: float = 110.0
+    var p41_ratios: Array = [2, 3, 4]
+    var p41_pad: AudioStreamWAV = AudioSynth.generate_pad_loop(p41_root, p41_ratios, 4.0, -14.0)
+    if p41_pad.loop_mode != AudioStreamWAV.LOOP_FORWARD or p41_pad.loop_end != p41_pad.data.size() / 2:
+        push_error("AudioSynth.generate_pad_loop() should be a forward loop spanning its full buffer")
+        quit(1)
+        return
+    var p41_actual_duration: float = float(p41_pad.data.size() / 2) / float(AudioSynth.SAMPLE_RATE)
+    for ratio: float in p41_ratios:
+        var phase_at_loop_end: float = fmod(p41_root * ratio * p41_actual_duration, 1.0)
+        if phase_at_loop_end > 0.001 and phase_at_loop_end < 0.999:
+            push_error("AudioSynth.generate_pad_loop() partial ratio %s does not land on a whole cycle at the loop seam (phase=%.4f) — would click" % [ratio, phase_at_loop_end])
+            quit(1)
+            return
+    print("SMOKE_OK: AudioSynth.generate_pad_loop() is a phase-continuous, click-free loop for every chord partial")
+
+    var p41_cue_ids: Array = SfxCueCatalog.load_all().keys()
+    var p41_expected_cues: Array[String] = ["ui_click", "build_place", "staff_hired", "research_unlocked", "model_trained", "incident_alert"]
+    for cue_id: String in p41_expected_cues:
+        if not p41_cue_ids.has(cue_id):
+            push_error("SfxCueCatalog should define cue '%s'" % cue_id)
+            quit(1)
+            return
+    print("SMOKE_OK: SfxCueCatalog defines every real SFX cue the game triggers")
+
+    # DataValidator's structural "click-free" enforcement (an envelope
+    # that overruns its own clip's duration would leave an un-enveloped,
+    # clicking sample).
+    var p41_bad_cue: Dictionary = {
+        "id": "bad_cue", "bus": "SFX", "waveform": "sine", "base_freq": 440.0,
+        "duration_sec": 0.1, "attack_sec": 0.08, "decay_sec": 0.08, "gain_db": -6.0,
+    }
+    var p41_bad_issues: Array = DataValidator._validate_sfx_cue_record("test", p41_bad_cue, 0, {})
+    if p41_bad_issues.is_empty():
+        push_error("DataValidator should reject an SFX cue whose attack+decay exceeds its duration")
+        quit(1)
+        return
+    print("SMOKE_OK: DataValidator rejects an SFX cue envelope that would click")
+
+    # The adaptive music state machine is a pure, deterministic function of
+    # real tracked GameState — not a live/random decision.
+    state.pending_incidents = []
+    state.bankruptcy_day = -1
+    if audio_mgr.compute_music_state(state) != "calm":
+        push_error("compute_music_state() should be 'calm' with no pending incidents and no bankruptcy countdown")
+        quit(1)
+        return
+    state.pending_incidents = [{"id": "p41_test_incident"}]
+    if audio_mgr.compute_music_state(state) != "tense":
+        push_error("compute_music_state() should be 'tense' while an incident awaits a choice")
+        quit(1)
+        return
+    state.pending_incidents = []
+    state.bankruptcy_day = state.calendar_day
+    if audio_mgr.compute_music_state(state) != "tense":
+        push_error("compute_music_state() should be 'tense' during an active bankruptcy countdown")
+        quit(1)
+        return
+    state.bankruptcy_day = -1
+    print("SMOKE_OK: the adaptive music state machine is a deterministic function of real tracked danger state")
+
+    # Independent volume sliders (P02's SettingsManager, exercised again
+    # here against the real AudioServer buses this prompt now actually
+    # plays sound through) — each bus's volume is settable independently
+    # without moving the others.
+    var settings_mgr: Node = get_root().get_node("SettingsManager")
+    settings_mgr.master_volume = 1.0
+    settings_mgr.music_volume = 0.5
+    settings_mgr.sfx_volume = 1.0
+    settings_mgr.ui_volume = 1.0
+    settings_mgr.apply_all()
+    var p41_music_db_1: float = AudioServer.get_bus_volume_db(AudioServer.get_bus_index("Music"))
+    settings_mgr.music_volume = 0.1
+    settings_mgr.apply_all()
+    var p41_music_db_2: float = AudioServer.get_bus_volume_db(AudioServer.get_bus_index("Music"))
+    var p41_sfx_db_after: float = AudioServer.get_bus_volume_db(AudioServer.get_bus_index("SFX"))
+    if is_equal_approx(p41_music_db_1, p41_music_db_2):
+        push_error("Changing the Music slider should change the Music bus volume")
+        quit(1)
+        return
+    if not is_equal_approx(p41_sfx_db_after, 0.0):
+        push_error("Changing the Music slider should not move the independent SFX bus")
+        quit(1)
+        return
+    settings_mgr.reset_to_defaults()
+    settings_mgr.apply_all()
+    print("SMOKE_OK: Master/Music/SFX/UI volume sliders are independent")
+
+    # Playing a real, catalog-driven cue (as the real build/staff/HUD call
+    # sites now do) must not error even in the headless test environment,
+    # and the synthesized stream is cached rather than regenerated per call.
+    audio_mgr.play_sfx("ui_click")
+    var p41_cached_stream: AudioStreamWAV = audio_mgr._get_or_build_stream("ui_click")
+    var p41_cached_stream_again: AudioStreamWAV = audio_mgr._get_or_build_stream("ui_click")
+    if p41_cached_stream != p41_cached_stream_again:
+        push_error("AudioManager should cache and reuse a cue's generated stream instead of resynthesizing it every play")
+        quit(1)
+        return
+    print("SMOKE_OK: AudioManager plays a real SFX cue and caches its synthesized stream")
+
+    # Ducking for incidents: raising an incident should nudge the Music
+    # BUS quieter (so it attenuates whichever bed(s) are audible without
+    # racing the per-player crossfade tween), then recover afterward.
+    var p41_music_bus_idx: int = AudioServer.get_bus_index("Music")
+    var p41_vol_before_duck: float = AudioServer.get_bus_volume_db(p41_music_bus_idx)
+    audio_mgr._duck_music()
+    for i in 12:
+        await physics_frame
+    var p41_vol_after_duck: float = AudioServer.get_bus_volume_db(p41_music_bus_idx)
+    if not (p41_vol_after_duck < p41_vol_before_duck):
+        push_error("Ducking should attenuate the Music bus below its pre-duck volume (before=%.2f after=%.2f)" % [p41_vol_before_duck, p41_vol_after_duck])
+        quit(1)
+        return
+    for i in 90:
+        await physics_frame
+    var p41_vol_recovered: float = AudioServer.get_bus_volume_db(p41_music_bus_idx)
+    if not is_equal_approx(p41_vol_recovered, p41_vol_before_duck):
+        push_error("The Music bus should recover to its pre-duck volume after the duck's release phase (expected=%.2f got=%.2f)" % [p41_vol_before_duck, p41_vol_recovered])
+        quit(1)
+        return
+    print("SMOKE_OK: incident ducking attenuates the Music bus and recovers afterward")
+
     quit(0)

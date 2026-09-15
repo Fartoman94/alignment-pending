@@ -161,6 +161,7 @@ func try_place() -> Error:
         "rotated": rotated, "cell": cell,
     }
     _sync_game_state()
+    AudioManager.play_sfx("build_place")
     return OK
 
 func try_sell(target_cell: Vector2i) -> Error:

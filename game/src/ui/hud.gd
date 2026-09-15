@@ -141,6 +141,7 @@ func _sync_speed_buttons() -> void:
         _speed_buttons[i].button_pressed = is_equal_approx(SPEED_TIER_VALUES[i], GameState.simulation_speed)
 
 func _on_section_pressed(section_name: String) -> void:
+    AudioManager.play_sfx("ui_click")
     if section_name == "Build":
         _show_build_palette()
         return

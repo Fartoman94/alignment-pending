@@ -114,6 +114,15 @@ const TUTORIAL_STEP_REQUIRED_FIELDS: Array[String] = ["id", "title", "body", "co
 const TUTORIAL_STEP_METRICS: Array[String] = ["manual", "server_rack_built", "staff_hired", "model_trained", "model_evaluated", "model_deployed"]
 const GLOSSARY_TERM_REQUIRED_FIELDS: Array[String] = ["id", "term", "definition"]
 
+# P41: audio. Every SFX cue is procedurally synthesized (AudioSynth) from
+# these fields — no imported sound files. The envelope-fits-duration rule
+# below is a structural enforcement of this prompt's "click-free" accept-
+# ance criterion: attack+decay can never exceed the clip's own duration,
+# so a generated clip can never contain an abrupt (non-enveloped) jump.
+const SFX_CUE_REQUIRED_FIELDS: Array[String] = ["id", "bus", "waveform", "base_freq", "duration_sec", "attack_sec", "decay_sec", "gain_db"]
+const SFX_CUE_BUSES: Array[String] = ["SFX", "UI"]
+const SFX_CUE_WAVEFORMS: Array[String] = ["sine", "square", "triangle", "noise"]
+
 ## One validation problem: which file, which record, and why.
 class Issue:
     var source: String
@@ -158,6 +167,7 @@ static func validate_all() -> Array[Issue]:
     issues.append_array(validate_tutorial_step_file("res://data/tutorial_steps.json"))
     issues.append_array(validate_glossary_term_file("res://data/glossary_terms.json"))
     issues.append_array(validate_epilogue_file("res://data/epilogues.json"))
+    issues.append_array(validate_sfx_cue_file("res://data/sfx_cues.json"))
     return issues
 
 static func validate_event_file(path: String) -> Array[Issue]:
@@ -1898,6 +1908,87 @@ static func _validate_glossary_term_record(path: String, record: Variant, index:
     for text_field: String in ["term", "definition"]:
         if entry.has(text_field) and (not (entry[text_field] is String) or String(entry[text_field]).is_empty()):
             issues.append(Issue.new(path, id_label, "'%s' must be a non-empty string" % text_field))
+
+    return issues
+
+static func validate_sfx_cue_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of SFX cue records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_sfx_cue_record(path, records[i], i, seen_ids))
+    return issues
+
+static func _validate_sfx_cue_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "SFX cue record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in SFX_CUE_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+
+    if entry.has("bus") and not SFX_CUE_BUSES.has(String(entry.get("bus"))):
+        issues.append(Issue.new(path, id_label, "unknown bus '%s' (expected one of %s)" % [entry.get("bus"), SFX_CUE_BUSES]))
+
+    if entry.has("waveform") and not SFX_CUE_WAVEFORMS.has(String(entry.get("waveform"))):
+        issues.append(Issue.new(path, id_label, "unknown waveform '%s' (expected one of %s)" % [entry.get("waveform"), SFX_CUE_WAVEFORMS]))
+
+    if entry.has("base_freq"):
+        var base_freq: Variant = entry.get("base_freq")
+        if not (base_freq is int or base_freq is float) or float(base_freq) <= 0.0:
+            issues.append(Issue.new(path, id_label, "'base_freq' must be a number > 0"))
+
+    if entry.has("gain_db"):
+        var gain_db: Variant = entry.get("gain_db")
+        if not (gain_db is int or gain_db is float) or float(gain_db) > 0.0:
+            issues.append(Issue.new(path, id_label, "'gain_db' must be a number <= 0 (never boost above unity)"))
+
+    var duration: float = float(entry.get("duration_sec", 0.0))
+    if entry.has("duration_sec") and (not (entry.get("duration_sec") is int or entry.get("duration_sec") is float) or duration <= 0.0):
+        issues.append(Issue.new(path, id_label, "'duration_sec' must be a number > 0"))
+
+    var attack: float = float(entry.get("attack_sec", 0.0))
+    if entry.has("attack_sec") and (not (entry.get("attack_sec") is int or entry.get("attack_sec") is float) or attack < 0.0):
+        issues.append(Issue.new(path, id_label, "'attack_sec' must be a number >= 0"))
+
+    var decay: float = float(entry.get("decay_sec", 0.0))
+    if entry.has("decay_sec") and (not (entry.get("decay_sec") is int or entry.get("decay_sec") is float) or decay < 0.0):
+        issues.append(Issue.new(path, id_label, "'decay_sec' must be a number >= 0"))
+
+    # Structural "click-free" enforcement: an envelope that overruns the
+    # clip would leave a raw, un-enveloped (clicking) sample at the seam.
+    if entry.has("duration_sec") and entry.has("attack_sec") and entry.has("decay_sec") and duration > 0.0:
+        if attack + decay > duration + 0.0001:
+            issues.append(Issue.new(path, id_label, "'attack_sec' + 'decay_sec' (%.3f) must not exceed 'duration_sec' (%.3f) — would leave an un-enveloped, clicking sample" % [attack + decay, duration]))
 
     return issues
 
