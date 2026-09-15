@@ -13,6 +13,9 @@ extends Node3D
 @export var zoom_min: float = 8.0
 @export var zoom_max: float = 34.0
 @export var zoom_step: float = 1.5
+## Continuous zoom rate for the keyboard (+/-) and joypad trigger axes —
+## mouse wheel stays a discrete per-click zoom_step (see _unhandled_input).
+@export var zoom_rate_per_second: float = 14.0
 @export var bounds_min: Vector2 = Vector2(-9.0, -7.0)
 @export var bounds_max: Vector2 = Vector2(9.0, 7.0)
 @export var elevation_degrees: float = -38.0
@@ -47,6 +50,8 @@ func _ensure_input_actions() -> void:
         "rotate_left": KEY_Q,
         "rotate_right": KEY_E,
         "focus_selected": KEY_F,
+        "zoom_in": KEY_EQUAL,
+        "zoom_out": KEY_MINUS,
     }
     for action: String in bindings:
         if not InputMap.has_action(action):
@@ -80,6 +85,11 @@ func _process(delta: float) -> void:
         var move: Vector3 = Vector3(pan_axis.x, 0.0, pan_axis.y).normalized().rotated(Vector3.UP, rotation.y) * pan_speed * delta
         _pan_target += move
         _clamp_bounds()
+
+    # Keyboard (+/-) and joypad trigger parity for the mouse wheel's zoom.
+    var zoom_axis: float = Input.get_axis("zoom_in", "zoom_out")
+    if not is_zero_approx(zoom_axis):
+        _zoom_target = clampf(_zoom_target + zoom_axis * zoom_rate_per_second * delta, zoom_min, zoom_max)
 
     var reduced: bool = SettingsManager.reduced_motion
     var rot_weight: float = 1.0 if reduced else _frame_weight(rotate_smooth_rate, delta)

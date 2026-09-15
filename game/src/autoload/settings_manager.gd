@@ -26,17 +26,28 @@ const RESOLUTIONS: Array[Vector2i] = [
 ## they run before this autoload, e.g. an isolated test), but as long as
 ## SettingsManager applies first (it's near the top of the autoload
 ## order), this list — plus any player override in `keybinds` — wins.
+##
+## P43: every entry may also carry a fixed (non-remappable) joypad
+## companion binding — `joy_button`, or `joy_axis` + `joy_axis_value`
+## (-1.0/1.0) for an analog stick/trigger direction — so a controller has
+## full parity without needing its own separate remap UI. Left stick and
+## D-pad are deliberately left free for Control/menu focus navigation
+## (Godot's built-in ui_up/down/left/right), so camera pan uses the right
+## stick instead.
 const REMAPPABLE_ACTIONS: Array[Dictionary] = [
-    {"action": "pan_left", "label": "Pan camera left", "default_key": KEY_A},
-    {"action": "pan_right", "label": "Pan camera right", "default_key": KEY_D},
-    {"action": "pan_up", "label": "Pan camera up", "default_key": KEY_W},
-    {"action": "pan_down", "label": "Pan camera down", "default_key": KEY_S},
-    {"action": "rotate_left", "label": "Rotate camera left", "default_key": KEY_Q},
-    {"action": "rotate_right", "label": "Rotate camera right", "default_key": KEY_E},
-    {"action": "focus_selected", "label": "Focus selection", "default_key": KEY_F},
-    {"action": "toggle_pause", "label": "Pause / resume", "default_key": KEY_SPACE},
-    {"action": "return_to_menu", "label": "Return to menu", "default_key": KEY_ESCAPE},
-    {"action": "build_rotate", "label": "Rotate build ghost", "default_key": KEY_R},
+    {"action": "pan_left", "label": "Pan camera left", "default_key": KEY_A, "joy_axis": JOY_AXIS_RIGHT_X, "joy_axis_value": -1.0},
+    {"action": "pan_right", "label": "Pan camera right", "default_key": KEY_D, "joy_axis": JOY_AXIS_RIGHT_X, "joy_axis_value": 1.0},
+    {"action": "pan_up", "label": "Pan camera up", "default_key": KEY_W, "joy_axis": JOY_AXIS_RIGHT_Y, "joy_axis_value": -1.0},
+    {"action": "pan_down", "label": "Pan camera down", "default_key": KEY_S, "joy_axis": JOY_AXIS_RIGHT_Y, "joy_axis_value": 1.0},
+    {"action": "rotate_left", "label": "Rotate camera left", "default_key": KEY_Q, "joy_button": JOY_BUTTON_LEFT_SHOULDER},
+    {"action": "rotate_right", "label": "Rotate camera right", "default_key": KEY_E, "joy_button": JOY_BUTTON_RIGHT_SHOULDER},
+    {"action": "zoom_in", "label": "Zoom in", "default_key": KEY_EQUAL, "joy_axis": JOY_AXIS_TRIGGER_RIGHT, "joy_axis_value": 1.0},
+    {"action": "zoom_out", "label": "Zoom out", "default_key": KEY_MINUS, "joy_axis": JOY_AXIS_TRIGGER_LEFT, "joy_axis_value": 1.0},
+    {"action": "focus_selected", "label": "Focus selection", "default_key": KEY_F, "joy_button": JOY_BUTTON_Y},
+    {"action": "toggle_pause", "label": "Pause / resume", "default_key": KEY_SPACE, "joy_button": JOY_BUTTON_START},
+    {"action": "return_to_menu", "label": "Return to menu", "default_key": KEY_ESCAPE, "joy_button": JOY_BUTTON_B},
+    {"action": "build_rotate", "label": "Rotate build ghost", "default_key": KEY_R, "joy_button": JOY_BUTTON_X},
+    {"action": "build_confirm", "label": "Confirm build placement", "default_key": KEY_ENTER, "joy_button": JOY_BUTTON_A},
 ]
 
 var master_volume: float = 1.0
@@ -65,6 +76,7 @@ var _high_contrast_theme: Theme
 func _ready() -> void:
     load_settings()
     apply_all()
+    _ensure_controller_ui_actions()
 
 func reset_to_defaults() -> void:
     master_volume = 1.0
@@ -171,6 +183,36 @@ func _apply_keybinds() -> void:
         var ev: InputEventKey = InputEventKey.new()
         ev.physical_keycode = keycode
         InputMap.action_add_event(action, ev)
+        # P43: a fixed (non-remappable) joypad companion, so a controller
+        # has full parity without its own separate remap UI.
+        if entry.has("joy_button"):
+            var joy_ev: InputEventJoypadButton = InputEventJoypadButton.new()
+            joy_ev.button_index = int(entry.get("joy_button")) as JoyButton
+            InputMap.action_add_event(action, joy_ev)
+        elif entry.has("joy_axis"):
+            var joy_motion: InputEventJoypadMotion = InputEventJoypadMotion.new()
+            joy_motion.axis = int(entry.get("joy_axis")) as JoyAxis
+            joy_motion.axis_value = float(entry.get("joy_axis_value", 1.0))
+            InputMap.action_add_event(action, joy_motion)
+
+## Godot's built-in ui_accept/ui_cancel (used by every focused Control to
+## activate/dismiss) ship with keyboard-only defaults — no joypad button —
+## so without this a controller player could never press a focused menu
+## button. Adds the joypad companion once, alongside the existing
+## keyboard events (unlike _apply_keybinds(), this never erases anything).
+func _ensure_controller_ui_actions() -> void:
+    _ensure_joy_button_on_action("ui_accept", JOY_BUTTON_A)
+    _ensure_joy_button_on_action("ui_cancel", JOY_BUTTON_B)
+
+func _ensure_joy_button_on_action(action: String, button: JoyButton) -> void:
+    if not InputMap.has_action(action):
+        return
+    for event in InputMap.action_get_events(action):
+        if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == button:
+            return
+    var joy_ev: InputEventJoypadButton = InputEventJoypadButton.new()
+    joy_ev.button_index = button
+    InputMap.action_add_event(action, joy_ev)
 
 ## Rebinds one action to a new physical key, applies it immediately (the
 ## InputMap is global engine state, not scoped to the settings screen),

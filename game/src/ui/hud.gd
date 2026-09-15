@@ -60,6 +60,9 @@ func _ready() -> void:
     _refresh_resource_strip()
     _refresh_inspector_empty()
     _refresh_incident_inbox()
+    # P43: a controller/keyboard player needs somewhere to start — with
+    # nothing focused, ui_up/down/left/right and ui_accept have no target.
+    _section_buttons[0].grab_focus()
     _refresh_tutorial_banner()
 
 func _process(_delta: float) -> void:

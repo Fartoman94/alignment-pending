@@ -3766,4 +3766,128 @@ func _initialize() -> void:
     settings_mgr.save_settings()
     print("SMOKE_OK: tooltip delay is a real, adjustable, readable timing setting")
 
+    # P43: controller support — camera, build cursor and menu focus all
+    # have a real, working non-mouse input path (keyboard parity too).
+    var p43_joy_actions: Array[String] = ["pan_left", "pan_right", "pan_up", "pan_down", "rotate_left", "rotate_right", "zoom_in", "zoom_out", "focus_selected", "toggle_pause", "return_to_menu", "build_rotate", "build_confirm"]
+    for p43_action: String in p43_joy_actions:
+        var p43_has_joy: bool = false
+        for p43_ev in InputMap.action_get_events(p43_action):
+            if p43_ev is InputEventJoypadButton or p43_ev is InputEventJoypadMotion:
+                p43_has_joy = true
+        if not p43_has_joy:
+            push_error("Action '%s' should have a joypad companion binding for controller parity" % p43_action)
+            quit(1)
+            return
+    var p43_ui_accept_has_joy: bool = false
+    for p43_ev in InputMap.action_get_events("ui_accept"):
+        if p43_ev is InputEventJoypadButton:
+            p43_ui_accept_has_joy = true
+    var p43_ui_cancel_has_joy: bool = false
+    for p43_ev in InputMap.action_get_events("ui_cancel"):
+        if p43_ev is InputEventJoypadButton:
+            p43_ui_cancel_has_joy = true
+    if not p43_ui_accept_has_joy or not p43_ui_cancel_has_joy:
+        push_error("ui_accept/ui_cancel need a joypad companion or a controller player could never activate a focused menu button")
+        quit(1)
+        return
+    print("SMOKE_OK: every camera/build/menu action has a working joypad binding alongside its keyboard one")
+
+    # A complete build-and-sell round trip using only simulated keyboard/
+    # controller input (ui_left/right/up/down + build_confirm) — no mouse
+    # event anywhere in this block. Reset cash/power headroom explicitly:
+    # by this point in the file both have accumulated a lot of unrelated
+    # history from every earlier prompt's own tests.
+    state.cash = 1000000.0
+    state.power_capacity = 100000.0
+    state.power_used = 0.0
+    var p43_grid_script: GDScript = load("res://src/world/build_grid.gd")
+    var p43_build_ctrl_script: GDScript = load("res://src/world/build_controller.gd")
+    var p43_grid: Node3D = p43_grid_script.new()
+    var p43_build_ctrl: Node3D = p43_build_ctrl_script.new()
+    p43_build_ctrl.grid = p43_grid
+    get_root().add_child(p43_build_ctrl)
+    await process_frame
+
+    p43_build_ctrl.start_place("server_rack")
+    var p43_start_cell: Vector2i = p43_build_ctrl._cursor_cell
+    if p43_grid.is_reserved(p43_start_cell):
+        push_error("BuildController's default cursor cell should never land on the reserved walkway row")
+        quit(1)
+        return
+    Input.action_press("ui_right")
+    await physics_frame
+    Input.action_release("ui_right")
+    await physics_frame
+    if p43_build_ctrl._cursor_cell == p43_start_cell:
+        push_error("ui_right should move the build cursor without any mouse input")
+        quit(1)
+        return
+    Input.action_press("build_confirm")
+    await physics_frame
+    Input.action_release("build_confirm")
+    await physics_frame
+    if p43_build_ctrl._placed.is_empty():
+        push_error("build_confirm should place the buildable at the keyboard/controller-moved cursor")
+        quit(1)
+        return
+    var p43_placed_cell: Vector2i = p43_build_ctrl._cursor_cell
+    p43_build_ctrl.start_sell()
+    p43_build_ctrl._cursor_cell = p43_placed_cell
+    Input.action_press("build_confirm")
+    await physics_frame
+    Input.action_release("build_confirm")
+    await physics_frame
+    if not p43_build_ctrl._placed.is_empty():
+        push_error("build_confirm in SELL mode should sell the buildable at the cursor without any mouse input")
+        quit(1)
+        return
+    p43_build_ctrl.stop()
+    p43_build_ctrl.queue_free()
+    await process_frame
+    print("SMOKE_OK: a full build-then-sell round trip works from simulated keyboard/controller input alone")
+
+    # Camera zoom keyboard/joypad parity (previously mouse-wheel only).
+    var p43_camera_script: GDScript = load("res://src/world/camera_controller.gd")
+    var p43_camera: Node3D = p43_camera_script.new()
+    get_root().add_child(p43_camera)
+    await process_frame
+    var p43_zoom_before: float = p43_camera._zoom_target
+    Input.action_press("zoom_in")
+    for i in 10:
+        p43_camera._process(1.0 / 60.0)
+    Input.action_release("zoom_in")
+    if not (p43_camera._zoom_target < p43_zoom_before):
+        push_error("Holding zoom_in should decrease the camera's zoom target (zoom in) without a mouse")
+        quit(1)
+        return
+    var p43_zoom_mid: float = p43_camera._zoom_target
+    Input.action_press("zoom_out")
+    for i in 10:
+        p43_camera._process(1.0 / 60.0)
+    Input.action_release("zoom_out")
+    if not (p43_camera._zoom_target > p43_zoom_mid):
+        push_error("Holding zoom_out should increase the camera's zoom target (zoom out) without a mouse")
+        quit(1)
+        return
+    p43_camera.queue_free()
+    await process_frame
+    print("SMOKE_OK: keyboard/joypad zoom_in/zoom_out give the camera full mouse-wheel parity")
+
+    # A controller/keyboard player always has an initial focus target on
+    # both the main menu and the in-campaign HUD — otherwise ui_accept and
+    # ui_up/down/left/right would have nothing to act on from a cold start.
+    var p43_menu_scene: PackedScene = load("res://scenes/main_menu.tscn")
+    var p43_menu: Control = p43_menu_scene.instantiate()
+    get_root().add_child(p43_menu)
+    await process_frame
+    var p43_menu_focus: Control = get_root().gui_get_focus_owner()
+    var p43_menu_focus_found: bool = p43_menu_focus != null
+    p43_menu.queue_free()
+    await process_frame
+    if not p43_menu_focus_found:
+        push_error("The main menu should grab initial focus so a controller/keyboard player can navigate immediately")
+        quit(1)
+        return
+    print("SMOKE_OK: the main menu grabs initial UI focus for mouse-free navigation")
+
     quit(0)

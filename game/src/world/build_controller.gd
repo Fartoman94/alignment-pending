@@ -19,6 +19,12 @@ var _ghost: MeshInstance3D
 ## a color-only signal, so when SettingsManager.colorblind_mode is on this
 ## label spells the same state out in text ("OK"/"X") too.
 var _ghost_label: Label3D
+## P43: the single source of truth for which cell PLACE/SELL currently
+## targets. Mouse motion and keyboard/joypad ui_up/down/left/right both
+## just update this — whichever the player used most recently wins,
+## instead of fighting each other for control of the ghost every frame.
+var _cursor_cell: Vector2i = Vector2i.ZERO
+var _sell_marker: MeshInstance3D
 # building instance id (String, stable across save/load via
 # GameState.next_building_id) -> {mesh, cells: Array[Vector2i],
 # buildable_id, rotated, cell}
@@ -44,6 +50,7 @@ func start_place(buildable_id: String) -> void:
     mode = Mode.PLACE
     current_buildable_id = buildable_id
     rotated = false
+    _cursor_cell = _default_cursor_cell()
     _clear_ghost()
     _ghost = _make_mesh(def, Color(1.0, 1.0, 1.0, 0.55))
     add_child(_ghost)
@@ -55,16 +62,44 @@ func start_place(buildable_id: String) -> void:
     _ghost_label.position.y = float(def.get("height", 1.0)) + 0.4
     _ghost_label.visible = false
     _ghost.add_child(_ghost_label)
+    # P43: a controller/keyboard player needs to move the ghost with
+    # ui_up/down/left/right, the same actions Controls use for menu focus
+    # traversal — releasing focus keeps those inputs free for the 3D
+    # cursor instead of silently reshuffling whichever HUD button was
+    # last focused.
+    if is_inside_tree():
+        get_viewport().gui_release_focus()
 
 func start_sell() -> void:
     mode = Mode.SELL
     current_buildable_id = ""
+    _cursor_cell = _default_cursor_cell()
     _clear_ghost()
+    _sell_marker = ProceduralMeshFactory.make_box("SellMarker", Vector3(BuildGrid.CELL_SIZE * 0.9, 0.1, BuildGrid.CELL_SIZE * 0.9), Color(0.95, 0.25, 0.25, 0.5))
+    add_child(_sell_marker)
+    _update_sell_marker()
+    if is_inside_tree():
+        get_viewport().gui_release_focus()
 
 func stop() -> void:
     mode = Mode.NONE
     current_buildable_id = ""
     _clear_ghost()
+    if _sell_marker != null:
+        _sell_marker.queue_free()
+        _sell_marker = null
+
+## Grid-center on X, but never BuildGrid.ROUTE_ROW on Y — that row is the
+## reserved walkway (always invalid to place/sell on), so a controller
+## player wouldn't be able to tell why their very first cursor position
+## looked wrong without moving it first.
+func _default_cursor_cell() -> Vector2i:
+    if grid == null:
+        return Vector2i.ZERO
+    var row: int = BuildGrid.GRID_ROWS / 2
+    if grid.is_reserved(Vector2i(0, row)):
+        row = 0
+    return Vector2i(BuildGrid.GRID_COLS / 2, row)
 
 func _clear_ghost() -> void:
     if _ghost != null:
@@ -102,28 +137,60 @@ func _add_obstacle(mesh: MeshInstance3D, def: Dictionary) -> void:
     mesh.add_child(obstacle)
 
 func _process(_delta: float) -> void:
-    if mode != Mode.PLACE:
+    if mode == Mode.NONE:
         return
-    if Input.is_action_just_pressed("build_rotate"):
-        rotated = not rotated
-    if _ghost != null:
-        _update_ghost_preview()
+    _handle_cursor_movement()
+    if mode == Mode.PLACE:
+        if Input.is_action_just_pressed("build_rotate"):
+            rotated = not rotated
+        if _ghost != null:
+            _update_ghost_preview()
+        if Input.is_action_just_pressed("build_confirm"):
+            try_place()
+    elif mode == Mode.SELL:
+        _update_sell_marker()
+        if Input.is_action_just_pressed("build_confirm"):
+            try_sell(_cursor_cell)
+
+## Keyboard/joypad cell movement (ui_up/down/left/right — the same
+## built-in actions Controls use for menu focus, freed up for this
+## purpose by start_place()/start_sell() releasing focus). Mouse motion
+## (see _unhandled_input) is the other way to move the cursor; both write
+## the same _cursor_cell so neither fights the other.
+func _handle_cursor_movement() -> void:
+    var step: Vector2i = Vector2i.ZERO
+    if Input.is_action_just_pressed("ui_left"):
+        step.x -= 1
+    if Input.is_action_just_pressed("ui_right"):
+        step.x += 1
+    if Input.is_action_just_pressed("ui_up"):
+        step.y -= 1
+    if Input.is_action_just_pressed("ui_down"):
+        step.y += 1
+    if step != Vector2i.ZERO:
+        _cursor_cell = Vector2i(
+            clampi(_cursor_cell.x + step.x, 0, BuildGrid.GRID_COLS - 1),
+            clampi(_cursor_cell.y + step.y, 0, BuildGrid.GRID_ROWS - 1),
+        )
 
 func _update_ghost_preview() -> void:
-    var world_pos: Vector3 = _mouse_to_floor_world()
-    var cell: Vector2i = grid.world_to_cell(world_pos)
     var def: Dictionary = BuildableCatalog.get_def(current_buildable_id)
     var footprint: Dictionary = def.get("footprint", {"w": 1, "d": 1})
-    var cells: Array[Vector2i] = grid.footprint_cells(cell, int(footprint.get("w", 1)), int(footprint.get("d", 1)), rotated)
+    var cells: Array[Vector2i] = grid.footprint_cells(_cursor_cell, int(footprint.get("w", 1)), int(footprint.get("d", 1)), rotated)
     var fits_power: bool = GameState.power_used + float(def.get("power_draw", 0.0)) <= GameState.power_capacity
     var valid: bool = grid.is_area_free(cells) and GameState.cash >= float(def.get("cost", 0.0)) and fits_power
     var mat: StandardMaterial3D = _ghost.mesh.material
     mat.albedo_color = Color(0.3, 0.9, 0.4, 0.55) if valid else Color(0.95, 0.25, 0.25, 0.55)
-    _ghost.position = grid.cell_to_world(cell)
+    _ghost.position = grid.cell_to_world(_cursor_cell)
     _ghost.rotation.y = deg_to_rad(90.0) if rotated else 0.0
     _ghost.set_meta("valid", valid)
-    _ghost.set_meta("cell", cell)
+    _ghost.set_meta("cell", _cursor_cell)
     _update_ghost_indicator(valid)
+
+func _update_sell_marker() -> void:
+    if _sell_marker != null:
+        var world_pos: Vector3 = grid.cell_to_world(_cursor_cell)
+        _sell_marker.position = Vector3(world_pos.x, 0.05, world_pos.z)
 
 ## P42 colorblind redundancy: the same valid/invalid state as the ghost's
 ## tint, spelled out in text, so it never depends on color perception alone.
@@ -146,6 +213,9 @@ func _mouse_to_floor_world() -> Vector3:
     return from + dir * t
 
 func _unhandled_input(event: InputEvent) -> void:
+    if event is InputEventMouseMotion and mode != Mode.NONE:
+        _cursor_cell = grid.world_to_cell(_mouse_to_floor_world())
+        return
     if not (event is InputEventMouseButton):
         return
     var mb: InputEventMouseButton = event
@@ -154,7 +224,8 @@ func _unhandled_input(event: InputEvent) -> void:
     if mode == Mode.PLACE:
         try_place()
     elif mode == Mode.SELL:
-        try_sell(grid.world_to_cell(_mouse_to_floor_world()))
+        _cursor_cell = grid.world_to_cell(_mouse_to_floor_world())
+        try_sell(_cursor_cell)
 
 func try_place() -> Error:
     if mode != Mode.PLACE or _ghost == null:

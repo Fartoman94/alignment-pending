@@ -11,6 +11,9 @@ func _ready() -> void:
     _continue_button.pressed.connect(_on_continue_pressed)
     _settings_button.pressed.connect(_on_settings_pressed)
     _quit_button.pressed.connect(_on_quit_pressed)
+    # P43: controller/keyboard parity from the very first screen — nothing
+    # is focused by default, so ui_accept would have no target otherwise.
+    (_continue_button if not _continue_button.disabled else _new_button).grab_focus()
 
 func _on_new_campaign_pressed() -> void:
     GameState.reset_to_defaults()

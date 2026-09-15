@@ -36,6 +36,7 @@ func _ready() -> void:
     _back_button.pressed.connect(_on_back_pressed)
     _ui_scale_slider.value_changed.connect(_on_ui_scale_preview_changed)
     _tooltip_delay_slider.value_changed.connect(_on_tooltip_delay_preview_changed)
+    _master_slider.grab_focus()
 
 func _populate_resolution_options() -> void:
     _resolution_option.clear()
