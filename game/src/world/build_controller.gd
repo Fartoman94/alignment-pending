@@ -15,6 +15,10 @@ var current_buildable_id: String = ""
 var rotated: bool = false
 
 var _ghost: MeshInstance3D
+## P42 colorblind redundancy: the ghost's green/red valid/invalid tint is
+## a color-only signal, so when SettingsManager.colorblind_mode is on this
+## label spells the same state out in text ("OK"/"X") too.
+var _ghost_label: Label3D
 # building instance id (String, stable across save/load via
 # GameState.next_building_id) -> {mesh, cells: Array[Vector2i],
 # buildable_id, rotated, cell}
@@ -43,6 +47,14 @@ func start_place(buildable_id: String) -> void:
     _clear_ghost()
     _ghost = _make_mesh(def, Color(1.0, 1.0, 1.0, 0.55))
     add_child(_ghost)
+    _ghost_label = Label3D.new()
+    _ghost_label.name = "ColorblindIndicator"
+    _ghost_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+    _ghost_label.font_size = 48
+    _ghost_label.outline_size = 12
+    _ghost_label.position.y = float(def.get("height", 1.0)) + 0.4
+    _ghost_label.visible = false
+    _ghost.add_child(_ghost_label)
 
 func start_sell() -> void:
     mode = Mode.SELL
@@ -58,6 +70,7 @@ func _clear_ghost() -> void:
     if _ghost != null:
         _ghost.queue_free()
         _ghost = null
+        _ghost_label = null
 
 ## Buildable geometry (P39: routed through ProceduralMeshFactory instead of
 ## building BoxMesh/StandardMaterial3D inline).
@@ -110,6 +123,16 @@ func _update_ghost_preview() -> void:
     _ghost.rotation.y = deg_to_rad(90.0) if rotated else 0.0
     _ghost.set_meta("valid", valid)
     _ghost.set_meta("cell", cell)
+    _update_ghost_indicator(valid)
+
+## P42 colorblind redundancy: the same valid/invalid state as the ghost's
+## tint, spelled out in text, so it never depends on color perception alone.
+func _update_ghost_indicator(valid: bool) -> void:
+    if _ghost_label == null:
+        return
+    _ghost_label.visible = SettingsManager.colorblind_mode
+    _ghost_label.text = "OK" if valid else "X"
+    _ghost_label.modulate = Color.WHITE if valid else Color(1.0, 0.6, 0.6)
 
 func _mouse_to_floor_world() -> Vector3:
     if camera == null or not is_inside_tree():

@@ -23,10 +23,10 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -300.0
-offset_top = -260.0
-offset_right = 300.0
-offset_bottom = 260.0
+offset_left = -340.0
+offset_top = -300.0
+offset_right = 340.0
+offset_bottom = 300.0
 
 [node name="Margin" type="MarginContainer" parent="Panel"]
 layout_mode = 1
@@ -48,15 +48,23 @@ theme_override_font_sizes/font_size = 24
 text = "Settings"
 horizontal_alignment = 1
 
-[node name="MasterRow" type="HBoxContainer" parent="Panel/Margin/VBox"]
+[node name="Tabs" type="TabContainer" parent="Panel/Margin/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Display & Audio" type="VBoxContainer" parent="Panel/Margin/VBox/Tabs"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="MasterRow" type="HBoxContainer" parent="Panel/Margin/VBox/Tabs/Display & Audio"]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="Panel/Margin/VBox/MasterRow"]
+[node name="Label" type="Label" parent="Panel/Margin/VBox/Tabs/Display & Audio/MasterRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(150, 0)
 text = "Master volume"
 
-[node name="MasterSlider" type="HSlider" parent="Panel/Margin/VBox/MasterRow"]
+[node name="MasterSlider" type="HSlider" parent="Panel/Margin/VBox/Tabs/Display & Audio/MasterRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 min_value = 0.0
@@ -64,15 +72,15 @@ max_value = 1.0
 step = 0.05
 value = 1.0
 
-[node name="MusicRow" type="HBoxContainer" parent="Panel/Margin/VBox"]
+[node name="MusicRow" type="HBoxContainer" parent="Panel/Margin/VBox/Tabs/Display & Audio"]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="Panel/Margin/VBox/MusicRow"]
+[node name="Label" type="Label" parent="Panel/Margin/VBox/Tabs/Display & Audio/MusicRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(150, 0)
 text = "Music volume"
 
-[node name="MusicSlider" type="HSlider" parent="Panel/Margin/VBox/MusicRow"]
+[node name="MusicSlider" type="HSlider" parent="Panel/Margin/VBox/Tabs/Display & Audio/MusicRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 min_value = 0.0
@@ -80,15 +88,15 @@ max_value = 1.0
 step = 0.05
 value = 0.7
 
-[node name="SfxRow" type="HBoxContainer" parent="Panel/Margin/VBox"]
+[node name="SfxRow" type="HBoxContainer" parent="Panel/Margin/VBox/Tabs/Display & Audio"]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="Panel/Margin/VBox/SfxRow"]
+[node name="Label" type="Label" parent="Panel/Margin/VBox/Tabs/Display & Audio/SfxRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(150, 0)
 text = "SFX volume"
 
-[node name="SfxSlider" type="HSlider" parent="Panel/Margin/VBox/SfxRow"]
+[node name="SfxSlider" type="HSlider" parent="Panel/Margin/VBox/Tabs/Display & Audio/SfxRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 min_value = 0.0
@@ -96,15 +104,15 @@ max_value = 1.0
 step = 0.05
 value = 0.85
 
-[node name="UiVolumeRow" type="HBoxContainer" parent="Panel/Margin/VBox"]
+[node name="UiVolumeRow" type="HBoxContainer" parent="Panel/Margin/VBox/Tabs/Display & Audio"]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="Panel/Margin/VBox/UiVolumeRow"]
+[node name="Label" type="Label" parent="Panel/Margin/VBox/Tabs/Display & Audio/UiVolumeRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(150, 0)
 text = "UI volume"
 
-[node name="UiVolumeSlider" type="HSlider" parent="Panel/Margin/VBox/UiVolumeRow"]
+[node name="UiVolumeSlider" type="HSlider" parent="Panel/Margin/VBox/Tabs/Display & Audio/UiVolumeRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 min_value = 0.0
@@ -112,15 +120,15 @@ max_value = 1.0
 step = 0.05
 value = 1.0
 
-[node name="UiScaleRow" type="HBoxContainer" parent="Panel/Margin/VBox"]
+[node name="UiScaleRow" type="HBoxContainer" parent="Panel/Margin/VBox/Tabs/Display & Audio"]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="Panel/Margin/VBox/UiScaleRow"]
+[node name="Label" type="Label" parent="Panel/Margin/VBox/Tabs/Display & Audio/UiScaleRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(150, 0)
 text = "UI scale"
 
-[node name="UiScaleSlider" type="HSlider" parent="Panel/Margin/VBox/UiScaleRow"]
+[node name="UiScaleSlider" type="HSlider" parent="Panel/Margin/VBox/Tabs/Display & Audio/UiScaleRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 min_value = 0.8
@@ -128,57 +136,128 @@ max_value = 1.6
 step = 0.1
 value = 1.0
 
-[node name="UiScaleValue" type="Label" parent="Panel/Margin/VBox/UiScaleRow"]
+[node name="UiScaleValue" type="Label" parent="Panel/Margin/VBox/Tabs/Display & Audio/UiScaleRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(48, 0)
 text = "100%"
 horizontal_alignment = 2
 
-[node name="FullscreenRow" type="HBoxContainer" parent="Panel/Margin/VBox"]
+[node name="FullscreenRow" type="HBoxContainer" parent="Panel/Margin/VBox/Tabs/Display & Audio"]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="Panel/Margin/VBox/FullscreenRow"]
+[node name="Label" type="Label" parent="Panel/Margin/VBox/Tabs/Display & Audio/FullscreenRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(150, 0)
 text = "Fullscreen"
 
-[node name="FullscreenCheck" type="CheckButton" parent="Panel/Margin/VBox/FullscreenRow"]
+[node name="FullscreenCheck" type="CheckButton" parent="Panel/Margin/VBox/Tabs/Display & Audio/FullscreenRow"]
 layout_mode = 2
 
-[node name="ResolutionRow" type="HBoxContainer" parent="Panel/Margin/VBox"]
+[node name="ResolutionRow" type="HBoxContainer" parent="Panel/Margin/VBox/Tabs/Display & Audio"]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="Panel/Margin/VBox/ResolutionRow"]
+[node name="Label" type="Label" parent="Panel/Margin/VBox/Tabs/Display & Audio/ResolutionRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(150, 0)
 text = "Resolution"
 
-[node name="ResolutionOption" type="OptionButton" parent="Panel/Margin/VBox/ResolutionRow"]
+[node name="ResolutionOption" type="OptionButton" parent="Panel/Margin/VBox/Tabs/Display & Audio/ResolutionRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="ReducedMotionRow" type="HBoxContainer" parent="Panel/Margin/VBox"]
+[node name="Accessibility" type="VBoxContainer" parent="Panel/Margin/VBox/Tabs"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ReducedMotionRow" type="HBoxContainer" parent="Panel/Margin/VBox/Tabs/Accessibility"]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="Panel/Margin/VBox/ReducedMotionRow"]
+[node name="Label" type="Label" parent="Panel/Margin/VBox/Tabs/Accessibility/ReducedMotionRow"]
 layout_mode = 2
-custom_minimum_size = Vector2(150, 0)
+custom_minimum_size = Vector2(190, 0)
 text = "Reduced motion"
 
-[node name="ReducedMotionCheck" type="CheckButton" parent="Panel/Margin/VBox/ReducedMotionRow"]
+[node name="ReducedMotionCheck" type="CheckButton" parent="Panel/Margin/VBox/Tabs/Accessibility/ReducedMotionRow"]
 layout_mode = 2
 
-[node name="CameraShakeRow" type="HBoxContainer" parent="Panel/Margin/VBox"]
+[node name="CameraShakeRow" type="HBoxContainer" parent="Panel/Margin/VBox/Tabs/Accessibility"]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="Panel/Margin/VBox/CameraShakeRow"]
+[node name="Label" type="Label" parent="Panel/Margin/VBox/Tabs/Accessibility/CameraShakeRow"]
 layout_mode = 2
-custom_minimum_size = Vector2(150, 0)
+custom_minimum_size = Vector2(190, 0)
 text = "Camera shake"
 
-[node name="CameraShakeCheck" type="CheckButton" parent="Panel/Margin/VBox/CameraShakeRow"]
+[node name="CameraShakeCheck" type="CheckButton" parent="Panel/Margin/VBox/Tabs/Accessibility/CameraShakeRow"]
 layout_mode = 2
 button_pressed = true
+
+[node name="HighContrastRow" type="HBoxContainer" parent="Panel/Margin/VBox/Tabs/Accessibility"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Panel/Margin/VBox/Tabs/Accessibility/HighContrastRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(190, 0)
+text = "High contrast UI"
+
+[node name="HighContrastCheck" type="CheckButton" parent="Panel/Margin/VBox/Tabs/Accessibility/HighContrastRow"]
+layout_mode = 2
+
+[node name="ColorblindRow" type="HBoxContainer" parent="Panel/Margin/VBox/Tabs/Accessibility"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Panel/Margin/VBox/Tabs/Accessibility/ColorblindRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(190, 0)
+text = "Colorblind redundancy"
+
+[node name="ColorblindCheck" type="CheckButton" parent="Panel/Margin/VBox/Tabs/Accessibility/ColorblindRow"]
+layout_mode = 2
+
+[node name="PauseOnIncidentRow" type="HBoxContainer" parent="Panel/Margin/VBox/Tabs/Accessibility"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Panel/Margin/VBox/Tabs/Accessibility/PauseOnIncidentRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(190, 0)
+text = "Pause on every event"
+
+[node name="PauseOnIncidentCheck" type="CheckButton" parent="Panel/Margin/VBox/Tabs/Accessibility/PauseOnIncidentRow"]
+layout_mode = 2
+
+[node name="TooltipDelayRow" type="HBoxContainer" parent="Panel/Margin/VBox/Tabs/Accessibility"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Panel/Margin/VBox/Tabs/Accessibility/TooltipDelayRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(190, 0)
+text = "Tooltip delay"
+
+[node name="TooltipDelaySlider" type="HSlider" parent="Panel/Margin/VBox/Tabs/Accessibility/TooltipDelayRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 0.1
+max_value = 2.0
+step = 0.1
+value = 0.5
+
+[node name="TooltipDelayValue" type="Label" parent="Panel/Margin/VBox/Tabs/Accessibility/TooltipDelayRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(48, 0)
+text = "0.5s"
+horizontal_alignment = 2
+
+[node name="Keybinds" type="VBoxContainer" parent="Panel/Margin/VBox/Tabs"]
+layout_mode = 2
+
+[node name="Scroll" type="ScrollContainer" parent="Panel/Margin/VBox/Tabs/Keybinds"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="List" type="VBoxContainer" parent="Panel/Margin/VBox/Tabs/Keybinds/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
 
 [node name="ButtonRow" type="HBoxContainer" parent="Panel/Margin/VBox"]
 layout_mode = 2

@@ -3632,4 +3632,138 @@ func _initialize() -> void:
         return
     print("SMOKE_OK: incident ducking attenuates the Music bus and recovers afterward")
 
+    # P42: accessibility completion — remapping, high contrast, colorblind
+    # redundancy, pause-on-event and readable tooltip timing (UI scale and
+    # reduced motion were already covered by P02's own block above; this
+    # re-confirms nothing here regressed them).
+    settings_mgr.reset_to_defaults()
+    settings_mgr.apply_all()
+    for p42_entry: Dictionary in settings_mgr.REMAPPABLE_ACTIONS:
+        var p42_action: String = String(p42_entry.get("action", ""))
+        if not InputMap.has_action(p42_action) or InputMap.action_get_events(p42_action).is_empty():
+            push_error("Remappable action '%s' should have a default key bound at boot" % p42_action)
+            quit(1)
+            return
+    print("SMOKE_OK: every remappable action has a default keybind registered at boot")
+
+    var p42_rebind_err: Error = settings_mgr.rebind_action("focus_selected", KEY_G)
+    if p42_rebind_err != OK:
+        push_error("rebind_action() should succeed for a known action")
+        quit(1)
+        return
+    if settings_mgr.current_key_for("focus_selected") != KEY_G:
+        push_error("rebind_action() should update the tracked key for the action")
+        quit(1)
+        return
+    var p42_bound_events: Array = InputMap.action_get_events("focus_selected")
+    if p42_bound_events.is_empty() or (p42_bound_events[0] as InputEventKey).physical_keycode != KEY_G:
+        push_error("rebind_action() should update the actual InputMap binding, not just tracked state")
+        quit(1)
+        return
+    # Persists across a real settings.cfg save/load round trip.
+    settings_mgr.load_settings()
+    if settings_mgr.current_key_for("focus_selected") != KEY_G:
+        push_error("A rebound key should survive a settings.cfg save/load round trip")
+        quit(1)
+        return
+    settings_mgr.reset_to_defaults()
+    settings_mgr.apply_all()
+    if settings_mgr.current_key_for("focus_selected") != settings_mgr.default_key_for("focus_selected"):
+        push_error("reset_to_defaults() should restore every action's default key")
+        quit(1)
+        return
+    settings_mgr.save_settings()
+    print("SMOKE_OK: full input remapping — rebind, persist, and reset to defaults all work")
+
+    # Pause while reading events: off by default (only P0/critical
+    # incidents force-pause, already covered by earlier blocks); with the
+    # option on, any real incident should force-pause too.
+    var p42_incident_ids: Array = IncidentCatalog.ordered_ids()
+    var p42_non_critical_id: String = ""
+    for candidate_id: String in p42_incident_ids:
+        if int(IncidentCatalog.get_def(candidate_id).get("severity", 2)) > 0:
+            p42_non_critical_id = candidate_id
+            break
+    state.paused = false
+    state.pending_incidents = []
+    settings_mgr.pause_on_incident = false
+    incident_mgr._trigger(p42_non_critical_id)
+    if state.paused:
+        push_error("A non-critical incident should not force-pause with pause_on_incident off")
+        quit(1)
+        return
+    state.paused = false
+    state.pending_incidents = []
+    settings_mgr.pause_on_incident = true
+    incident_mgr._trigger(p42_non_critical_id)
+    if not state.paused:
+        push_error("A non-critical incident should force-pause when pause_on_incident is on")
+        quit(1)
+        return
+    settings_mgr.pause_on_incident = false
+    state.paused = false
+    state.pending_incidents = []
+    print("SMOKE_OK: 'pause while reading events' extends the force-pause to every incident when enabled")
+
+    # High contrast: a procedurally-built, maximum-contrast Theme installed
+    # on (and cleared from) the root viewport.
+    settings_mgr.high_contrast = false
+    settings_mgr.apply_all()
+    if get_root().theme != null:
+        push_error("Disabling high_contrast should clear the root viewport's theme override")
+        quit(1)
+        return
+    settings_mgr.high_contrast = true
+    settings_mgr.apply_all()
+    if get_root().theme == null or get_root().theme.get_color("font_color", "Label") != Color.WHITE:
+        push_error("Enabling high_contrast should install the high-contrast theme on the root viewport")
+        quit(1)
+        return
+    settings_mgr.high_contrast = false
+    settings_mgr.apply_all()
+    print("SMOKE_OK: high contrast mode installs/clears a maximum-contrast root theme")
+
+    # Colorblind redundancy: BuildController's ghost preview gains a
+    # text-based "OK"/"X" indicator alongside its green/red tint.
+    var p42_build_ctrl_script: GDScript = load("res://src/world/build_controller.gd")
+    var p42_build_ctrl: Node3D = p42_build_ctrl_script.new()
+    var p42_grid_script: GDScript = load("res://src/world/build_grid.gd")
+    p42_build_ctrl.grid = p42_grid_script.new()
+    get_root().add_child(p42_build_ctrl)
+    settings_mgr.colorblind_mode = false
+    p42_build_ctrl.start_place("server_rack")
+    p42_build_ctrl._update_ghost_indicator(true)
+    if p42_build_ctrl._ghost_label.visible:
+        push_error("The colorblind text indicator should stay hidden when colorblind_mode is off")
+        quit(1)
+        return
+    settings_mgr.colorblind_mode = true
+    p42_build_ctrl._update_ghost_indicator(true)
+    if not p42_build_ctrl._ghost_label.visible or p42_build_ctrl._ghost_label.text != "OK":
+        push_error("The colorblind indicator should show 'OK' text when valid and the option is on")
+        quit(1)
+        return
+    p42_build_ctrl._update_ghost_indicator(false)
+    if p42_build_ctrl._ghost_label.text != "X":
+        push_error("The colorblind indicator should show 'X' text when invalid")
+        quit(1)
+        return
+    settings_mgr.colorblind_mode = false
+    p42_build_ctrl.queue_free()
+    await process_frame
+    print("SMOKE_OK: colorblind redundancy adds a text indicator alongside the ghost's color tint")
+
+    # Readable tooltip timing: writes straight through to the engine's own
+    # tooltip delay project setting.
+    settings_mgr.tooltip_delay_sec = 1.25
+    settings_mgr.apply_all()
+    if not is_equal_approx(float(ProjectSettings.get_setting("gui/timers/tooltip_delay_sec")), 1.25):
+        push_error("tooltip_delay_sec should drive the engine's gui/timers/tooltip_delay_sec project setting")
+        quit(1)
+        return
+    settings_mgr.reset_to_defaults()
+    settings_mgr.apply_all()
+    settings_mgr.save_settings()
+    print("SMOKE_OK: tooltip delay is a real, adjustable, readable timing setting")
+
     quit(0)

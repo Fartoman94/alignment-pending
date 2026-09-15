@@ -133,7 +133,9 @@ func _trigger(incident_id: String) -> void:
     }
     GameState.pending_incidents.append(entry)
 
-    if severity <= 0 and not GameState.paused:
+    # P42: "pause while reading events" accessibility option extends the
+    # always-on critical-severity pause to every incident.
+    if (severity <= 0 or SettingsManager.pause_on_incident) and not GameState.paused:
         GameState.paused = true
         EventBus.simulation_pause_changed.emit(true)
 
