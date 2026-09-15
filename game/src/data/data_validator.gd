@@ -109,6 +109,11 @@ const NEWS_TEMPLATE_CATEGORIES: Array[String] = ["incident_resolved", "rival_lau
 const CAMPAIGN_ACT_REQUIRED_FIELDS: Array[String] = ["number", "name", "tagline", "milestone_description"]
 const CAMPAIGN_ACT_COUNT: int = 5
 
+# P38: tutorial and onboarding.
+const TUTORIAL_STEP_REQUIRED_FIELDS: Array[String] = ["id", "title", "body", "completion_metric"]
+const TUTORIAL_STEP_METRICS: Array[String] = ["manual", "server_rack_built", "staff_hired", "model_trained", "model_evaluated", "model_deployed"]
+const GLOSSARY_TERM_REQUIRED_FIELDS: Array[String] = ["id", "term", "definition"]
+
 ## One validation problem: which file, which record, and why.
 class Issue:
     var source: String
@@ -150,6 +155,8 @@ static func validate_all() -> Array[Issue]:
     issues.append_array(validate_subscription_plan_file("res://data/subscription_plans.json"))
     issues.append_array(validate_news_template_file("res://data/news_templates.json"))
     issues.append_array(validate_campaign_act_file("res://data/campaign_acts.json"))
+    issues.append_array(validate_tutorial_step_file("res://data/tutorial_steps.json"))
+    issues.append_array(validate_glossary_term_file("res://data/glossary_terms.json"))
     issues.append_array(validate_epilogue_file("res://data/epilogues.json"))
     return issues
 
@@ -1779,6 +1786,113 @@ static func _validate_campaign_act_record(path: String, record: Variant, index: 
     for text_field: String in ["name", "tagline", "milestone_description"]:
         if entry.has(text_field) and (not (entry[text_field] is String) or String(entry[text_field]).is_empty()):
             issues.append(Issue.new(path, number_label, "'%s' must be a non-empty string" % text_field))
+
+    return issues
+
+static func validate_tutorial_step_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of tutorial step records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_tutorial_step_record(path, records[i], i, seen_ids))
+    return issues
+
+static func _validate_tutorial_step_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "tutorial step record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in TUTORIAL_STEP_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+
+    for text_field: String in ["title", "body"]:
+        if entry.has(text_field) and (not (entry[text_field] is String) or String(entry[text_field]).is_empty()):
+            issues.append(Issue.new(path, id_label, "'%s' must be a non-empty string" % text_field))
+
+    if entry.has("completion_metric"):
+        var metric: String = str(entry.get("completion_metric", ""))
+        if not TUTORIAL_STEP_METRICS.has(metric):
+            issues.append(Issue.new(path, id_label, "unknown completion_metric '%s' (expected one of %s)" % [metric, TUTORIAL_STEP_METRICS]))
+
+    return issues
+
+static func validate_glossary_term_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of glossary term records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_glossary_term_record(path, records[i], i, seen_ids))
+    return issues
+
+static func _validate_glossary_term_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "glossary term record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in GLOSSARY_TERM_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+
+    for text_field: String in ["term", "definition"]:
+        if entry.has(text_field) and (not (entry[text_field] is String) or String(entry[text_field]).is_empty()):
+            issues.append(Issue.new(path, id_label, "'%s' must be a non-empty string" % text_field))
 
     return issues
 

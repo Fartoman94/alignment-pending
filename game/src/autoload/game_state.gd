@@ -214,6 +214,13 @@ var scheduled_incidents: Array = []
 ## capability/scale milestones (never a timer). Kept in sync by
 ## CampaignActManager.
 var current_act: int = 1
+## Step ids (TutorialStepCatalog) explicitly dismissed — either because a
+## "manual"-completion step was acknowledged, or the player skipped a
+## metric-based step outright. Kept in sync by TutorialManager.
+var tutorial_completed_steps: Array = []
+## True once the player skips the entire tutorial. Kept in sync by
+## TutorialManager.
+var tutorial_skipped_all: bool = false
 
 func toggle_pause() -> void:
     paused = not paused
@@ -317,6 +324,8 @@ func reset_to_defaults() -> void:
     news_feed = []
     scheduled_incidents = []
     current_act = 1
+    tutorial_completed_steps = []
+    tutorial_skipped_all = false
 
 ## Campaign state payload only. The save format version lives one layer up,
 ## in SaveManager's envelope, so it isn't duplicated here.
@@ -390,6 +399,8 @@ func to_dict() -> Dictionary:
         "news_feed": news_feed,
         "scheduled_incidents": scheduled_incidents,
         "current_act": current_act,
+        "tutorial_completed_steps": tutorial_completed_steps,
+        "tutorial_skipped_all": tutorial_skipped_all,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -490,3 +501,6 @@ func from_dict(data: Dictionary) -> void:
     var loaded_scheduled_incidents: Variant = data.get("scheduled_incidents", [])
     scheduled_incidents = loaded_scheduled_incidents if loaded_scheduled_incidents is Array else []
     current_act = int(data.get("current_act", current_act))
+    var loaded_tutorial_steps: Variant = data.get("tutorial_completed_steps", [])
+    tutorial_completed_steps = loaded_tutorial_steps if loaded_tutorial_steps is Array else []
+    tutorial_skipped_all = bool(data.get("tutorial_skipped_all", tutorial_skipped_all))

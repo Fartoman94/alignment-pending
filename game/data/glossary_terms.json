@@ -1,0 +1,18 @@
+[
+  { "id": "compute", "term": "Compute", "definition": "Processing capacity used to train models and serve inference. Racks and datacenter tiers add capacity; training jobs and deployed traffic consume it." },
+  { "id": "safety_debt", "term": "Safety Debt", "definition": "Accumulated unaddressed risk. Rises from shipping fast and skipping reviews; falls from safety research, evaluations, and cautious choices." },
+  { "id": "public_trust", "term": "Public Trust", "definition": "How much the public and press currently trust the company. Moves from incidents, communications, and ambient public mood." },
+  { "id": "regulatory_pressure", "term": "Regulatory Pressure", "definition": "How closely the regulator is watching. Crossing its threshold triggers an audit with real requirements." },
+  { "id": "legal_exposure", "term": "Legal Exposure", "definition": "Abstract legal risk. Crossing a case type's threshold files an actual case that must be settled, fought, or left to run its course." },
+  { "id": "rate_limit", "term": "Rate Limit", "definition": "How much of a deployment's potential traffic is actually let through. Keeping it low for too long can permanently churn away users." },
+  { "id": "quota", "term": "Quota", "definition": "A subscription plan's hard seat cap. Demand above it is turned away, not discounted." },
+  { "id": "capacity_reservation", "term": "Capacity Reservation", "definition": "Compute permanently set aside for one deployment, guaranteeing it headroom regardless of what else is running." },
+  { "id": "autonomy_permission", "term": "Autonomy Permission", "definition": "A capability granted to a deployed model — coding, support, research assistance, tool access, or spending authority. Each is a productivity gain traded for an explicit risk." },
+  { "id": "automation_pressure", "term": "Automation Pressure", "definition": "How much of the company's work autonomy permissions are doing. Scales the effects of whichever workforce policy is active." },
+  { "id": "rollout_stage", "term": "Rollout Stage", "definition": "How far a deployment has staged into its current mode (Internal/Beta/Public). Resets to 0% whenever you promote to a new mode." },
+  { "id": "latent_risk", "term": "Latent Risk", "definition": "A model's true, initially hidden risk level. Evaluations narrow the visible range without ever fully revealing it up front." },
+  { "id": "world_state", "term": "World State", "definition": "Background cycles (energy price, chip supply, talent market, public mood, regulation climate) that rise and fall over time and affect the company, independent of anything you do." },
+  { "id": "act", "term": "Campaign Act", "definition": "One of 5 narrative chapters, unlocked by capability/scale milestones — never a fixed day. See the top bar for your current act." },
+  { "id": "board_control", "term": "Board Control", "definition": "The founders' share of the company. Drops permanently whenever a funding round's equity is accepted." },
+  { "id": "runway", "term": "Runway", "definition": "How many days of cash remain at the current burn rate, shown in the Company panel's daily ledger." }
+]

@@ -3237,4 +3237,109 @@ func _initialize() -> void:
     state.safety_debt = 0.0
     state.cash = 184200.0
 
+    # P38: tutorial and onboarding — contextual, skippable steps walking a
+    # new player through training and releasing a first model, plus a
+    # glossary.
+    var tutorial_mgr: Node = get_root().get_node("TutorialManager")
+    var tutorial_step_ids: Array = TutorialStepCatalog.ordered_ids()
+    if tutorial_step_ids.size() != 7:
+        push_error("TutorialStepCatalog should define exactly 7 steps (got %d)" % tutorial_step_ids.size())
+        quit(1)
+        return
+    var glossary_ids: Array = GlossaryCatalog.ordered_ids()
+    if glossary_ids.size() < 10:
+        push_error("GlossaryCatalog should define at least 10 terms (got %d)" % glossary_ids.size())
+        quit(1)
+        return
+    print("SMOKE_OK: TutorialStepCatalog and GlossaryCatalog are seeded")
+
+    state.tutorial_completed_steps = []
+    state.tutorial_skipped_all = false
+    state.buildings = []
+    state.staff = []
+    state.models = []
+    state.deployments = []
+    state.next_staff_id = 1
+    state.next_deployment_id = 1
+
+    if String(tutorial_mgr.current_step().get("id", "")) != "welcome":
+        push_error("The tutorial should start on the 'welcome' step")
+        quit(1)
+        return
+
+    var bad_dismiss_err: Error = tutorial_mgr.dismiss_step("not_a_real_step")
+    if bad_dismiss_err == OK:
+        push_error("dismiss_step() should reject an unknown step id")
+        quit(1)
+        return
+
+    tutorial_mgr.dismiss_step("welcome")
+    if String(tutorial_mgr.current_step().get("id", "")) != "build_compute":
+        push_error("Dismissing 'welcome' should advance to 'build_compute'")
+        quit(1)
+        return
+
+    # Contextual: placing the real building auto-completes the step, no
+    # explicit dismissal needed.
+    state.buildings = [{"id": "tut_rack_1", "buildable_id": "server_rack"}]
+    if String(tutorial_mgr.current_step().get("id", "")) != "hire_staff":
+        push_error("Placing a server rack should auto-complete 'build_compute' and advance to 'hire_staff'")
+        quit(1)
+        return
+
+    state.next_staff_id = 2
+    if String(tutorial_mgr.current_step().get("id", "")) != "train_model":
+        push_error("Hiring staff should auto-complete 'hire_staff' and advance to 'train_model'")
+        quit(1)
+        return
+
+    state.models = [{"id": "tut_model_1", "evals_completed": 0}]
+    if String(tutorial_mgr.current_step().get("id", "")) != "evaluate_model":
+        push_error("Training a model should auto-complete 'train_model' and advance to 'evaluate_model'")
+        quit(1)
+        return
+
+    # Evaluate is explicitly optional — skipping it (not doing it) still advances.
+    tutorial_mgr.dismiss_step("evaluate_model")
+    if String(tutorial_mgr.current_step().get("id", "")) != "deploy_model":
+        push_error("Skipping the optional 'evaluate_model' step should advance to 'deploy_model'")
+        quit(1)
+        return
+    print("SMOKE_OK: every tutorial step is skippable, including the optional evaluation step")
+
+    state.next_deployment_id = 2
+    if String(tutorial_mgr.current_step().get("id", "")) != "tutorial_complete":
+        push_error("Deploying a model should auto-complete 'deploy_model' and advance to 'tutorial_complete'")
+        quit(1)
+        return
+    print("SMOKE_OK: the tutorial is fully contextual — each step auto-completes from real tracked game state, walking a new player through training and releasing a first model")
+
+    tutorial_mgr.dismiss_step("tutorial_complete")
+    if not tutorial_mgr.current_step().is_empty():
+        push_error("Dismissing the final step should end the tutorial")
+        quit(1)
+        return
+
+    state.tutorial_completed_steps = []
+    state.tutorial_skipped_all = false
+    if tutorial_mgr.current_step().is_empty():
+        push_error("A fresh tutorial should have a current step again")
+        quit(1)
+        return
+    tutorial_mgr.skip_all()
+    if not tutorial_mgr.current_step().is_empty():
+        push_error("skip_all() should immediately end the tutorial, regardless of progress")
+        quit(1)
+        return
+    print("SMOKE_OK: the whole tutorial can be skipped outright at any point")
+
+    state.tutorial_completed_steps = []
+    state.tutorial_skipped_all = false
+    state.buildings = []
+    state.staff = []
+    state.models = []
+    state.deployments = []
+    state.next_staff_id = 1
+    state.next_deployment_id = 1
+
     quit(0)

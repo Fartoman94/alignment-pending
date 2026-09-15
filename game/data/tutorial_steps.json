@@ -1,0 +1,44 @@
+[
+  {
+    "id": "welcome",
+    "title": "Welcome to Null Meridian Labs",
+    "body": "You're the new technical director. This banner will walk you through training and releasing your first model. Skip any step, or the whole thing, whenever you like.",
+    "completion_metric": "manual"
+  },
+  {
+    "id": "build_compute",
+    "title": "Step 1 — Build compute",
+    "body": "Open Build (bottom bar) and place a Server Rack. Training a model needs free compute headroom.",
+    "completion_metric": "server_rack_built"
+  },
+  {
+    "id": "hire_staff",
+    "title": "Step 2 — Hire someone",
+    "body": "Open Staff and hire a candidate. Any role can be assigned to work — Engineers are strongest at training.",
+    "completion_metric": "staff_hired"
+  },
+  {
+    "id": "train_model",
+    "title": "Step 3 — Train a model",
+    "body": "Open Models, start a training project, then go to Staff > Inspect > Assign to put your new hire on the Training Run task at the rack you built.",
+    "completion_metric": "model_trained"
+  },
+  {
+    "id": "evaluate_model",
+    "title": "Step 4 — Evaluate it (optional)",
+    "body": "Open Models and evaluate your trained model to reveal its true safety and capability range before shipping. Optional, but recommended — skip if you'd rather ship blind.",
+    "completion_metric": "model_evaluated"
+  },
+  {
+    "id": "deploy_model",
+    "title": "Step 5 — Release it",
+    "body": "Open Models and click Deploy on your trained model. That's a release.",
+    "completion_metric": "model_deployed"
+  },
+  {
+    "id": "tutorial_complete",
+    "title": "You shipped your first model",
+    "body": "That's the whole loop: build, hire, train, evaluate, release. Everything from here — pricing, incidents, regulators, rivals — builds on it.",
+    "completion_metric": "manual"
+  }
+]

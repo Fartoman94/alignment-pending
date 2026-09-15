@@ -109,6 +109,61 @@ toggle_mode = true
 button_group = SubResource("SpeedGroup")
 text = "4x"
 
+[node name="TutorialBanner" type="Control" parent="."]
+layout_mode = 3
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 0.0
+offset_top = 56.0
+offset_bottom = 140.0
+
+[node name="Background" type="ColorRect" parent="TutorialBanner"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.08, 0.12, 0.2, 0.92)
+
+[node name="Margin" type="MarginContainer" parent="TutorialBanner"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 8
+
+[node name="HBox" type="HBoxContainer" parent="TutorialBanner/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="VBox" type="VBoxContainer" parent="TutorialBanner/Margin/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="TitleLabel" type="Label" parent="TutorialBanner/Margin/HBox/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Tutorial"
+
+[node name="BodyLabel" type="Label" parent="TutorialBanner/Margin/HBox/VBox"]
+layout_mode = 2
+autowrap_mode = 3
+text = ""
+
+[node name="ButtonBox" type="VBoxContainer" parent="TutorialBanner/Margin/HBox"]
+layout_mode = 2
+
+[node name="SkipStepButton" type="Button" parent="TutorialBanner/Margin/HBox/ButtonBox"]
+layout_mode = 2
+text = "Skip Step"
+
+[node name="SkipAllButton" type="Button" parent="TutorialBanner/Margin/HBox/ButtonBox"]
+layout_mode = 2
+text = "Skip Tutorial"
+
 [node name="BottomBar" type="Control" parent="."]
 layout_mode = 3
 anchor_left = 0.0
@@ -180,6 +235,12 @@ layout_mode = 2
 toggle_mode = true
 button_group = SubResource("SectionGroup")
 text = "World"
+
+[node name="GlossaryButton" type="Button" parent="BottomBar/Margin/HBox"]
+layout_mode = 2
+toggle_mode = true
+button_group = SubResource("SectionGroup")
+text = "Glossary"
 
 [node name="LeftPanel" type="Panel" parent="."]
 layout_mode = 3

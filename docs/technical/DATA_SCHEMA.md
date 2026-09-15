@@ -136,6 +136,21 @@ purely from capability/scale milestones already tracked elsewhere
 granted, capability or safety_debt crossing a threshold) — never a
 calendar timer.
 
+## TutorialStep
+Config (`data/tutorial_steps.json` + `TutorialStepCatalog`, file order =
+sequence): `id, title, body, completion_metric`. `completion_metric` is
+one of `DataValidator.TUTORIAL_STEP_METRICS` — a fact already tracked
+elsewhere (`server_rack_built`, `staff_hired`, `model_trained`,
+`model_evaluated`, `model_deployed`) or `"manual"` (only completes when
+dismissed). `TutorialManager.current_step()` is the first incomplete step,
+or `{}` once done or skipped (`GameState.tutorial_skipped_all`). Every
+step — including "optional" ones — can be dismissed individually via
+`dismiss_step()`, recorded in `GameState.tutorial_completed_steps`.
+
+## GlossaryTerm
+`data/glossary_terms.json` + `GlossaryCatalog`: `id, term, definition`,
+listed alphabetically by `term`.
+
 ## IncidentDefinition
 `id, category, severity, prerequisites, weight, cooldown_days, title,
 body, choices[]` (`data/events_seed.json`, 83+ incidents across 12

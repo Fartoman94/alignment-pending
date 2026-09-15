@@ -37,7 +37,13 @@ const SPEED_TIER_VALUES: Array[float] = [1.0, 2.0, 4.0]
     $BottomBar/Margin/HBox/DeploymentsButton,
     $BottomBar/Margin/HBox/CompanyButton,
     $BottomBar/Margin/HBox/WorldButton,
+    $BottomBar/Margin/HBox/GlossaryButton,
 ]
+@onready var _tutorial_banner: Control = $TutorialBanner
+@onready var _tutorial_title_label: Label = $TutorialBanner/Margin/HBox/VBox/TitleLabel
+@onready var _tutorial_body_label: Label = $TutorialBanner/Margin/HBox/VBox/BodyLabel
+@onready var _tutorial_skip_step_button: Button = $TutorialBanner/Margin/HBox/ButtonBox/SkipStepButton
+@onready var _tutorial_skip_all_button: Button = $TutorialBanner/Margin/HBox/ButtonBox/SkipAllButton
 
 func _ready() -> void:
     _pause_button.pressed.connect(_on_pause_pressed)
@@ -48,13 +54,35 @@ func _ready() -> void:
     EventBus.selection_changed.connect(_on_selection_changed)
     EventBus.simulation_pause_changed.connect(_on_pause_changed)
     EventBus.incident_raised.connect(_on_incident_raised)
+    _tutorial_skip_step_button.pressed.connect(_on_tutorial_skip_step_pressed)
+    _tutorial_skip_all_button.pressed.connect(_on_tutorial_skip_all_pressed)
     _sync_speed_buttons()
     _refresh_resource_strip()
     _refresh_inspector_empty()
     _refresh_incident_inbox()
+    _refresh_tutorial_banner()
 
 func _process(_delta: float) -> void:
     _refresh_resource_strip()
+    _refresh_tutorial_banner()
+
+func _refresh_tutorial_banner() -> void:
+    var step: Dictionary = TutorialManager.current_step()
+    _tutorial_banner.visible = not step.is_empty()
+    if step.is_empty():
+        return
+    _tutorial_title_label.text = String(step.get("title", "Tutorial"))
+    _tutorial_body_label.text = String(step.get("body", ""))
+
+func _on_tutorial_skip_step_pressed() -> void:
+    var step: Dictionary = TutorialManager.current_step()
+    if not step.is_empty():
+        TutorialManager.dismiss_step(String(step.get("id", "")))
+    _refresh_tutorial_banner()
+
+func _on_tutorial_skip_all_pressed() -> void:
+    TutorialManager.skip_all()
+    _refresh_tutorial_banner()
 
 func _refresh_resource_strip() -> void:
     _cash_label.text = "$%s" % _format_money(GameState.cash)
@@ -130,6 +158,9 @@ func _on_section_pressed(section_name: String) -> void:
         return
     if section_name == "World":
         _show_world_panel()
+        return
+    if section_name == "Glossary":
+        _show_glossary_panel()
         return
     EventBus.build_tool_changed.emit("")
     _clear_dynamic_content()
@@ -937,6 +968,18 @@ func _show_world_panel() -> void:
             news_label.text = "  Day %d — %s" % [int(news_entry.get("day", 0)), String(news_entry.get("headline", ""))]
             news_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
             _dynamic_content.add_child(news_label)
+
+func _show_glossary_panel() -> void:
+    EventBus.build_tool_changed.emit("")
+    _clear_dynamic_content()
+    _inspector_title.text = "Glossary"
+    _inspector_body.text = "Terms used throughout the game, in one place."
+    for term_id: String in GlossaryCatalog.ordered_ids():
+        var term_def: Dictionary = GlossaryCatalog.get_def(term_id)
+        var term_label: Label = Label.new()
+        term_label.text = "%s — %s" % [String(term_def.get("term", term_id)), String(term_def.get("definition", ""))]
+        term_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+        _dynamic_content.add_child(term_label)
 
 func _show_staff_detail(staff_id: String) -> void:
     var member: Dictionary = StaffManager.find(staff_id)
