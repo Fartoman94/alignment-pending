@@ -1,0 +1,32 @@
+[
+  {
+    "number": 1,
+    "name": "Garage Intelligence",
+    "tagline": "Tiny office, fragile cash, first useful model.",
+    "milestone_description": "Deploy your first model to advance to Act II."
+  },
+  {
+    "number": 2,
+    "name": "The Benchmark War",
+    "tagline": "Competition, launch pressure, employee politics, PR.",
+    "milestone_description": "Purchase your first remote datacenter tier to advance to Act III."
+  },
+  {
+    "number": 3,
+    "name": "Infrastructure Company",
+    "tagline": "Datacenters, energy, national regulation, lawsuits, supply chains.",
+    "milestone_description": "Grant a deployment its first autonomy permission to advance to Act IV."
+  },
+  {
+    "number": 4,
+    "name": "Agents Everywhere",
+    "tagline": "Autonomous systems transform staffing and risk.",
+    "milestone_description": "Push a model's capability past 85, or let safety debt climb past 60, to advance to Act V."
+  },
+  {
+    "number": 5,
+    "name": "Alignment Pending",
+    "tagline": "Capabilities exceed governance. Your choices determine the institutional and societal outcome.",
+    "milestone_description": "This is the final act — what happens next is up to you."
+  }
+]

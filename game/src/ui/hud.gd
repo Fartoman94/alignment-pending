@@ -15,6 +15,7 @@ extends CanvasLayer
 @onready var _safety_label: Label = $TopBar/Margin/HBox/SafetyDebtLabel
 @onready var _heat_label: Label = $TopBar/Margin/HBox/HeatLabel
 @onready var _date_label: Label = $TopBar/Margin/HBox/DateLabel
+@onready var _act_label: Label = $TopBar/Margin/HBox/ActLabel
 @onready var _pause_button: Button = $TopBar/Margin/HBox/TimeControls/PauseButton
 @onready var _speed_buttons: Array[Button] = [
     $TopBar/Margin/HBox/TimeControls/Speed1Button,
@@ -75,7 +76,14 @@ func _refresh_resource_strip() -> void:
         GameState.heat_load, GameState.heat_capacity,
     ]
     _date_label.text = SimClock.format_calendar()
+    var act_def: Dictionary = CampaignActManager.act_def(GameState.current_act)
+    _act_label.text = "ACT %s: %s" % [_roman_numeral(GameState.current_act), String(act_def.get("name", "?")).to_upper()]
+    _act_label.tooltip_text = "%s\nNext: %s" % [String(act_def.get("tagline", "")), String(act_def.get("milestone_description", ""))]
     _pause_button.text = "Resume" if GameState.paused else "Pause"
+
+func _roman_numeral(n: int) -> String:
+    const NUMERALS: Array[String] = ["I", "II", "III", "IV", "V"]
+    return NUMERALS[clampi(n, 1, NUMERALS.size()) - 1]
 
 func _format_money(v: float) -> String:
     return "%d" % int(v)

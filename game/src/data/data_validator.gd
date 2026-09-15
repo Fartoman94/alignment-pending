@@ -105,6 +105,10 @@ const SUBSCRIPTION_PLAN_REQUIRED_FIELDS: Array[String] = ["id", "name", "descrip
 const NEWS_TEMPLATE_REQUIRED_FIELDS: Array[String] = ["id", "category", "template"]
 const NEWS_TEMPLATE_CATEGORIES: Array[String] = ["incident_resolved", "rival_launched", "funding_round_accepted", "legal_case_filed", "deployment_churn_event", "audit_triggered", "datacenter_tier_purchased"]
 
+# P36: campaign acts and pacing.
+const CAMPAIGN_ACT_REQUIRED_FIELDS: Array[String] = ["number", "name", "tagline", "milestone_description"]
+const CAMPAIGN_ACT_COUNT: int = 5
+
 ## One validation problem: which file, which record, and why.
 class Issue:
     var source: String
@@ -145,6 +149,7 @@ static func validate_all() -> Array[Issue]:
     issues.append_array(validate_world_variable_file("res://data/world_variables.json"))
     issues.append_array(validate_subscription_plan_file("res://data/subscription_plans.json"))
     issues.append_array(validate_news_template_file("res://data/news_templates.json"))
+    issues.append_array(validate_campaign_act_file("res://data/campaign_acts.json"))
     issues.append_array(validate_epilogue_file("res://data/epilogues.json"))
     return issues
 
@@ -1717,6 +1722,63 @@ static func _validate_news_template_record(path: String, record: Variant, index:
 
     if entry.has("template") and (not (entry["template"] is String) or String(entry["template"]).is_empty()):
         issues.append(Issue.new(path, id_label, "'template' must be a non-empty string"))
+
+    return issues
+
+static func validate_campaign_act_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of campaign act records"))
+        return issues
+
+    var records: Array = parsed
+    if records.size() != CAMPAIGN_ACT_COUNT:
+        issues.append(Issue.new(path, "", "expected exactly %d acts (got %d)" % [CAMPAIGN_ACT_COUNT, records.size()]))
+
+    var seen_numbers: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_campaign_act_record(path, records[i], i, seen_numbers))
+    for expected_number in range(1, CAMPAIGN_ACT_COUNT + 1):
+        if not seen_numbers.has(expected_number):
+            issues.append(Issue.new(path, "", "missing act number %d" % expected_number))
+    return issues
+
+static func _validate_campaign_act_record(path: String, record: Variant, index: int, seen_numbers: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "campaign act record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in CAMPAIGN_ACT_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    if entry.has("number"):
+        var number_val: Variant = entry.get("number")
+        if not _is_whole_number_at_least(number_val, 1) or int(number_val) > CAMPAIGN_ACT_COUNT:
+            issues.append(Issue.new(path, record_label, "'number' must be a whole number in [1, %d]" % CAMPAIGN_ACT_COUNT))
+        elif seen_numbers.has(int(number_val)):
+            issues.append(Issue.new(path, record_label, "duplicate act number %d" % int(number_val)))
+        else:
+            seen_numbers[int(number_val)] = index
+
+    var number_label: String = str(entry.get("number", record_label))
+    for text_field: String in ["name", "tagline", "milestone_description"]:
+        if entry.has(text_field) and (not (entry[text_field] is String) or String(entry[text_field]).is_empty()):
+            issues.append(Issue.new(path, number_label, "'%s' must be a non-empty string" % text_field))
 
     return issues
 

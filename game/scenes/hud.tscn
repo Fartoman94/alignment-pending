@@ -73,6 +73,11 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "DAY 1"
 
+[node name="ActLabel" type="Label" parent="TopBar/Margin/HBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "ACT I: GARAGE INTELLIGENCE"
+
 [node name="Spacer" type="Control" parent="TopBar/Margin/HBox"]
 layout_mode = 2
 size_flags_horizontal = 3

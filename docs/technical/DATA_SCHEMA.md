@@ -126,6 +126,16 @@ template from current simulation state plus a fictional outlet name
 outlet/template picks go through `SimClock`'s named RNG streams. No
 network call is made anywhere in this project.
 
+## CampaignAct
+Config (`data/campaign_acts.json` + `CampaignActCatalog`, exactly 5,
+matching `docs/design/WORLD_AND_NARRATIVE.md`'s "Narrative acts"):
+`number, name, tagline, milestone_description`. `GameState.current_act`
+is a ratchet (1-5, never regresses) advanced by `CampaignActManager`
+purely from capability/scale milestones already tracked elsewhere
+(first model deployed, first datacenter tier, first autonomy permission
+granted, capability or safety_debt crossing a threshold) — never a
+calendar timer.
+
 ## IncidentDefinition
 `id, category, severity, prerequisites, weight, cooldown_days, title,
 body, choices[]` (`data/events_seed.json`, 83+ incidents across 12

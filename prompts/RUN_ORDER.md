@@ -38,7 +38,7 @@ Run exactly one prompt at a time. Do not skip quality gates.
 - [x] `phase_03_content/P33_news_and_social_feed.md` — News and social feed
 - [x] `phase_03_content/P34_incident_content_expansion.md` — Incident content expansion
 - [x] `phase_03_content/P35_research_tree_expansion.md` — Research tree expansion
-- [ ] `phase_03_content/P36_campaign_acts_and_pacing.md` — Campaign acts and pacing
+- [x] `phase_03_content/P36_campaign_acts_and_pacing.md` — Campaign acts and pacing
 - [ ] `phase_03_content/P37_endings_and_epilogues.md` — Endings and epilogues
 - [ ] `phase_03_content/P38_tutorial_and_onboarding.md` — Tutorial and onboarding
 - [ ] `phase_04_polish/P39_art_production_tools.md` — Art production tools

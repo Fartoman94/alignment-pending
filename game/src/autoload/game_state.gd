@@ -203,6 +203,10 @@ var news_feed: Array = []
 ## eligibility/cooldown check; it's an authored continuation, not a
 ## resimulated random pick.
 var scheduled_incidents: Array = []
+## 1-5 (CampaignActCatalog). A ratchet — only ever increases, driven by
+## capability/scale milestones (never a timer). Kept in sync by
+## CampaignActManager.
+var current_act: int = 1
 
 func toggle_pause() -> void:
     paused = not paused
@@ -304,6 +308,7 @@ func reset_to_defaults() -> void:
     world_compute_availability_multiplier = 1.0
     news_feed = []
     scheduled_incidents = []
+    current_act = 1
 
 ## Campaign state payload only. The save format version lives one layer up,
 ## in SaveManager's envelope, so it isn't duplicated here.
@@ -375,6 +380,7 @@ func to_dict() -> Dictionary:
         "world_compute_availability_multiplier": world_compute_availability_multiplier,
         "news_feed": news_feed,
         "scheduled_incidents": scheduled_incidents,
+        "current_act": current_act,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -472,3 +478,4 @@ func from_dict(data: Dictionary) -> void:
     news_feed = loaded_news_feed if loaded_news_feed is Array else []
     var loaded_scheduled_incidents: Variant = data.get("scheduled_incidents", [])
     scheduled_incidents = loaded_scheduled_incidents if loaded_scheduled_incidents is Array else []
+    current_act = int(data.get("current_act", current_act))

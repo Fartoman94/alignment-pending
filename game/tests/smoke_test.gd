@@ -3089,4 +3089,99 @@ func _initialize() -> void:
     state.buildings = []
     state.cash = 184200.0
 
+    # P36: campaign acts and pacing — five acts, milestone-driven, never a
+    # calendar timer.
+    var act_mgr: Node = get_root().get_node("CampaignActManager")
+    var campaign_act_defs: Array = []
+    for act_number in range(1, 6):
+        campaign_act_defs.append(CampaignActCatalog.get_def(act_number))
+        if campaign_act_defs[-1].is_empty():
+            push_error("CampaignActCatalog should define act number %d" % act_number)
+            quit(1)
+            return
+    print("SMOKE_OK: CampaignActCatalog defines all 5 acts from the GDD")
+
+    state.current_act = 1
+    state.models = []
+    state.deployments = []
+    state.datacenter_tiers_purchased = []
+    state.datacenter_compute_bonus = 0.0
+    state.datacenter_operating_cost = 0.0
+    state.safety_debt = 0.0
+    state.cash = 500000.0
+    # Explicit rather than relying on this counter's residual value from
+    # earlier test blocks (it only ever increments across the whole file).
+    state.next_model_id = 1
+
+    if act_mgr.current_act() != 1:
+        push_error("A fresh campaign should start in Act I")
+        quit(1)
+        return
+
+    # No arbitrary timer: advancing many days alone, with none of the
+    # milestones met, must not advance the act.
+    for i in 50:
+        state.calendar_day += 1
+        bus2.day_advanced.emit(state.calendar_day)
+    if act_mgr.current_act() != 1:
+        push_error("The act should never advance from the passage of time alone — only from capability/scale milestones")
+        quit(1)
+        return
+    print("SMOKE_OK: the campaign does not progress from an arbitrary timer — only from milestones")
+
+    state.models = [{
+        "id": "act_model_1", "name": "Act Test Model", "generation": 1, "architecture_tier": "small",
+        "capability": 50.0, "reliability": 50.0, "safety_confidence": 50.0, "cost_efficiency": 50.0,
+        "latency_efficiency": 50.0, "autonomy": 30.0, "interpretability": 50.0, "latent_risk": 20.0,
+        "evals_completed": 0, "training_cost": 8000.0, "created_at": 1,
+    }]
+    state.next_model_id = 2  # a model now exists, mirroring what ModelManager would have set
+    bus2.model_created.emit("act_model_1")
+    release_mgr.deploy("act_model_1")
+    var act_deployment_id: String = String(state.deployments[0].get("id", ""))
+    if act_mgr.current_act() != 2:
+        push_error("Training and deploying the first model should advance the campaign to Act II (got Act %d)" % act_mgr.current_act())
+        quit(1)
+        return
+    print("SMOKE_OK: deploying the first model advances the campaign to Act II — The Benchmark War")
+
+    datacenter_mgr.purchase("regional_pod")
+    if act_mgr.current_act() != 3:
+        push_error("Purchasing the first datacenter tier should advance the campaign to Act III (got Act %d)" % act_mgr.current_act())
+        quit(1)
+        return
+    print("SMOKE_OK: purchasing the first datacenter tier advances the campaign to Act III — Infrastructure Company")
+
+    agent_mgr.grant(act_deployment_id, "coding_assistance")
+    if act_mgr.current_act() != 4:
+        push_error("Granting the first autonomy permission should advance the campaign to Act IV (got Act %d)" % act_mgr.current_act())
+        quit(1)
+        return
+    print("SMOKE_OK: granting the first autonomy permission advances the campaign to Act IV — Agents Everywhere")
+
+    agent_mgr.revoke(act_deployment_id, "coding_assistance")
+    bus2.day_advanced.emit(state.calendar_day)
+    if act_mgr.current_act() != 4:
+        push_error("The act must never regress, even if the milestone condition later becomes false again")
+        quit(1)
+        return
+    print("SMOKE_OK: the act is a ratchet — it never regresses once reached")
+
+    state.safety_debt = 100.0
+    bus2.day_advanced.emit(state.calendar_day)
+    if act_mgr.current_act() != 5:
+        push_error("Safety debt crossing the Act V threshold should advance the campaign to Act V (got Act %d)" % act_mgr.current_act())
+        quit(1)
+        return
+    print("SMOKE_OK: capability/safety-debt crossing the threshold advances the campaign to Act V — Alignment Pending")
+
+    state.current_act = 1
+    state.models = []
+    state.deployments = []
+    state.datacenter_tiers_purchased = []
+    state.datacenter_compute_bonus = 0.0
+    state.datacenter_operating_cost = 0.0
+    state.safety_debt = 0.0
+    state.cash = 184200.0
+
     quit(0)
