@@ -196,6 +196,13 @@ var world_compute_availability_multiplier: float = 1.0
 ## (P33) — never a live LLM call, deterministic from events. Kept in sync
 ## by NewsFeedManager; capped at MAX_FEED_ENTRIES (oldest entries drop).
 var news_feed: Array = []
+## Each entry: {incident_id, trigger_day}. Scripted narrative follow-ups
+## (P34): a resolved incident's choice can schedule another incident to
+## fire automatically once trigger_day is reached — see
+## IncidentManager._on_day_advanced(). Not gated by the normal
+## eligibility/cooldown check; it's an authored continuation, not a
+## resimulated random pick.
+var scheduled_incidents: Array = []
 
 func toggle_pause() -> void:
     paused = not paused
@@ -296,6 +303,7 @@ func reset_to_defaults() -> void:
     world_state_phase_offsets = {}
     world_compute_availability_multiplier = 1.0
     news_feed = []
+    scheduled_incidents = []
 
 ## Campaign state payload only. The save format version lives one layer up,
 ## in SaveManager's envelope, so it isn't duplicated here.
@@ -366,6 +374,7 @@ func to_dict() -> Dictionary:
         "world_state_phase_offsets": world_state_phase_offsets,
         "world_compute_availability_multiplier": world_compute_availability_multiplier,
         "news_feed": news_feed,
+        "scheduled_incidents": scheduled_incidents,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -461,3 +470,5 @@ func from_dict(data: Dictionary) -> void:
     world_compute_availability_multiplier = float(data.get("world_compute_availability_multiplier", world_compute_availability_multiplier))
     var loaded_news_feed: Variant = data.get("news_feed", [])
     news_feed = loaded_news_feed if loaded_news_feed is Array else []
+    var loaded_scheduled_incidents: Variant = data.get("scheduled_incidents", [])
+    scheduled_incidents = loaded_scheduled_incidents if loaded_scheduled_incidents is Array else []

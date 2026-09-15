@@ -67,8 +67,13 @@ func eligible_incidents() -> Array:
             out.append(incident_id)
     return out
 
-## Weighted-random pick among eligible incidents, deterministic per seed.
+## Scheduled follow-ups (P34) fire first, unconditionally (an authored
+## continuation, not gated by the normal eligibility/cooldown check).
+## Weighted-random pick among eligible incidents, deterministic per seed,
+## only runs if no follow-up fired this tick.
 func _on_day_advanced(_day: int) -> void:
+    if _trigger_due_follow_ups():
+        return
     var eligible: Array = eligible_incidents()
     if eligible.is_empty():
         return
@@ -89,6 +94,19 @@ func _on_day_advanced(_day: int) -> void:
             chosen_id = eligible[i]
             break
     _trigger(chosen_id)
+
+## Fires every scheduled follow-up whose trigger_day has arrived. Returns
+## true if at least one fired, so the caller can skip the normal random
+## pick this tick.
+func _trigger_due_follow_ups() -> bool:
+    var due: Array = []
+    for entry: Variant in GameState.scheduled_incidents:
+        if int((entry as Dictionary).get("trigger_day", 0)) <= GameState.calendar_day:
+            due.append(entry)
+    for entry: Dictionary in due:
+        GameState.scheduled_incidents.erase(entry)
+        _trigger(String(entry.get("incident_id", "")))
+    return not due.is_empty()
 
 func _trigger(incident_id: String) -> void:
     var def: Dictionary = IncidentCatalog.get_def(incident_id)
@@ -144,6 +162,12 @@ func resolve(pending_id: String, choice_id: String) -> Error:
 
     var effects: Dictionary = chosen_choice.get("effects", {})
     _apply_effects(effects)
+
+    if chosen_choice.has("follow_up_incident_id"):
+        GameState.scheduled_incidents.append({
+            "incident_id": String(chosen_choice.get("follow_up_incident_id", "")),
+            "trigger_day": GameState.calendar_day + int(chosen_choice.get("follow_up_delay_days", 1)),
+        })
 
     GameState.pending_incidents.erase(entry)
     entry["choice_id"] = choice_id

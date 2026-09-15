@@ -127,7 +127,16 @@ outlet/template picks go through `SimClock`'s named RNG streams. No
 network call is made anywhere in this project.
 
 ## IncidentDefinition
-`id, category, severity, prerequisites, weight, cooldown_days, title_template, body_template, choices[], tags[]`
+`id, category, severity, prerequisites, weight, cooldown_days, title,
+body, choices[]` (`data/events_seed.json`, 83+ incidents across 12
+categories). Each choice: `id, label, effects` plus optionally
+`follow_up_incident_id` + `follow_up_delay_days` (P34) — schedules
+another incident to fire automatically once the delay elapses
+(`GameState.scheduled_incidents`, processed unconditionally in
+`IncidentManager._on_day_advanced()`, ahead of the normal weighted-random
+pick). `DataValidator` cross-checks `follow_up_incident_id` against every
+other id in the file and rejects a choice that follows up on its own
+incident.
 
 ## FundingRound
 `id, name, min_valuation, amount, equity_pct, obligation_per_day` — raised

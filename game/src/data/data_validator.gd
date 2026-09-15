@@ -166,12 +166,21 @@ static func validate_event_file(path: String) -> Array[Issue]:
         return issues
 
     var records: Array = parsed
+    var all_ids: Dictionary = {}
+    for entry: Variant in records:
+        if entry is Dictionary and (entry as Dictionary).has("id"):
+            all_ids[String((entry as Dictionary)["id"])] = true
+
     var seen_ids: Dictionary = {}
     for i in records.size():
-        issues.append_array(_validate_event_record(path, records[i], i, seen_ids))
+        issues.append_array(_validate_event_record(path, records[i], i, seen_ids, all_ids))
     return issues
 
-static func _validate_event_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+## P34: a choice may optionally schedule a follow-up incident
+## (follow_up_incident_id + follow_up_delay_days) — a scripted narrative
+## continuation. all_ids is every event id in the file, for the
+## cross-reference check below.
+static func _validate_event_record(path: String, record: Variant, index: int, seen_ids: Dictionary, all_ids: Dictionary) -> Array[Issue]:
     var issues: Array[Issue] = []
     var record_label: String = "record #%d" % index
     if not (record is Dictionary):
@@ -270,6 +279,18 @@ static func _validate_event_record(path: String, record: Variant, index: int, se
                             var effect_value: Variant = (effects as Dictionary)[effect_key]
                             if not (effect_value is int or effect_value is float):
                                 issues.append(Issue.new(path, id_label, "effect '%s' value must be numeric" % effect_key))
+
+                if choice_dict.has("follow_up_incident_id") or choice_dict.has("follow_up_delay_days"):
+                    if not (choice_dict.has("follow_up_incident_id") and choice_dict.has("follow_up_delay_days")):
+                        issues.append(Issue.new(path, id_label, "a choice with a follow-up must set both 'follow_up_incident_id' and 'follow_up_delay_days'"))
+                    else:
+                        var follow_up_id: String = str(choice_dict.get("follow_up_incident_id", ""))
+                        if follow_up_id.is_empty() or not all_ids.has(follow_up_id):
+                            issues.append(Issue.new(path, id_label, "'follow_up_incident_id' references unknown incident '%s'" % follow_up_id))
+                        if follow_up_id == event_id:
+                            issues.append(Issue.new(path, id_label, "a choice cannot schedule its own incident as a follow-up"))
+                        if not _is_whole_number_at_least(choice_dict.get("follow_up_delay_days"), 1):
+                            issues.append(Issue.new(path, id_label, "'follow_up_delay_days' must be a whole number >= 1"))
 
     if event.has("title") and (not (event["title"] is String) or String(event["title"]).is_empty()):
         issues.append(Issue.new(path, id_label, "'title' must be a non-empty string"))

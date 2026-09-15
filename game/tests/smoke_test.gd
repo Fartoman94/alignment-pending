@@ -1180,16 +1180,16 @@ func _initialize() -> void:
     state.models = []
     state.deployments = []
 
-    # P18: incident engine — condition/weight/cooldown, choice resolution,
-    # 20 original incidents, high severity pauses, history records
-    # causes/choice.
+    # P18/P34: incident engine — condition/weight/cooldown, choice
+    # resolution, 80+ original incidents, high severity pauses, history
+    # records causes/choice.
     var incident_mgr: Node = get_root().get_node("IncidentManager")
     var incident_ids: Array = IncidentCatalog.ordered_ids()
-    if incident_ids.size() != 20:
-        push_error("IncidentCatalog should seed exactly 20 incidents (got %d)" % incident_ids.size())
+    if incident_ids.size() < 80:
+        push_error("IncidentCatalog should seed at least 80 incidents (got %d)" % incident_ids.size())
         quit(1)
         return
-    print("SMOKE_OK: IncidentCatalog seeds 20 original incidents")
+    print("SMOKE_OK: IncidentCatalog seeds at least 80 original incidents")
 
     state.deployments = []
     state.staff = []
@@ -2945,5 +2945,91 @@ func _initialize() -> void:
     state.campaign_seed = 24680
     sim.reset_rng_streams()
     rival_mgr.generate_rival()
+
+    # P34: incident content expansion — 80+ incidents (already checked
+    # above) plus scripted follow-ups: a choice can schedule another
+    # incident to fire automatically after a delay.
+    state.scheduled_incidents = []
+    state.pending_incidents = []
+    state.incident_history = []
+    state.incident_cooldowns = {}
+    state.public_trust = 100.0  # violates media_expose's own max_public_trust prerequisite on purpose
+
+    var whistleblower_def: Dictionary = IncidentCatalog.get_def("whistleblower_leak")
+    var follow_up_choice: Dictionary = {}
+    for c: Variant in (whistleblower_def.get("choices", []) as Array):
+        if (c as Dictionary).has("follow_up_incident_id"):
+            follow_up_choice = c
+            break
+    if follow_up_choice.is_empty():
+        push_error("Expected 'whistleblower_leak' to have an authored choice with a follow-up")
+        quit(1)
+        return
+
+    state.pending_incidents.append({
+        "id": "p34_pending_1", "incident_id": "whistleblower_leak", "category": whistleblower_def.get("category", ""),
+        "severity": whistleblower_def.get("severity", 2), "title": whistleblower_def.get("title", ""),
+        "body": whistleblower_def.get("body", ""), "choices": whistleblower_def.get("choices", []),
+        "triggered_day": state.calendar_day, "state_snapshot": {},
+    })
+    incident_mgr.resolve("p34_pending_1", String(follow_up_choice.get("id", "")))
+
+    var follow_up_incident_id: String = String(follow_up_choice.get("follow_up_incident_id", ""))
+    var follow_up_delay: int = int(follow_up_choice.get("follow_up_delay_days", 0))
+    if state.scheduled_incidents.size() != 1:
+        push_error("Resolving a choice with a follow-up should schedule exactly one entry")
+        quit(1)
+        return
+    var scheduled_entry: Dictionary = state.scheduled_incidents[0]
+    if String(scheduled_entry.get("incident_id", "")) != follow_up_incident_id:
+        push_error("The scheduled entry should reference the choice's own follow_up_incident_id")
+        quit(1)
+        return
+    if int(scheduled_entry.get("trigger_day", -1)) != state.calendar_day + follow_up_delay:
+        push_error("The scheduled entry's trigger_day should be calendar_day + follow_up_delay_days")
+        quit(1)
+        return
+    print("SMOKE_OK: resolving a choice with a follow-up schedules the authored incident at the right future day")
+
+    for i in follow_up_delay - 1:
+        state.calendar_day += 1
+        bus2.day_advanced.emit(state.calendar_day)
+        var still_has_followup: bool = false
+        for pending3: Variant in state.pending_incidents:
+            if String((pending3 as Dictionary).get("incident_id", "")) == follow_up_incident_id:
+                still_has_followup = true
+        if still_has_followup:
+            push_error("The follow-up should not fire before its scheduled trigger_day")
+            quit(1)
+            return
+
+    var pending_before_final_tick: int = state.pending_incidents.size()
+    state.calendar_day += 1
+    bus2.day_advanced.emit(state.calendar_day)
+    var follow_up_fired: bool = false
+    for pending2: Variant in state.pending_incidents:
+        if String((pending2 as Dictionary).get("incident_id", "")) == follow_up_incident_id:
+            follow_up_fired = true
+    if not follow_up_fired:
+        push_error("The follow-up incident should fire once its trigger_day is reached, even though its own prerequisite (max_public_trust) is violated — it's a scripted continuation, not a resimulated pick")
+        quit(1)
+        return
+    if not state.scheduled_incidents.is_empty():
+        push_error("A fired follow-up should be removed from scheduled_incidents")
+        quit(1)
+        return
+    if state.pending_incidents.size() != pending_before_final_tick + 1:
+        push_error("Only the follow-up should fire on its trigger day — the normal weighted-random pick should be skipped that tick")
+        quit(1)
+        return
+    print("SMOKE_OK: a scheduled follow-up fires unconditionally on its trigger day, bypassing its own prerequisites, and preempts that day's random pick")
+
+    state.scheduled_incidents = []
+    state.pending_incidents = []
+    state.incident_history = []
+    state.incident_cooldowns = {}
+    state.public_trust = 50.0
+    state.calendar_day = 1
+    state.paused = false
 
     quit(0)
