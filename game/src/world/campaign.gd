@@ -4,6 +4,8 @@ const AUTOSAVE_INTERVAL_SECONDS: float = 60.0
 
 var camera_controller: CameraController
 var hud: Hud
+var build_grid: BuildGrid
+var build_controller: BuildController
 var _autosave_timer: Timer
 
 func _ready() -> void:
@@ -11,8 +13,11 @@ func _ready() -> void:
     _build_environment()
     _build_office()
     _build_camera()
+    _build_grid_and_controller()
     _build_hud()
     _build_autosave_timer()
+    EventBus.build_tool_changed.connect(_on_build_tool_changed)
+    build_controller.load_from_state(GameState.buildings)
     SimClock.active = true
 
 func _exit_tree() -> void:
@@ -35,11 +40,23 @@ func _process(_delta: float) -> void:
     if Input.is_action_just_pressed("toggle_pause"):
         GameState.toggle_pause()
     if Input.is_action_just_pressed("return_to_menu") and not SceneRouter.is_busy():
+        if build_controller.mode != BuildController.Mode.NONE:
+            build_controller.stop()
+            EventBus.build_tool_changed.emit("")
+            return
         var err: Error = SaveManager.autosave()
         if err != OK:
             push_warning("Campaign: autosave-on-exit failed (error %s)" % err)
         await SceneRouter.go_to("res://scenes/main_menu.tscn")
         return
+
+func _on_build_tool_changed(tool_id: String) -> void:
+    if tool_id.is_empty():
+        build_controller.stop()
+    elif tool_id == "sell":
+        build_controller.start_sell()
+    else:
+        build_controller.start_place(tool_id)
 
 func _build_environment() -> void:
     var world_env := WorldEnvironment.new()
@@ -75,28 +92,25 @@ func _box(name_: String, pos: Vector3, size: Vector3, color: Color) -> MeshInsta
     return mi
 
 func _build_office() -> void:
+    # An empty shell: the player builds everything else via BuildController.
     _box("Floor", Vector3(0,-0.25,0), Vector3(18,0.5,14), Color("3d4654"))
     _box("BackWall", Vector3(0,1.5,-7), Vector3(18,3.5,0.3), Color("657181"))
     _box("LeftWall", Vector3(-9,1.5,0), Vector3(0.3,3.5,14), Color("596575"))
-    for x in [-4.5, 0.0, 4.5]:
-        _box("Desk", Vector3(x,0.55,-1.2), Vector3(2.7,0.18,1.1), Color("b4875d"))
-        _box("Monitor", Vector3(x,1.15,-1.35), Vector3(0.9,0.65,0.12), Color("242b35"))
-        _box("Chair", Vector3(x,0.45,0.1), Vector3(0.75,0.9,0.75), Color("2a313b"))
-    for z in [-4.5,-2.7,-0.9,0.9,2.7,4.5]:
-        _box("ServerRack", Vector3(7.2,1.0,z), Vector3(1.2,2.0,1.15), Color("232a33"))
-    _build_person(Vector3(-4.5,0.0,0.0), Color("f0b85a"), Color("7b61ff"))
-    _build_person(Vector3(0.0,0.0,0.0), Color("bd805f"), Color("2ed3c6"))
-    _build_person(Vector3(4.5,0.0,0.0), Color("d99a73"), Color("ef8354"))
-
-func _build_person(pos: Vector3, skin: Color, shirt: Color) -> void:
-    var root := Node3D.new(); root.position = pos; add_child(root)
-    var body := MeshInstance3D.new(); var bm := CapsuleMesh.new(); bm.radius=.32; bm.height=1.1; bm.material=_mat(shirt); body.mesh=bm; body.position.y=.78; root.add_child(body)
-    var head := MeshInstance3D.new(); var sm := SphereMesh.new(); sm.radius=.29; sm.height=.58; sm.material=_mat(skin); head.mesh=sm; head.position.y=1.62; root.add_child(head)
 
 func _build_camera() -> void:
     camera_controller = CameraController.new()
     camera_controller.name = "CameraController"
     add_child(camera_controller)
+
+func _build_grid_and_controller() -> void:
+    build_grid = BuildGrid.new()
+    build_grid.name = "BuildGrid"
+    add_child(build_grid)
+    build_controller = BuildController.new()
+    build_controller.name = "BuildController"
+    build_controller.grid = build_grid
+    build_controller.camera = camera_controller.camera
+    add_child(build_controller)
 
 func _build_hud() -> void:
     var packed: PackedScene = load("res://scenes/hud.tscn")

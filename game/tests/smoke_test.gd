@@ -252,4 +252,112 @@ func _initialize() -> void:
         return
     print("SMOKE_OK: SimClock fixed-tick calendar advance is frame-rate independent")
 
+    # Loaded dynamically (not as a bare `BuildGrid`/`BuildController`
+    # identifier): a static reference in this file's own source would force
+    # the compiler to eagerly compile build_controller.gd — which touches
+    # GameState — while loading this very script, before autoloads exist.
+    var build_grid_script: GDScript = load("res://src/world/build_grid.gd")
+    var build_controller_script: GDScript = load("res://src/world/build_controller.gd")
+    const ROUTE_ROW: int = 3  # must match BuildGrid.ROUTE_ROW
+
+    var grid: Node = build_grid_script.new()
+    var desk_cells: Array[Vector2i] = grid.footprint_cells(Vector2i(0, 0), 1, 1, false)
+    if not grid.is_area_free(desk_cells):
+        push_error("BuildGrid: expected (0,0) to be free before any placement")
+        quit(1)
+        return
+    grid.occupy(desk_cells, "test_building")
+    if grid.is_area_free(desk_cells):
+        push_error("BuildGrid: occupied cells were reported as free")
+        quit(1)
+        return
+    if not grid.is_reserved(Vector2i(0, ROUTE_ROW)):
+        push_error("BuildGrid: the mandatory walkway row is not reserved")
+        quit(1)
+        return
+    var route_cells: Array[Vector2i] = grid.footprint_cells(Vector2i(2, ROUTE_ROW), 1, 1, false)
+    if grid.is_area_free(route_cells):
+        push_error("BuildGrid: a placement on the mandatory route row was allowed")
+        quit(1)
+        return
+    grid.free_cells(desk_cells)
+    if not grid.is_area_free(desk_cells):
+        push_error("BuildGrid: cells stayed occupied after free_cells")
+        quit(1)
+        return
+    print("SMOKE_OK: BuildGrid occupancy, overlap prevention, and mandatory-route blocking work")
+
+    var catalog: Dictionary = BuildableCatalog.load_all()
+    if not (catalog.has("desk") and catalog.has("server_rack") and catalog.has("safety_lab")):
+        push_error("BuildableCatalog did not load the expected desk/server_rack/safety_lab entries")
+        quit(1)
+        return
+    print("SMOKE_OK: BuildableCatalog loads desk/server_rack/safety_lab")
+
+    var bc: Node = build_controller_script.new()
+    get_root().add_child(bc)
+    bc.grid = build_grid_script.new()
+    get_root().add_child(bc.grid)
+    var starting_cash: float = 100000.0
+    state.cash = starting_cash
+
+    bc.start_place("desk")
+    await process_frame
+    var desk_def: Dictionary = catalog["desk"]
+    var target_cell: Vector2i = Vector2i(1, 1)
+    bc._ghost.set_meta("cell", target_cell)
+    bc._ghost.set_meta("valid", true)
+    var place_err: Error = bc.try_place()
+    if place_err != OK:
+        push_error("BuildController.try_place failed unexpectedly (error %s)" % place_err)
+        quit(1)
+        return
+    if not is_equal_approx(state.cash, starting_cash - float(desk_def.get("cost", 0.0))):
+        push_error("BuildController.try_place did not deduct the desk's cost")
+        quit(1)
+        return
+    if bc.grid.is_area_free(bc.grid.footprint_cells(target_cell, 1, 1, false)):
+        push_error("BuildController.try_place did not occupy the grid cell")
+        quit(1)
+        return
+    if state.buildings.is_empty():
+        push_error("BuildController.try_place did not sync GameState.buildings")
+        quit(1)
+        return
+
+    # Even if the ghost's cached "valid" flag says true, try_place() must
+    # re-validate against the authoritative grid before allowing an overlap.
+    bc.start_place("desk")
+    await process_frame
+    bc._ghost.set_meta("cell", target_cell)
+    bc._ghost.set_meta("valid", true)
+    var overlap_err: Error = bc.try_place()
+    if overlap_err == OK:
+        push_error("BuildController.try_place allowed an overlapping placement")
+        quit(1)
+        return
+    print("SMOKE_OK: BuildController placement deducts cost, occupies cells, syncs GameState.buildings, and rejects overlap")
+
+    var cash_before_sell: float = state.cash
+    var expected_refund: float = float(desk_def.get("cost", 0.0)) * float(desk_def.get("refund_ratio", 0.0))
+    var sell_err: Error = bc.try_sell(target_cell)
+    if sell_err != OK:
+        push_error("BuildController.try_sell failed on a valid target (error %s)" % sell_err)
+        quit(1)
+        return
+    if not is_equal_approx(state.cash, cash_before_sell + expected_refund):
+        push_error("BuildController.try_sell refunded the wrong amount")
+        quit(1)
+        return
+    if not bc.grid.is_area_free(bc.grid.footprint_cells(target_cell, 1, 1, false)):
+        push_error("BuildController.try_sell did not free the grid cell")
+        quit(1)
+        return
+    print("SMOKE_OK: BuildController sell refunds the data-driven ratio and frees the cell")
+
+    grid.free()
+    bc.grid.queue_free()
+    bc.queue_free()
+    await process_frame
+
     quit(0)

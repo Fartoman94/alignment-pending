@@ -5,3 +5,6 @@ signal incident_raised(incident_id: StringName)
 signal selection_changed(kind: StringName, entity_id: String)
 signal simulation_pause_changed(paused: bool)
 signal day_advanced(day: int)
+## tool_id is a BuildableCatalog id to start placing, "sell" for sell mode,
+## or "" to cancel/exit build mode.
+signal build_tool_changed(tool_id: String)

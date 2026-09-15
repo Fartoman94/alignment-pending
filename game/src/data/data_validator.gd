@@ -20,6 +20,8 @@ const EVENT_MIN_CHOICES: int = 2
 const EVENT_MAX_CHOICES: int = 4
 const EVENT_REQUIRED_FIELDS: Array[String] = ["id", "category", "severity", "title", "body", "choices"]
 
+const BUILDABLE_REQUIRED_FIELDS: Array[String] = ["id", "name", "category", "footprint", "cost", "refund_ratio"]
+
 ## One validation problem: which file, which record, and why.
 class Issue:
     var source: String
@@ -40,6 +42,7 @@ class Issue:
 static func validate_all() -> Array[Issue]:
     var issues: Array[Issue] = []
     issues.append_array(validate_event_file("res://data/events_seed.json"))
+    issues.append_array(validate_buildable_file("res://data/buildables.json"))
     return issues
 
 static func validate_event_file(path: String) -> Array[Issue]:
@@ -123,6 +126,86 @@ static func _validate_event_record(path: String, record: Variant, index: int, se
         issues.append(Issue.new(path, id_label, "'body' must be a non-empty string"))
 
     return issues
+
+static func validate_buildable_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of buildable records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_buildable_record(path, records[i], i, seen_ids))
+    return issues
+
+static func _validate_buildable_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "buildable record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in BUILDABLE_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+
+    if entry.has("cost"):
+        var cost: Variant = entry.get("cost")
+        if not (cost is int or cost is float) or float(cost) <= 0.0:
+            issues.append(Issue.new(path, id_label, "'cost' must be a number > 0"))
+
+    if entry.has("refund_ratio"):
+        var refund_ratio: Variant = entry.get("refund_ratio")
+        if not (refund_ratio is int or refund_ratio is float) or float(refund_ratio) < 0.0 or float(refund_ratio) > 1.0:
+            issues.append(Issue.new(path, id_label, "'refund_ratio' must be a number in [0, 1]"))
+
+    if entry.has("footprint"):
+        var footprint: Variant = entry.get("footprint")
+        if not (footprint is Dictionary) or not footprint.has("w") or not footprint.has("d"):
+            issues.append(Issue.new(path, id_label, "'footprint' must be an object with 'w' and 'd'"))
+        else:
+            var fp: Dictionary = footprint
+            var w: Variant = fp.get("w")
+            var d: Variant = fp.get("d")
+            # JSON has no int/float distinction: parsed numbers are always
+            # float, so accept a whole-number float here too (see the
+            # matching note in SaveManager._wrap_envelope).
+            if not _is_whole_number_at_least(w, 1) or not _is_whole_number_at_least(d, 1):
+                issues.append(Issue.new(path, id_label, "'footprint.w'/'footprint.d' must be whole numbers >= 1"))
+
+    if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))
+
+    return issues
+
+static func _is_whole_number_at_least(value: Variant, minimum: int) -> bool:
+    if not (value is int or value is float):
+        return false
+    var f: float = float(value)
+    return is_equal_approx(f, round(f)) and int(round(f)) >= minimum
 
 ## Runs validate_all() and pushes one actionable engine error per issue.
 ## Returns true if the data is clean.

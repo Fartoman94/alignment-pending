@@ -15,6 +15,9 @@ var simulation_speed: float = 1.0
 var calendar_day: int = 1
 var calendar_hour: int = 9
 var calendar_minute: int = 0
+## Each entry: {buildable_id: String, cell_x: int, cell_y: int, rotated: bool}.
+## Kept in sync by BuildController on every place/sell.
+var buildings: Array = []
 
 func toggle_pause() -> void:
     paused = not paused
@@ -37,6 +40,7 @@ func reset_to_defaults() -> void:
     calendar_day = 1
     calendar_hour = 9
     calendar_minute = 0
+    buildings = []
 
 ## Campaign state payload only. The save format version lives one layer up,
 ## in SaveManager's envelope, so it isn't duplicated here.
@@ -54,6 +58,7 @@ func to_dict() -> Dictionary:
         "calendar_day": calendar_day,
         "calendar_hour": calendar_hour,
         "calendar_minute": calendar_minute,
+        "buildings": buildings,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -69,3 +74,5 @@ func from_dict(data: Dictionary) -> void:
     calendar_day = int(data.get("calendar_day", calendar_day))
     calendar_hour = int(data.get("calendar_hour", calendar_hour))
     calendar_minute = int(data.get("calendar_minute", calendar_minute))
+    var loaded_buildings: Variant = data.get("buildings", [])
+    buildings = loaded_buildings if loaded_buildings is Array else []

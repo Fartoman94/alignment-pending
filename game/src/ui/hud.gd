@@ -24,6 +24,7 @@ extends CanvasLayer
 const SPEED_TIER_VALUES: Array[float] = [1.0, 2.0, 4.0]
 @onready var _inspector_title: Label = $RightPanel/Margin/VBox/Title
 @onready var _inspector_body: Label = $RightPanel/Margin/VBox/Body
+@onready var _dynamic_content: VBoxContainer = $RightPanel/Margin/VBox/DynamicContent
 @onready var _section_buttons: Array[Button] = [
     $BottomBar/Margin/HBox/BuildButton,
     $BottomBar/Margin/HBox/StaffButton,
@@ -76,10 +77,16 @@ func _sync_speed_buttons() -> void:
         _speed_buttons[i].button_pressed = is_equal_approx(SPEED_TIER_VALUES[i], GameState.simulation_speed)
 
 func _on_section_pressed(section_name: String) -> void:
+    if section_name == "Build":
+        _show_build_palette()
+        return
+    EventBus.build_tool_changed.emit("")
+    _clear_dynamic_content()
     _inspector_title.text = section_name
     _inspector_body.text = "%s is not implemented yet." % section_name
 
 func _refresh_inspector_empty() -> void:
+    _clear_dynamic_content()
     _inspector_title.text = "Inspector"
     _inspector_body.text = "Nothing selected."
 
@@ -87,5 +94,30 @@ func _on_selection_changed(kind: StringName, entity_id: String) -> void:
     if entity_id.is_empty():
         _refresh_inspector_empty()
         return
+    _clear_dynamic_content()
     _inspector_title.text = String(kind).capitalize()
     _inspector_body.text = "Selected: %s" % entity_id
+
+func _clear_dynamic_content() -> void:
+    for child in _dynamic_content.get_children():
+        child.queue_free()
+
+func _show_build_palette() -> void:
+    _clear_dynamic_content()
+    _inspector_title.text = "Build"
+    _inspector_body.text = "Choose what to place. R rotates, click places. Esc cancels."
+    var catalog: Dictionary = BuildableCatalog.load_all()
+    for buildable_id: String in catalog:
+        var def: Dictionary = catalog[buildable_id]
+        var btn: Button = Button.new()
+        btn.text = "%s ($%d)" % [String(def.get("name", buildable_id)), int(def.get("cost", 0))]
+        btn.pressed.connect(func() -> void: EventBus.build_tool_changed.emit(buildable_id))
+        _dynamic_content.add_child(btn)
+    var sell_btn: Button = Button.new()
+    sell_btn.text = "Sell"
+    sell_btn.pressed.connect(func() -> void: EventBus.build_tool_changed.emit("sell"))
+    _dynamic_content.add_child(sell_btn)
+    var cancel_btn: Button = Button.new()
+    cancel_btn.text = "Cancel"
+    cancel_btn.pressed.connect(func() -> void: EventBus.build_tool_changed.emit(""))
+    _dynamic_content.add_child(cancel_btn)

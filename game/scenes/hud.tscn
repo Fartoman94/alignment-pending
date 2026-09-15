@@ -238,3 +238,7 @@ text = "Inspector"
 layout_mode = 2
 autowrap_mode = 3
 text = "Nothing selected."
+
+[node name="DynamicContent" type="VBoxContainer" parent="RightPanel/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
