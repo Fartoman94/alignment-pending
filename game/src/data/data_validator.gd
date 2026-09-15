@@ -101,6 +101,10 @@ const WORLD_VARIABLE_REQUIRED_FIELDS: Array[String] = ["id", "name", "descriptio
 # P32: deployment plans and subscriptions.
 const SUBSCRIPTION_PLAN_REQUIRED_FIELDS: Array[String] = ["id", "name", "description", "price", "quota_users", "enterprise_contract_revenue_per_day", "min_reliability_for_contract"]
 
+# P33: news and social feed. Offline authored templates only.
+const NEWS_TEMPLATE_REQUIRED_FIELDS: Array[String] = ["id", "category", "template"]
+const NEWS_TEMPLATE_CATEGORIES: Array[String] = ["incident_resolved", "rival_launched", "funding_round_accepted", "legal_case_filed", "deployment_churn_event", "audit_triggered", "datacenter_tier_purchased"]
+
 ## One validation problem: which file, which record, and why.
 class Issue:
     var source: String
@@ -140,6 +144,7 @@ static func validate_all() -> Array[Issue]:
     issues.append_array(validate_datacenter_tier_file("res://data/datacenter_tiers.json"))
     issues.append_array(validate_world_variable_file("res://data/world_variables.json"))
     issues.append_array(validate_subscription_plan_file("res://data/subscription_plans.json"))
+    issues.append_array(validate_news_template_file("res://data/news_templates.json"))
     issues.append_array(validate_epilogue_file("res://data/epilogues.json"))
     return issues
 
@@ -1636,6 +1641,61 @@ static func _validate_subscription_plan_record(path: String, record: Variant, in
         var min_reliability: Variant = entry.get("min_reliability_for_contract")
         if not (min_reliability is int or min_reliability is float) or float(min_reliability) < 0.0 or float(min_reliability) > 100.0:
             issues.append(Issue.new(path, id_label, "'min_reliability_for_contract' must be a number in [0, 100]"))
+
+    return issues
+
+static func validate_news_template_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of news template records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_news_template_record(path, records[i], i, seen_ids))
+    return issues
+
+static func _validate_news_template_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "news template record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in NEWS_TEMPLATE_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+
+    if entry.has("category"):
+        var category: String = str(entry.get("category", ""))
+        if not NEWS_TEMPLATE_CATEGORIES.has(category):
+            issues.append(Issue.new(path, id_label, "unknown category '%s' (expected one of %s)" % [category, NEWS_TEMPLATE_CATEGORIES]))
+
+    if entry.has("template") and (not (entry["template"] is String) or String(entry["template"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'template' must be a non-empty string"))
 
     return issues
 

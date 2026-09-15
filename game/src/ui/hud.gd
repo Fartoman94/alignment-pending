@@ -913,6 +913,23 @@ func _show_world_panel() -> void:
         variable_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
         _dynamic_content.add_child(variable_label)
 
+    var news_header: Label = Label.new()
+    news_header.text = "News feed"
+    _dynamic_content.add_child(news_header)
+    if GameState.news_feed.is_empty():
+        var no_news_label: Label = Label.new()
+        no_news_label.text = "  Nothing reported yet."
+        _dynamic_content.add_child(no_news_label)
+    else:
+        var recent_news: Array = GameState.news_feed.duplicate()
+        recent_news.reverse()
+        for i in mini(10, recent_news.size()):
+            var news_entry: Dictionary = recent_news[i]
+            var news_label: Label = Label.new()
+            news_label.text = "  Day %d — %s" % [int(news_entry.get("day", 0)), String(news_entry.get("headline", ""))]
+            news_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+            _dynamic_content.add_child(news_label)
+
 func _show_staff_detail(staff_id: String) -> void:
     var member: Dictionary = StaffManager.find(staff_id)
     if member.is_empty():

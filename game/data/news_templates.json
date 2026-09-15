@@ -1,0 +1,23 @@
+[
+  { "id": "incident_1", "category": "incident_resolved", "template": "{outlet}: fallout continues after \"{incident_title}\" — the company opts to {choice_label}. Day {day}." },
+  { "id": "incident_2", "category": "incident_resolved", "template": "Analysts at {outlet} weigh in on the company's handling of \"{incident_title}\": it chose to {choice_label}." },
+  { "id": "incident_3", "category": "incident_resolved", "template": "{outlet} Op-Ed: was choosing to {choice_label} the right call after \"{incident_title}\"? Readers are split." },
+
+  { "id": "rival_1", "category": "rival_launched", "template": "{outlet}: {rival_name} ships its generation-{generation} model, raising the temperature across the industry. Day {day}." },
+  { "id": "rival_2", "category": "rival_launched", "template": "Breaking via {outlet} — {rival_name} just crossed generation {generation}. The race tightens." },
+
+  { "id": "funding_1", "category": "funding_round_accepted", "template": "{outlet}: the company closes a ${amount} round — {round_name} is now official. Day {day}." },
+  { "id": "funding_2", "category": "funding_round_accepted", "template": "{outlet} Markets Desk: fresh capital lands as the {round_name} closes at ${amount}." },
+
+  { "id": "legal_1", "category": "legal_case_filed", "template": "{outlet}: a new {case_name} has been filed against the company. Day {day}." },
+  { "id": "legal_2", "category": "legal_case_filed", "template": "{outlet} Legal Wire — filing alert: {case_name} now pending." },
+
+  { "id": "churn_1", "category": "deployment_churn_event", "template": "{outlet}: users report throttled access to {deployment_label}; roughly {churn_pct}% have reportedly moved on for good. Day {day}." },
+  { "id": "churn_2", "category": "deployment_churn_event", "template": "{outlet} Consumer Desk: sustained rate limits on {deployment_label} appear to be costing the company its own userbase — {churn_pct}% gone." },
+
+  { "id": "audit_1", "category": "audit_triggered", "template": "{outlet}: regulators formally open an audit into the company's practices. Day {day}." },
+  { "id": "audit_2", "category": "audit_triggered", "template": "{outlet} Policy Desk — audit notice confirmed. The company has been asked to respond." },
+
+  { "id": "datacenter_1", "category": "datacenter_tier_purchased", "template": "{outlet}: the company announces a new remote site — {tier_name} is now online. Day {day}." },
+  { "id": "datacenter_2", "category": "datacenter_tier_purchased", "template": "{outlet} Infrastructure Desk: {tier_name} breaks ground, expanding the company's compute footprint." }
+]

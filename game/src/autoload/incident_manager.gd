@@ -150,6 +150,7 @@ func resolve(pending_id: String, choice_id: String) -> Error:
     entry["resolved_day"] = GameState.calendar_day
     entry["effects_applied"] = effects
     GameState.incident_history.append(entry)
+    EventBus.incident_resolved.emit(String(entry.get("incident_id", "")), choice_id)
     return OK
 
 func _apply_effects(effects: Dictionary) -> void:

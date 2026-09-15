@@ -113,6 +113,19 @@ raised by sustained low `rate_limit` — see `DeploymentPlanManager
 `RevenueManager.predicted_range()` compares current vs. full-rate-limit
 load/revenue for the pricing UI.
 
+## NewsTemplate
+Config (`data/news_templates.json` + `NewsTemplateCatalog`): `id,
+category, template` — `template` is a `String.format()` pattern (e.g.
+`"{outlet}: {rival_name} ships..."`), never live-generated text.
+`category` must be one of `DataValidator.NEWS_TEMPLATE_CATEGORIES`.
+`NewsFeedManager` listens for the matching `EventBus` signal, fills the
+template from current simulation state plus a fictional outlet name
+(`NewsFeedManager.OUTLETS` — never a real publication), and appends
+`{day, category, headline}` to `GameState.news_feed` (capped at
+`MAX_FEED_ENTRIES`, oldest dropped). Deterministic per campaign_seed:
+outlet/template picks go through `SimClock`'s named RNG streams. No
+network call is made anywhere in this project.
+
 ## IncidentDefinition
 `id, category, severity, prerequisites, weight, cooldown_days, title_template, body_template, choices[], tags[]`
 

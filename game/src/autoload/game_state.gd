@@ -192,6 +192,10 @@ var world_state_phase_offsets: Dictionary = {}
 ## WorldStateManager and just read here as a plain field, like
 ## datacenter_compute_bonus.
 var world_compute_availability_multiplier: float = 1.0
+## Each entry: {day, category, headline}. Offline authored-template feed
+## (P33) — never a live LLM call, deterministic from events. Kept in sync
+## by NewsFeedManager; capped at MAX_FEED_ENTRIES (oldest entries drop).
+var news_feed: Array = []
 
 func toggle_pause() -> void:
     paused = not paused
@@ -291,6 +295,7 @@ func reset_to_defaults() -> void:
     datacenter_operating_cost = 0.0
     world_state_phase_offsets = {}
     world_compute_availability_multiplier = 1.0
+    news_feed = []
 
 ## Campaign state payload only. The save format version lives one layer up,
 ## in SaveManager's envelope, so it isn't duplicated here.
@@ -360,6 +365,7 @@ func to_dict() -> Dictionary:
         "datacenter_operating_cost": datacenter_operating_cost,
         "world_state_phase_offsets": world_state_phase_offsets,
         "world_compute_availability_multiplier": world_compute_availability_multiplier,
+        "news_feed": news_feed,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -453,3 +459,5 @@ func from_dict(data: Dictionary) -> void:
     var loaded_world_phase_offsets: Variant = data.get("world_state_phase_offsets", {})
     world_state_phase_offsets = loaded_world_phase_offsets if loaded_world_phase_offsets is Dictionary else {}
     world_compute_availability_multiplier = float(data.get("world_compute_availability_multiplier", world_compute_availability_multiplier))
+    var loaded_news_feed: Variant = data.get("news_feed", [])
+    news_feed = loaded_news_feed if loaded_news_feed is Array else []

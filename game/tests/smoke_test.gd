@@ -2861,4 +2861,89 @@ func _initialize() -> void:
     state.deployments = []
     state.cash = 184200.0
 
+    # P33: news and social feed — offline authored templates, no live LLM
+    # calls, deterministic from events, no real publication names.
+    var news_mgr: Node = get_root().get_node("NewsFeedManager")
+    var expected_news_categories: Array[String] = ["incident_resolved", "rival_launched", "funding_round_accepted", "legal_case_filed", "deployment_churn_event", "audit_triggered", "datacenter_tier_purchased"]
+    for news_category: String in expected_news_categories:
+        if NewsTemplateCatalog.templates_for(news_category).is_empty():
+            push_error("NewsTemplateCatalog should have at least one template for category '%s'" % news_category)
+            quit(1)
+            return
+    print("SMOKE_OK: NewsTemplateCatalog has offline authored templates for every news category")
+
+    var forbidden_outlet_terms: Array[String] = ["times", "post", "reuters", "bloomberg", "cnn", "bbc", "twitter", " x ", "techcrunch", "wired", "verge", "buzzfeed", "associated press"]
+    for outlet_name: String in news_mgr.OUTLETS:
+        var lowered_outlet: String = outlet_name.to_lower()
+        for term: String in forbidden_outlet_terms:
+            if lowered_outlet.contains(term):
+                push_error("News outlet '%s' must not resemble a real publication ('%s')" % [outlet_name, term])
+                quit(1)
+                return
+    print("SMOKE_OK: no news outlet is a real publication/service name")
+
+    state.news_feed = []
+    state.campaign_seed = 97531
+    sim.reset_rng_streams()
+    rival_mgr.generate_rival()
+    var news_rival_id: String = String(state.rivals[0].get("id", ""))
+    bus2.rival_launched.emit(news_rival_id, 3)
+    if state.news_feed.is_empty():
+        push_error("A rival_launched event should post a news entry")
+        quit(1)
+        return
+    var first_news_entry: Dictionary = state.news_feed[-1]
+    if String(first_news_entry.get("category", "")) != "rival_launched" or not String(first_news_entry.get("headline", "")).contains(String(state.rivals[0].get("name", ""))):
+        push_error("The posted headline should reference the actual rival's name (deterministic from the event)")
+        quit(1)
+        return
+    var news_a: Array = state.news_feed.duplicate(true)
+
+    state.news_feed = []
+    state.campaign_seed = 97531
+    sim.reset_rng_streams()
+    rival_mgr.generate_rival()
+    bus2.rival_launched.emit(news_rival_id, 3)
+    var news_b: Array = state.news_feed.duplicate(true)
+    if news_a != news_b:
+        push_error("The same seed and the same sequence of events should produce the exact same news feed (100% deterministic)")
+        quit(1)
+        return
+    print("SMOKE_OK: the news feed is 100% deterministic from the same seed and sequence of events")
+
+    state.pending_incidents = []
+    state.incident_history = []
+    var news_incident_id: String = String(IncidentCatalog.ordered_ids()[0])
+    var news_incident_def: Dictionary = IncidentCatalog.get_def(news_incident_id)
+    state.pending_incidents.append({
+        "id": "news_test_pending", "incident_id": news_incident_id, "category": news_incident_def.get("category", ""),
+        "severity": news_incident_def.get("severity", 2), "title": news_incident_def.get("title", ""),
+        "body": news_incident_def.get("body", ""), "choices": news_incident_def.get("choices", []),
+        "triggered_day": state.calendar_day, "state_snapshot": {},
+    })
+    var news_choices: Array = news_incident_def.get("choices", [])
+    var news_choice_id: String = String((news_choices[0] as Dictionary).get("id", ""))
+    incident_mgr.resolve("news_test_pending", news_choice_id)
+    var last_news_entry: Dictionary = state.news_feed[-1]
+    if String(last_news_entry.get("category", "")) != "incident_resolved" or not String(last_news_entry.get("headline", "")).contains(String(news_incident_def.get("title", ""))):
+        push_error("Resolving an incident should post a news entry referencing the actual incident title")
+        quit(1)
+        return
+    print("SMOKE_OK: incident resolutions, rival launches, and other simulation events post traceable news entries")
+
+    for i in news_mgr.MAX_FEED_ENTRIES + 20:
+        bus2.rival_launched.emit(news_rival_id, 3)
+    if state.news_feed.size() > int(news_mgr.MAX_FEED_ENTRIES):
+        push_error("The news feed should stay capped at MAX_FEED_ENTRIES, dropping the oldest entries")
+        quit(1)
+        return
+    print("SMOKE_OK: the news feed is capped, dropping the oldest entries rather than growing unbounded")
+
+    state.news_feed = []
+    state.pending_incidents = []
+    state.incident_history = []
+    state.campaign_seed = 24680
+    sim.reset_rng_streams()
+    rival_mgr.generate_rival()
+
     quit(0)

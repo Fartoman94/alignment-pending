@@ -34,3 +34,5 @@ signal agent_permission_changed(deployment_id: String, permission_id: String, gr
 signal workforce_policy_changed(policy_id: String)
 signal datacenter_tier_purchased(tier_id: String)
 signal deployment_churn_event(deployment_id: String, churned_fraction: float)
+signal incident_resolved(incident_id: String, choice_id: String)
+signal news_posted(headline: String)
