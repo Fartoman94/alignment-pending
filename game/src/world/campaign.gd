@@ -6,6 +6,8 @@ var camera_controller: CameraController
 var hud: Hud
 var build_grid: BuildGrid
 var build_controller: BuildController
+var nav_region: NavigationRegion3D
+var nav_coordinator: NavCoordinator
 var _autosave_timer: Timer
 
 func _ready() -> void:
@@ -14,6 +16,7 @@ func _ready() -> void:
     _build_office()
     _build_camera()
     _build_grid_and_controller()
+    _build_navigation()
     _build_hud()
     _build_autosave_timer()
     EventBus.build_tool_changed.connect(_on_build_tool_changed)
@@ -111,6 +114,27 @@ func _build_grid_and_controller() -> void:
     build_controller.grid = build_grid
     build_controller.camera = camera_controller.camera
     add_child(build_controller)
+
+## Static navmesh covering the whole buildable floor. Buildings don't cut
+## holes in it; they get NavigationObstacle3D avoidance instead (see
+## BuildController._add_obstacle), which is much cheaper than re-baking
+## the navmesh every time the player builds or sells something.
+func _build_navigation() -> void:
+    nav_region = NavigationRegion3D.new()
+    nav_region.name = "NavRegion"
+    var navmesh: NavigationMesh = NavigationMesh.new()
+    var half_x: float = BuildGrid.GRID_COLS * BuildGrid.CELL_SIZE * 0.5
+    var half_z: float = BuildGrid.GRID_ROWS * BuildGrid.CELL_SIZE * 0.5
+    navmesh.vertices = PackedVector3Array([
+        Vector3(-half_x, 0.0, -half_z),
+        Vector3(half_x, 0.0, -half_z),
+        Vector3(half_x, 0.0, half_z),
+        Vector3(-half_x, 0.0, half_z),
+    ])
+    navmesh.add_polygon(PackedInt32Array([0, 1, 2, 3]))
+    nav_region.navigation_mesh = navmesh
+    add_child(nav_region)
+    nav_coordinator = NavCoordinator.new()
 
 func _build_hud() -> void:
     var packed: PackedScene = load("res://scenes/hud.tscn")

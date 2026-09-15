@@ -360,4 +360,75 @@ func _initialize() -> void:
     bc.queue_free()
     await process_frame
 
+    # P09: navigation + a simple state machine + destination reservation.
+    # Loaded dynamically for the same compile-order reason as BuildGrid/
+    # BuildController above (StaffAgent touches GameState.paused).
+    var nav_coordinator_script: GDScript = load("res://src/world/nav_coordinator.gd")
+    var staff_agent_script: GDScript = load("res://src/world/staff_agent.gd")
+
+    var test_nav_region: NavigationRegion3D = NavigationRegion3D.new()
+    var test_navmesh: NavigationMesh = NavigationMesh.new()
+    test_navmesh.vertices = PackedVector3Array([
+        Vector3(-7.0, 0.0, -5.0), Vector3(7.0, 0.0, -5.0),
+        Vector3(7.0, 0.0, 5.0), Vector3(-7.0, 0.0, 5.0),
+    ])
+    test_navmesh.add_polygon(PackedInt32Array([0, 1, 2, 3]))
+    test_nav_region.navigation_mesh = test_navmesh
+    get_root().add_child(test_nav_region)
+
+    var coordinator: RefCounted = nav_coordinator_script.new()
+    var agents: Array = []
+    for i in 20:
+        var agent: Node3D = staff_agent_script.new()
+        agent.coordinator = coordinator
+        agent.rng.seed = 1000 + i
+        agent.position = Vector3(randf_range(-6.0, 6.0), 0.0, randf_range(-4.0, 4.0))
+        get_root().add_child(agent)
+        agents.append(agent)
+
+    # Let the navigation map sync and give every agent room to take at
+    # least a few steps (up to a 4s idle wait, then real travel time).
+    for i in 900:
+        await physics_frame
+
+    var total_distance: float = 0.0
+    var stuck_agents: int = 0
+    for agent in agents:
+        total_distance += agent.total_distance_traveled
+        if agent.total_distance_traveled <= 0.01:
+            stuck_agents += 1
+    if stuck_agents > 0:
+        push_error("StaffAgent: %d of 20 agents never moved at all (possible deadlock)" % stuck_agents)
+        quit(1)
+        return
+    if total_distance <= 1.0:
+        push_error("StaffAgent: total movement across 20 agents was implausibly small (%.3f)" % total_distance)
+        quit(1)
+        return
+    print("SMOKE_OK: 20 StaffAgents all made movement progress with no obvious deadlock (total distance %.1f)" % total_distance)
+
+    state.paused = true
+    await process_frame
+    var distances_at_pause: Array = []
+    for agent in agents:
+        distances_at_pause.append(agent.total_distance_traveled)
+    for i in 120:
+        await physics_frame
+    var moved_while_paused: bool = false
+    for i in agents.size():
+        if agents[i].total_distance_traveled > distances_at_pause[i] + 0.001:
+            moved_while_paused = true
+            break
+    state.paused = false
+    if moved_while_paused:
+        push_error("StaffAgent: movement continued while GameState.paused was true")
+        quit(1)
+        return
+    print("SMOKE_OK: pausing the game stops staff movement (simulation tasks)")
+
+    for agent in agents:
+        agent.queue_free()
+    test_nav_region.queue_free()
+    await process_frame
+
     quit(0)

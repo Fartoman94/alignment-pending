@@ -71,6 +71,18 @@ func _make_mesh(def: Dictionary, tint: Color) -> MeshInstance3D:
     mi.position.y = height * 0.5
     return mi
 
+## Adds a dynamic navigation obstacle so staff path around a placed
+## building without needing the static navmesh re-baked on every build/sell.
+func _add_obstacle(mesh: MeshInstance3D, def: Dictionary) -> void:
+    var footprint: Dictionary = def.get("footprint", {"w": 1, "d": 1})
+    var w: int = int(footprint.get("w", 1))
+    var d: int = int(footprint.get("d", 1))
+    var obstacle: NavigationObstacle3D = NavigationObstacle3D.new()
+    obstacle.radius = maxf(w, d) * BuildGrid.CELL_SIZE * 0.5 * 0.95
+    obstacle.height = float(def.get("height", 1.0))
+    obstacle.avoidance_enabled = true
+    mesh.add_child(obstacle)
+
 func _process(_delta: float) -> void:
     if mode != Mode.PLACE:
         return
@@ -136,6 +148,7 @@ func try_place() -> Error:
     mesh.position = grid.cell_to_world(cell)
     mesh.rotation.y = deg_to_rad(90.0) if rotated else 0.0
     add_child(mesh)
+    _add_obstacle(mesh, def)
     _placed[building_id] = {
         "mesh": mesh, "cells": cells, "buildable_id": current_buildable_id,
         "rotated": rotated, "cell": cell,
@@ -201,6 +214,7 @@ func load_from_state(data: Array) -> void:
         mesh.position = grid.cell_to_world(cell)
         mesh.rotation.y = deg_to_rad(90.0) if was_rotated else 0.0
         add_child(mesh)
+        _add_obstacle(mesh, def)
         _placed[building_id] = {
             "mesh": mesh, "cells": cells, "buildable_id": buildable_id,
             "rotated": was_rotated, "cell": cell,
