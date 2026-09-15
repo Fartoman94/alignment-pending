@@ -507,6 +507,78 @@ func _add_deployment_controls(model_id: String) -> void:
     revenue_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     _dynamic_content.add_child(revenue_label)
 
+    var predicted: Dictionary = RevenueManager.predicted_range(deployment_id)
+    var prediction_label: Label = Label.new()
+    prediction_label.text = "  Predicted range: %d users / $%.0f now → up to %d users / $%.0f at full rate limit" % [
+        int(round(float(predicted.get("current_users", 0.0)))), float(predicted.get("current_revenue", 0.0)),
+        int(round(float(predicted.get("max_users", 0.0)))), float(predicted.get("max_revenue", 0.0)),
+    ]
+    prediction_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    _dynamic_content.add_child(prediction_label)
+    if float(deployment.get("churned_fraction", 0.0)) > 0.0:
+        var churn_label: Label = Label.new()
+        churn_label.text = "  Churned: %d%% of this deployment's addressable market is permanently gone from sustained under-throttling." % int(round(float(deployment.get("churned_fraction", 0.0)) * 100.0))
+        churn_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+        _dynamic_content.add_child(churn_label)
+
+    var plan_header: Label = Label.new()
+    plan_header.text = "  Subscription plan: %s (quota %d seats%s)" % [
+        String(SubscriptionPlanCatalog.get_def(String(deployment.get("plan_id", "pro"))).get("name", "?")),
+        int(float(breakdown.get("quota", 0.0))),
+        " — quota-capped right now" if bool(breakdown.get("quota_capped", false)) else "",
+    ]
+    plan_header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    _dynamic_content.add_child(plan_header)
+    for plan_id: String in SubscriptionPlanCatalog.ordered_ids():
+        if plan_id == String(deployment.get("plan_id", "pro")):
+            continue
+        var plan_def: Dictionary = SubscriptionPlanCatalog.get_def(plan_id)
+        var plan_row: HBoxContainer = HBoxContainer.new()
+        var plan_label: Label = Label.new()
+        plan_label.text = "    %s — %s" % [String(plan_def.get("name", plan_id)), String(plan_def.get("description", ""))]
+        plan_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        plan_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+        plan_row.add_child(plan_label)
+        var switch_btn: Button = Button.new()
+        switch_btn.text = "Switch"
+        switch_btn.pressed.connect(func() -> void:
+            DeploymentPlanManager.set_plan(deployment_id, plan_id)
+            _show_models_panel()
+        )
+        plan_row.add_child(switch_btn)
+        _dynamic_content.add_child(plan_row)
+
+    if bool(deployment.get("enterprise_contract_signed", false)):
+        var contract_label: Label = Label.new()
+        contract_label.text = "    Enterprise contract signed — +$%d/day guaranteed." % int(SubscriptionPlanCatalog.get_def(String(deployment.get("plan_id", ""))).get("enterprise_contract_revenue_per_day", 0.0))
+        _dynamic_content.add_child(contract_label)
+    elif DeploymentPlanManager.can_sign_enterprise_contract(deployment_id):
+        var sign_btn: Button = Button.new()
+        sign_btn.text = "    Sign enterprise contract ($%d)" % int(DeploymentPlanManager.ENTERPRISE_CONTRACT_SIGNING_COST)
+        sign_btn.pressed.connect(func() -> void:
+            DeploymentPlanManager.sign_enterprise_contract(deployment_id)
+            _show_models_panel()
+        )
+        _dynamic_content.add_child(sign_btn)
+
+    var reserve_row: HBoxContainer = HBoxContainer.new()
+    var reserve_label: Label = Label.new()
+    reserve_label.text = "  Capacity reserved: %d ($%d to reserve 10 more/day)" % [
+        int(float(deployment.get("capacity_reserved", 0.0))), int(DeploymentPlanManager.reservation_cost(10.0)),
+    ]
+    reserve_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    reserve_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    reserve_row.add_child(reserve_label)
+    var reserve_btn: Button = Button.new()
+    reserve_btn.text = "Reserve +10"
+    reserve_btn.disabled = GameState.cash < DeploymentPlanManager.reservation_cost(10.0)
+    reserve_btn.pressed.connect(func() -> void:
+        DeploymentPlanManager.reserve_capacity(deployment_id, 10.0)
+        _show_models_panel()
+    )
+    reserve_row.add_child(reserve_btn)
+    _dynamic_content.add_child(reserve_row)
+
     var permissions_header: Label = Label.new()
     permissions_header.text = "  Autonomy permissions (each is a productivity gain traded for an explicit risk)"
     permissions_header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

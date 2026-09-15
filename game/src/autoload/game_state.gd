@@ -212,8 +212,15 @@ func effective_compute_capacity() -> float:
         office_capacity = compute_capacity * cooling_efficiency
     return (office_capacity + datacenter_compute_bonus) * world_compute_availability_multiplier
 
+## Includes every deployment's capacity_reserved (P32) — a reservation
+## permanently occupies its slice of compute whether or not the
+## deployment is actually drawing inference that instant, same as
+## training_compute_reserved does for an in-progress training run.
 func recompute_compute_used() -> void:
-    compute_used = training_compute_reserved + inference_compute_used
+    var reserved_total: float = 0.0
+    for d: Variant in deployments:
+        reserved_total += float((d as Dictionary).get("capacity_reserved", 0.0))
+    compute_used = training_compute_reserved + inference_compute_used + reserved_total
 
 ## Resets to a fresh campaign: a new random seed, default resources, and
 ## day-1 calendar. Does not touch player settings (SettingsManager owns

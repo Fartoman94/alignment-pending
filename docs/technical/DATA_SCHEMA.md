@@ -95,6 +95,24 @@ differently-shaped cycles. Each variable feeds one concrete, named effect:
 `public_trust` drift, `regulation_climate` → `RegulatorManager`'s
 pressure-accrual rate.
 
+## SubscriptionPlan
+Config (`data/subscription_plans.json` + `SubscriptionPlanCatalog`):
+`id, name, description, price, quota_users,
+enterprise_contract_revenue_per_day, min_reliability_for_contract`.
+A deployment's `plan_id` picks one (`DeploymentPlanManager.set_plan()`);
+`quota_users` is a hard seat cap `RevenueManager.compute_breakdown()`
+enforces (demand above it is turned away, not discounted).
+`enterprise_contract_signed` (bool, `DeploymentPlanManager
+.sign_enterprise_contract()`, gated by `min_reliability_for_contract` and
+a one-time cost) adds the plan's flat daily revenue bonus. A deployment's
+`capacity_reserved` (float, `DeploymentPlanManager.reserve_capacity()`)
+permanently occupies that much compute (`GameState
+.recompute_compute_used()`), and `churned_fraction` (0-1, bounded,
+raised by sustained low `rate_limit` — see `DeploymentPlanManager
+._on_day_advanced()`) permanently shrinks its addressable market.
+`RevenueManager.predicted_range()` compares current vs. full-rate-limit
+load/revenue for the pricing UI.
+
 ## IncidentDefinition
 `id, category, severity, prerequisites, weight, cooldown_days, title_template, body_template, choices[], tags[]`
 

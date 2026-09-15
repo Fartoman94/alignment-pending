@@ -28,6 +28,13 @@ func _find_model(model_id: String) -> Dictionary:
             return entry
     return {}
 
+func _find_deployment(deployment_id: String) -> Dictionary:
+    for d: Variant in GameState.deployments:
+        var entry: Dictionary = d
+        if String(entry.get("id", "")) == deployment_id:
+            return entry
+    return {}
+
 ## Segment quality score in [0, 1]: a weighted read of the model's true
 ## capability/reliability/safety_confidence against what this segment
 ## cares about (business cares more about reliability+safety, hobbyist
@@ -61,12 +68,18 @@ func _cost_per_user(model: Dictionary) -> float:
 
 ## Full traceable breakdown for one deployment: per-segment users/revenue,
 ## plus total revenue, total cost, and net. Returns {} for an unknown or
-## modelless deployment.
+## modelless deployment. Applies the deployment's subscription plan quota
+## (a hard seat cap — demand beyond it is simply turned away, not lost
+## revenue at a discount), any churned_fraction (P32: sustained
+## under-throttling permanently shrinks the addressable base — see
+## DeploymentPlanManager), and an enterprise contract's flat daily bonus
+## if signed.
 func compute_breakdown(deployment: Dictionary) -> Dictionary:
     var model: Dictionary = _find_model(String(deployment.get("model_id", "")))
     if model.is_empty():
         return {}
-    var deployment_scale: float = ReleaseManager.current_user_scale(deployment)
+    var churned_fraction: float = float(deployment.get("churned_fraction", 0.0))
+    var deployment_scale: float = ReleaseManager.current_user_scale(deployment) * (1.0 - churned_fraction)
     var price: float = float(deployment.get("price", DEFAULT_PRICE))
     var cost_per_user: float = _cost_per_user(model)
 
@@ -83,6 +96,23 @@ func compute_breakdown(deployment: Dictionary) -> Dictionary:
         total_users += users
         total_revenue += revenue
 
+    var plan_def: Dictionary = SubscriptionPlanCatalog.get_def(String(deployment.get("plan_id", "pro")))
+    var quota: float = float(plan_def.get("quota_users", 0.0))
+    var quota_capped: bool = quota > 0.0 and total_users > quota
+    if quota_capped:
+        var scale_down: float = quota / total_users
+        for segment_id2: String in segments:
+            var seg: Dictionary = segments[segment_id2]
+            seg["users"] = float(seg["users"]) * scale_down
+            seg["revenue"] = float(seg["revenue"]) * scale_down
+        total_revenue *= scale_down
+        total_users = quota
+
+    var enterprise_bonus: float = 0.0
+    if bool(deployment.get("enterprise_contract_signed", false)):
+        enterprise_bonus = float(plan_def.get("enterprise_contract_revenue_per_day", 0.0))
+    total_revenue += enterprise_bonus
+
     var total_cost: float = total_users * cost_per_user
     return {
         "segments": segments,
@@ -90,6 +120,29 @@ func compute_breakdown(deployment: Dictionary) -> Dictionary:
         "total_revenue": total_revenue,
         "total_cost": total_cost,
         "net": total_revenue - total_cost,
+        "quota": quota,
+        "quota_capped": quota_capped,
+        "enterprise_bonus": enterprise_bonus,
+    }
+
+## Load/revenue "current vs. full rate limit" range for one deployment —
+## the pricing UI's prediction (acceptance: "pricing UI predicts
+## load/revenue range"). Read alongside DeploymentPlanManager's churn
+## mechanic: keeping rate_limit low to avoid this doesn't just cap today's
+## revenue, sustained enough it shrinks tomorrow's max too.
+func predicted_range(deployment_id: String) -> Dictionary:
+    var deployment: Dictionary = _find_deployment(deployment_id)
+    if deployment.is_empty():
+        return {}
+    var current: Dictionary = compute_breakdown(deployment)
+    var maxed_deployment: Dictionary = deployment.duplicate(true)
+    maxed_deployment["rate_limit"] = 1.0
+    var maxed: Dictionary = compute_breakdown(maxed_deployment)
+    return {
+        "current_users": current.get("total_users", 0.0),
+        "current_revenue": current.get("total_revenue", 0.0),
+        "max_users": maxed.get("total_users", 0.0),
+        "max_revenue": maxed.get("total_revenue", 0.0),
     }
 
 func total_daily_net() -> float:

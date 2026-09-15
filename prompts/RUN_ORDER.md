@@ -34,7 +34,7 @@ Run exactly one prompt at a time. Do not skip quality gates.
 - [x] `phase_02_core_sim/P29_automation_and_workforce.md` — Automation and workforce
 - [x] `phase_02_core_sim/P30_datacenter_progression.md` — Datacenter progression
 - [x] `phase_02_core_sim/P31_world_state_simulation.md` — World-state simulation
-- [ ] `phase_02_core_sim/P32_deployment_plans_and_subscriptions.md` — Deployment plans and subscriptions
+- [x] `phase_02_core_sim/P32_deployment_plans_and_subscriptions.md` — Deployment plans and subscriptions
 - [ ] `phase_03_content/P33_news_and_social_feed.md` — News and social feed
 - [ ] `phase_03_content/P34_incident_content_expansion.md` — Incident content expansion
 - [ ] `phase_03_content/P35_research_tree_expansion.md` — Research tree expansion

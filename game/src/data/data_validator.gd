@@ -98,6 +98,9 @@ const DATACENTER_TIER_REQUIRED_FIELDS: Array[String] = ["id", "name", "descripti
 # midpoint so a cycle can never push the value outside [0, 100].
 const WORLD_VARIABLE_REQUIRED_FIELDS: Array[String] = ["id", "name", "description", "effect_description", "midpoint", "amplitude", "period_days"]
 
+# P32: deployment plans and subscriptions.
+const SUBSCRIPTION_PLAN_REQUIRED_FIELDS: Array[String] = ["id", "name", "description", "price", "quota_users", "enterprise_contract_revenue_per_day", "min_reliability_for_contract"]
+
 ## One validation problem: which file, which record, and why.
 class Issue:
     var source: String
@@ -136,6 +139,7 @@ static func validate_all() -> Array[Issue]:
     issues.append_array(validate_workforce_policy_file("res://data/workforce_policies.json"))
     issues.append_array(validate_datacenter_tier_file("res://data/datacenter_tiers.json"))
     issues.append_array(validate_world_variable_file("res://data/world_variables.json"))
+    issues.append_array(validate_subscription_plan_file("res://data/subscription_plans.json"))
     issues.append_array(validate_epilogue_file("res://data/epilogues.json"))
     return issues
 
@@ -1563,6 +1567,75 @@ static func _validate_world_variable_record(path: String, record: Variant, index
 
     if entry.has("period_days") and not _is_whole_number_at_least(entry.get("period_days"), 1):
         issues.append(Issue.new(path, id_label, "'period_days' must be a whole number >= 1"))
+
+    return issues
+
+static func validate_subscription_plan_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of subscription plan records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_subscription_plan_record(path, records[i], i, seen_ids))
+    return issues
+
+static func _validate_subscription_plan_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "subscription plan record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in SUBSCRIPTION_PLAN_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+
+    for text_field: String in ["name", "description"]:
+        if entry.has(text_field) and (not (entry[text_field] is String) or String(entry[text_field]).is_empty()):
+            issues.append(Issue.new(path, id_label, "'%s' must be a non-empty string" % text_field))
+
+    if entry.has("price"):
+        var price: Variant = entry.get("price")
+        if not (price is int or price is float) or float(price) < 0.0:
+            issues.append(Issue.new(path, id_label, "'price' must be a number >= 0"))
+
+    if entry.has("quota_users") and not _is_whole_number_at_least(entry.get("quota_users"), 1):
+        issues.append(Issue.new(path, id_label, "'quota_users' must be a whole number >= 1"))
+
+    if entry.has("enterprise_contract_revenue_per_day"):
+        var bonus: Variant = entry.get("enterprise_contract_revenue_per_day")
+        if not (bonus is int or bonus is float) or float(bonus) < 0.0:
+            issues.append(Issue.new(path, id_label, "'enterprise_contract_revenue_per_day' must be a number >= 0"))
+
+    if entry.has("min_reliability_for_contract"):
+        var min_reliability: Variant = entry.get("min_reliability_for_contract")
+        if not (min_reliability is int or min_reliability is float) or float(min_reliability) < 0.0 or float(min_reliability) > 100.0:
+            issues.append(Issue.new(path, id_label, "'min_reliability_for_contract' must be a number in [0, 100]"))
 
     return issues
 

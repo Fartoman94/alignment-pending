@@ -1,0 +1,29 @@
+[
+  {
+    "id": "free",
+    "name": "Free Tier",
+    "description": "Wide open access, hard-capped seats, no contracts.",
+    "price": 0.0,
+    "quota_users": 5000,
+    "enterprise_contract_revenue_per_day": 0.0,
+    "min_reliability_for_contract": 0.0
+  },
+  {
+    "id": "pro",
+    "name": "Pro Tier",
+    "description": "The default paid tier — a generous seat cap, no contract.",
+    "price": 5.0,
+    "quota_users": 100000,
+    "enterprise_contract_revenue_per_day": 0.0,
+    "min_reliability_for_contract": 0.0
+  },
+  {
+    "id": "enterprise",
+    "name": "Enterprise Tier",
+    "description": "A handful of big accounts on a signed contract, with a tight seat cap.",
+    "price": 25.0,
+    "quota_users": 500,
+    "enterprise_contract_revenue_per_day": 4000.0,
+    "min_reliability_for_contract": 70.0
+  }
+]

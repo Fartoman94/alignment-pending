@@ -2718,4 +2718,147 @@ func _initialize() -> void:
     state.heat_load = 0.0
     state.cash = 184200.0
 
+    # P32: deployment plans and subscriptions — subscription tiers,
+    # quotas, enterprise contracts, capacity reservation, and rate-limit
+    # churn.
+    var plan_mgr: Node = get_root().get_node("DeploymentPlanManager")
+    var plan_ids: Array = SubscriptionPlanCatalog.ordered_ids()
+    if plan_ids.size() != 3:
+        push_error("SubscriptionPlanCatalog should seed exactly 3 plans (got %d)" % plan_ids.size())
+        quit(1)
+        return
+    print("SMOKE_OK: SubscriptionPlanCatalog seeds 3 subscription plans")
+
+    state.models = [{
+        "id": "plan_model_1", "name": "Plan Test Model", "generation": 1, "architecture_tier": "medium",
+        "capability": 90.0, "reliability": 90.0, "safety_confidence": 90.0, "cost_efficiency": 70.0,
+        "latency_efficiency": 70.0, "autonomy": 30.0, "interpretability": 60.0, "latent_risk": 20.0,
+        "evals_completed": 0, "training_cost": 20000.0, "created_at": 1,
+    }]
+    state.deployments = []
+    state.cash = 500000.0
+    release_mgr.deploy("plan_model_1")
+    var plan_deployment_id: String = String(state.deployments[0].get("id", ""))
+    state.deployments[0]["mode_id"] = "public"
+    state.deployments[0]["rollout_stage"] = 1.0
+    state.deployments[0]["rate_limit"] = 1.0
+    revenue_mgr.set_price(plan_deployment_id, 1.0)
+
+    if String(state.deployments[0].get("plan_id", "")) != "pro":
+        push_error("A new deployment should default to the pro plan")
+        quit(1)
+        return
+
+    var bad_plan_err: Error = plan_mgr.set_plan(plan_deployment_id, "not_a_real_plan")
+    if bad_plan_err == OK:
+        push_error("set_plan() should reject an unknown plan id")
+        quit(1)
+        return
+    var set_plan_err: Error = plan_mgr.set_plan(plan_deployment_id, "enterprise")
+    if set_plan_err != OK or String(state.deployments[0].get("plan_id", "")) != "enterprise":
+        push_error("set_plan() should switch the deployment's plan (error %s)" % set_plan_err)
+        quit(1)
+        return
+
+    var enterprise_def: Dictionary = SubscriptionPlanCatalog.get_def("enterprise")
+    var capped_breakdown: Dictionary = revenue_mgr.compute_breakdown(state.deployments[0])
+    if not bool(capped_breakdown.get("quota_capped", false)):
+        push_error("A strong model at full rollout/rate-limit should exceed the enterprise plan's tight seat quota")
+        quit(1)
+        return
+    if not is_equal_approx(float(capped_breakdown.get("total_users", -1.0)), float(enterprise_def.get("quota_users", 0.0))):
+        push_error("Quota-capped total_users should be clamped exactly to the plan's quota_users")
+        quit(1)
+        return
+    print("SMOKE_OK: a subscription plan's quota hard-caps seats — demand beyond it is turned away, not discounted")
+
+    if plan_mgr.can_sign_enterprise_contract(plan_deployment_id) != true:
+        push_error("A deployment meeting the reliability bar with enough cash should be able to sign the enterprise contract")
+        quit(1)
+        return
+    state.models[0]["reliability"] = 10.0
+    if plan_mgr.can_sign_enterprise_contract(plan_deployment_id):
+        push_error("A deployment below the plan's min_reliability_for_contract should not be able to sign")
+        quit(1)
+        return
+    state.models[0]["reliability"] = 90.0
+
+    var cash_before_contract: float = state.cash
+    var sign_err: Error = plan_mgr.sign_enterprise_contract(plan_deployment_id)
+    if sign_err != OK or not bool(state.deployments[0].get("enterprise_contract_signed", false)):
+        push_error("Signing an eligible enterprise contract should succeed (error %s)" % sign_err)
+        quit(1)
+        return
+    if not is_equal_approx(state.cash, cash_before_contract - float(plan_mgr.ENTERPRISE_CONTRACT_SIGNING_COST)):
+        push_error("Signing an enterprise contract should deduct its one-time signing cost")
+        quit(1)
+        return
+    var double_sign_err: Error = plan_mgr.sign_enterprise_contract(plan_deployment_id)
+    if double_sign_err == OK:
+        push_error("A deployment shouldn't be able to sign the same enterprise contract twice")
+        quit(1)
+        return
+    var with_contract: Dictionary = revenue_mgr.compute_breakdown(state.deployments[0])
+    if not is_equal_approx(float(with_contract.get("total_revenue", 0.0)) - float(capped_breakdown.get("total_revenue", 0.0)), float(enterprise_def.get("enterprise_contract_revenue_per_day", 0.0))):
+        push_error("A signed enterprise contract should add exactly its flat daily bonus to total_revenue")
+        quit(1)
+        return
+    print("SMOKE_OK: an enterprise contract is gated by reliability/cash and adds a flat, traceable daily revenue bonus")
+
+    state.deployments[0]["rate_limit"] = 0.4
+    var predicted: Dictionary = revenue_mgr.predicted_range(plan_deployment_id)
+    if float(predicted.get("max_revenue", 0.0)) < float(predicted.get("current_revenue", 0.0)) - 0.01:
+        push_error("predicted_range() should show at-least-current revenue at full rate limit")
+        quit(1)
+        return
+    print("SMOKE_OK: predicted_range() gives the pricing UI a current vs. full-rate-limit load/revenue range")
+
+    var compute_used_before_reserve: float = state.compute_used
+    var reserve_cost: float = plan_mgr.reservation_cost(10.0)
+    state.cash = 100000.0
+    var reserve_err: Error = plan_mgr.reserve_capacity(plan_deployment_id, 10.0)
+    if reserve_err != OK:
+        push_error("Reserving affordable capacity should succeed (error %s)" % reserve_err)
+        quit(1)
+        return
+    if not is_equal_approx(state.compute_used, compute_used_before_reserve + 10.0):
+        push_error("Reserving capacity should permanently occupy that much of GameState.compute_used")
+        quit(1)
+        return
+    if not is_equal_approx(state.cash, 100000.0 - reserve_cost):
+        push_error("Reserving capacity should deduct its cost")
+        quit(1)
+        return
+    plan_mgr.release_capacity(plan_deployment_id)
+    if not is_equal_approx(state.compute_used, compute_used_before_reserve):
+        push_error("Releasing capacity should free the reservation")
+        quit(1)
+        return
+    print("SMOKE_OK: capacity reservation permanently occupies compute headroom until released")
+
+    # Rate-limit churn: sustained under-throttling permanently shrinks the
+    # deployment's addressable market, bounded so it's never a total wipeout.
+    state.deployments[0]["rate_limit"] = 0.1
+    state.deployments[0]["rate_limit_low_days"] = 0
+    state.deployments[0]["churned_fraction"] = 0.0
+    for i in int(plan_mgr.CHURN_STREAK_DAYS_TRIGGER):
+        bus2.day_advanced.emit(state.calendar_day)
+    if not is_equal_approx(float(state.deployments[0].get("churned_fraction", 0.0)), float(plan_mgr.CHURN_INCREMENT)):
+        push_error("Sustaining a low rate limit for CHURN_STREAK_DAYS_TRIGGER days should trigger one bounded churn increment")
+        quit(1)
+        return
+    state.cash = 10000000.0  # avoid bankruptcy noise over the next 200 ticks
+    state.bankruptcy_day = -1
+    for i in 200:
+        bus2.day_advanced.emit(state.calendar_day)
+    if float(state.deployments[0].get("churned_fraction", 0.0)) > float(plan_mgr.CHURN_MAX_FRACTION) + 0.001:
+        push_error("Repeated churn events must never exceed CHURN_MAX_FRACTION — never a total wipeout")
+        quit(1)
+        return
+    print("SMOKE_OK: rate limits kept low long enough cause bounded, permanent churn events")
+
+    state.models = []
+    state.deployments = []
+    state.cash = 184200.0
+
     quit(0)
