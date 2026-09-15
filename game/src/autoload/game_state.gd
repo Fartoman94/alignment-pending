@@ -11,9 +11,15 @@ const BASE_HEAT_CAPACITY: float = 60.0
 var campaign_seed: int = 8124
 var cash: float = 184200.0
 var compute_capacity: float = BASE_COMPUTE_CAPACITY
-## Compute currently reserved by active (training) work orders. Kept in
-## sync by TaskManager.
+## Total compute reserved/drawn = training_compute_reserved +
+## inference_compute_used. Always derived — see recompute_compute_used().
 var compute_used: float = 0.0
+## Compute reserved by active training work orders. Kept in sync by
+## TaskManager.
+var training_compute_reserved: float = 0.0
+## Compute drawn by active deployments' inference traffic. Kept in sync by
+## ReleaseManager.
+var inference_compute_used: float = 0.0
 var power_capacity: float = BASE_POWER_CAPACITY
 ## Sum of BASE_POWER_DRAW + every placed building's power_draw. Kept in
 ## sync by BuildController.
@@ -71,6 +77,11 @@ var next_model_id: int = 1
 ## model_id -> count of paid-but-not-yet-worked evaluation sessions. Kept
 ## in sync by EvaluationManager.
 var pending_evaluations: Dictionary = {}
+## Each entry: {id, model_id, mode_id, rollout_stage (0-1), rate_limit
+## (0-1), started_day, status: "active"|"rolled_back"}. Kept in sync by
+## ReleaseManager.
+var deployments: Array = []
+var next_deployment_id: int = 1
 
 func toggle_pause() -> void:
     paused = not paused
@@ -85,6 +96,9 @@ func effective_compute_capacity() -> float:
     var cooling_efficiency: float = clampf(heat_capacity / heat_load, 0.3, 1.0)
     return compute_capacity * cooling_efficiency
 
+func recompute_compute_used() -> void:
+    compute_used = training_compute_reserved + inference_compute_used
+
 ## Resets to a fresh campaign: a new random seed, default resources, and
 ## day-1 calendar. Does not touch player settings (SettingsManager owns
 ## those separately).
@@ -93,6 +107,8 @@ func reset_to_defaults() -> void:
     cash = 184200.0
     compute_capacity = BASE_COMPUTE_CAPACITY
     compute_used = 0.0
+    training_compute_reserved = 0.0
+    inference_compute_used = 0.0
     power_capacity = BASE_POWER_CAPACITY
     power_used = BASE_POWER_DRAW
     heat_capacity = BASE_HEAT_CAPACITY
@@ -119,6 +135,8 @@ func reset_to_defaults() -> void:
     models = []
     next_model_id = 1
     pending_evaluations = {}
+    deployments = []
+    next_deployment_id = 1
 
 ## Campaign state payload only. The save format version lives one layer up,
 ## in SaveManager's envelope, so it isn't duplicated here.
@@ -128,6 +146,8 @@ func to_dict() -> Dictionary:
         "cash": cash,
         "compute_capacity": compute_capacity,
         "compute_used": compute_used,
+        "training_compute_reserved": training_compute_reserved,
+        "inference_compute_used": inference_compute_used,
         "power_capacity": power_capacity,
         "power_used": power_used,
         "heat_capacity": heat_capacity,
@@ -153,6 +173,8 @@ func to_dict() -> Dictionary:
         "models": models,
         "next_model_id": next_model_id,
         "pending_evaluations": pending_evaluations,
+        "deployments": deployments,
+        "next_deployment_id": next_deployment_id,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -160,6 +182,8 @@ func from_dict(data: Dictionary) -> void:
     campaign_seed = int(data.get("campaign_seed", campaign_seed))
     compute_capacity = float(data.get("compute_capacity", compute_capacity))
     compute_used = float(data.get("compute_used", compute_used))
+    training_compute_reserved = float(data.get("training_compute_reserved", training_compute_reserved))
+    inference_compute_used = float(data.get("inference_compute_used", inference_compute_used))
     power_capacity = float(data.get("power_capacity", power_capacity))
     power_used = float(data.get("power_used", power_used))
     heat_capacity = float(data.get("heat_capacity", heat_capacity))
@@ -193,3 +217,6 @@ func from_dict(data: Dictionary) -> void:
     next_model_id = int(data.get("next_model_id", next_model_id))
     var loaded_pending_evals: Variant = data.get("pending_evaluations", {})
     pending_evaluations = loaded_pending_evals if loaded_pending_evals is Dictionary else {}
+    var loaded_deployments: Variant = data.get("deployments", [])
+    deployments = loaded_deployments if loaded_deployments is Array else []
+    next_deployment_id = int(data.get("next_deployment_id", next_deployment_id))

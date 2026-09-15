@@ -329,6 +329,81 @@ func _show_models_panel() -> void:
             )
             row.add_child(eval_btn)
             _dynamic_content.add_child(row)
+            _add_deployment_controls(model_id)
+
+## Deploy/Promote/Rollback + rate-limit slider for one trained model,
+## reflecting Internal/Beta/Public staged rollout (docs/design/UI_UX.md's
+## release screen actions, minus "Delay" which is just not deploying yet).
+func _add_deployment_controls(model_id: String) -> void:
+    var deployment: Dictionary = {}
+    for d: Variant in GameState.deployments:
+        if String((d as Dictionary).get("model_id", "")) == model_id:
+            deployment = d
+            break
+
+    var row: HBoxContainer = HBoxContainer.new()
+    var label: Label = Label.new()
+    label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+    if deployment.is_empty():
+        label.text = "  Not deployed"
+        row.add_child(label)
+        var deploy_btn: Button = Button.new()
+        deploy_btn.text = "Deploy (Internal)"
+        deploy_btn.pressed.connect(func() -> void:
+            ReleaseManager.deploy(model_id)
+            _show_models_panel()
+        )
+        row.add_child(deploy_btn)
+        _dynamic_content.add_child(row)
+        return
+
+    var deployment_id: String = String(deployment.get("id", ""))
+    var mode_id: String = String(deployment.get("mode_id", ""))
+    var mode_def: Dictionary = DeploymentModeCatalog.get_def(mode_id)
+    label.text = "  %s — rollout %d%%, users ~%d, exposure ~%d" % [
+        String(mode_def.get("name", mode_id)),
+        int(round(float(deployment.get("rollout_stage", 0.0)) * 100.0)),
+        int(ReleaseManager.current_user_scale(deployment)),
+        int(ReleaseManager.total_incident_exposure()),
+    ]
+    row.add_child(label)
+
+    var next_mode: String = DeploymentModeCatalog.next_mode(mode_id)
+    if not next_mode.is_empty():
+        var promote_btn: Button = Button.new()
+        promote_btn.text = "Promote to %s" % String(DeploymentModeCatalog.get_def(next_mode).get("name", next_mode))
+        promote_btn.pressed.connect(func() -> void:
+            ReleaseManager.promote(deployment_id)
+            _show_models_panel()
+        )
+        row.add_child(promote_btn)
+
+    var rollback_btn: Button = Button.new()
+    rollback_btn.text = "Rollback"
+    rollback_btn.pressed.connect(func() -> void:
+        ReleaseManager.rollback(deployment_id)
+        _show_models_panel()
+    )
+    row.add_child(rollback_btn)
+    _dynamic_content.add_child(row)
+
+    var slider_row: HBoxContainer = HBoxContainer.new()
+    var slider_label: Label = Label.new()
+    slider_label.text = "  Rate limit"
+    slider_label.custom_minimum_size = Vector2(90, 0)
+    slider_row.add_child(slider_label)
+    var slider: HSlider = HSlider.new()
+    slider.min_value = 0.0
+    slider.max_value = 1.0
+    slider.step = 0.05
+    slider.value = float(deployment.get("rate_limit", 1.0))
+    slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    slider.value_changed.connect(func(value: float) -> void:
+        ReleaseManager.set_rate_limit(deployment_id, value)
+    )
+    slider_row.add_child(slider)
+    _dynamic_content.add_child(slider_row)
 
 func _show_staff_detail(staff_id: String) -> void:
     var member: Dictionary = StaffManager.find(staff_id)

@@ -27,7 +27,8 @@ func _sync_compute_used() -> void:
     for order: Variant in GameState.work_orders:
         var task_def: Dictionary = WorkTaskCatalog.get_def(String((order as Dictionary).get("task_id", "")))
         total += float(task_def.get("compute_cost", 0.0))
-    GameState.compute_used = total
+    GameState.training_compute_reserved = total
+    GameState.recompute_compute_used()
 
 func is_building_reserved(building_id: String) -> bool:
     return _reserved_buildings.has(building_id)

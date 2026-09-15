@@ -1,0 +1,26 @@
+[
+  {
+    "id": "internal",
+    "name": "Internal",
+    "base_user_scale": 20,
+    "exposure_multiplier": 0.1,
+    "rollout_days": 1,
+    "inference_compute_per_1k_users": 2
+  },
+  {
+    "id": "beta",
+    "name": "Beta",
+    "base_user_scale": 800,
+    "exposure_multiplier": 0.5,
+    "rollout_days": 5,
+    "inference_compute_per_1k_users": 2
+  },
+  {
+    "id": "public",
+    "name": "Public",
+    "base_user_scale": 8000,
+    "exposure_multiplier": 1.0,
+    "rollout_days": 10,
+    "inference_compute_per_1k_users": 2
+  }
+]

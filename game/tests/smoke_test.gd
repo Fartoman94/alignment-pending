@@ -982,4 +982,121 @@ func _initialize() -> void:
     state.models = []
     state.pending_evaluations = {}
 
+    # P16: release and rollout — deployment modes, staged rollout,
+    # rollback, rate limit; affects user scale, compute, incident exposure.
+    var release_mgr: Node = get_root().get_node("ReleaseManager")
+    var deployment_mode_ids: Array = DeploymentModeCatalog.load_all().keys()
+    if deployment_mode_ids.size() != 3:
+        push_error("DeploymentModeCatalog should define exactly 3 deployment modes (got %d)" % deployment_mode_ids.size())
+        quit(1)
+        return
+    if DeploymentModeCatalog.next_mode("internal") != "beta" or DeploymentModeCatalog.next_mode("beta") != "public" or not DeploymentModeCatalog.next_mode("public").is_empty():
+        push_error("DeploymentModeCatalog.next_mode() should follow Internal -> Beta -> Public")
+        quit(1)
+        return
+    print("SMOKE_OK: 3 deployment modes seeded in Internal -> Beta -> Public order")
+
+    state.models = [{
+        "id": "release_model_1", "name": "Release Test Model", "generation": 1, "architecture_tier": "small",
+        "capability": 50.0, "reliability": 50.0, "safety_confidence": 50.0, "cost_efficiency": 50.0,
+        "latency_efficiency": 50.0, "autonomy": 50.0, "interpretability": 50.0, "latent_risk": 50.0,
+        "evals_completed": 0, "training_cost": 8000.0, "created_at": 1,
+    }]
+    state.deployments = []
+    state.work_orders = []
+
+    var deploy_err: Error = release_mgr.deploy("release_model_1")
+    if deploy_err != OK or state.deployments.size() != 1:
+        push_error("ReleaseManager.deploy() failed to create a deployment (error %s)" % deploy_err)
+        quit(1)
+        return
+    var deployment_id: String = String(state.deployments[0].get("id", ""))
+    if String(state.deployments[0].get("mode_id", "")) != "internal":
+        push_error("A new deployment should start in Internal mode")
+        quit(1)
+        return
+    if not is_equal_approx(release_mgr.total_user_scale(), 0.0):
+        push_error("A freshly deployed (0%% rollout) release should have zero user scale so far")
+        quit(1)
+        return
+    print("SMOKE_OK: deploying a model starts an Internal-mode deployment at 0% rollout")
+
+    bus2.day_advanced.emit(state.calendar_day)
+    var deployment_after_day: Dictionary = state.deployments[0]
+    if not is_equal_approx(float(deployment_after_day.get("rollout_stage", 0.0)), 1.0):
+        push_error("Internal mode has rollout_days=1, so one day should complete the rollout")
+        quit(1)
+        return
+    var internal_exposure: float = release_mgr.total_incident_exposure()
+    if internal_exposure <= 0.0:
+        push_error("Deployment state should affect incident exposure (expected > 0 once live)")
+        quit(1)
+        return
+    var internal_inference: float = release_mgr.total_inference_compute()
+    if internal_inference <= 0.0:
+        push_error("Deployment state should affect inference compute (expected > 0 once live)")
+        quit(1)
+        return
+    if not is_equal_approx(state.compute_used, internal_inference):
+        push_error("GameState.compute_used should include inference draw from active deployments")
+        quit(1)
+        return
+    if release_mgr.total_user_scale() <= 0.0:
+        push_error("Deployment state should affect user scale (expected > 0 after rollout completes)")
+        quit(1)
+        return
+    print("SMOKE_OK: staged rollout completes over time and affects user scale, compute, and incident exposure")
+
+    var promote_err: Error = release_mgr.promote(deployment_id)
+    if promote_err != OK or String(state.deployments[0].get("mode_id", "")) != "beta":
+        push_error("ReleaseManager.promote() failed to advance Internal -> Beta (error %s)" % promote_err)
+        quit(1)
+        return
+    if not is_equal_approx(float(state.deployments[0].get("rollout_stage", 1.0)), 0.0):
+        push_error("Promoting to a new mode should restart the staged rollout at 0%")
+        quit(1)
+        return
+    if not is_equal_approx(release_mgr.total_user_scale(), 0.0):
+        push_error("A freshly promoted deployment should have zero user scale until it rolls out again")
+        quit(1)
+        return
+    print("SMOKE_OK: promoting Internal -> Beta restarts the staged rollout")
+
+    release_mgr.set_rate_limit(deployment_id, 0.5)
+    for i in 5:
+        bus2.day_advanced.emit(state.calendar_day)
+    var beta_mode_def: Dictionary = DeploymentModeCatalog.get_def("beta")
+    var expected_beta_scale: float = float(beta_mode_def.get("base_user_scale", 0.0)) * 0.5
+    if not is_equal_approx(release_mgr.total_user_scale(), expected_beta_scale):
+        push_error("Rate limit slider should scale down user scale proportionally (expected %.1f, got %.1f)" % [expected_beta_scale, release_mgr.total_user_scale()])
+        quit(1)
+        return
+    print("SMOKE_OK: the rate limit slider proportionally throttles user scale")
+
+    var rollback_err: Error = release_mgr.rollback(deployment_id)
+    if rollback_err != OK or not state.deployments.is_empty():
+        push_error("ReleaseManager.rollback() failed to remove the deployment (error %s)" % rollback_err)
+        quit(1)
+        return
+    if not is_equal_approx(release_mgr.total_user_scale(), 0.0) or not is_equal_approx(release_mgr.total_incident_exposure(), 0.0) or not is_equal_approx(state.compute_used, 0.0):
+        push_error("Rolling back should zero out user scale, incident exposure, and inference compute")
+        quit(1)
+        return
+    print("SMOKE_OK: rollback safely reverts user scale, incident exposure, and inference compute to zero")
+
+    release_mgr.deploy("release_model_1")
+    var save_deployment_id: String = String(state.deployments[0].get("id", ""))
+    var deploy_save_err: Error = save_mgr.save_manual(0)
+    state.deployments = []
+    var deploy_load_err: Error = save_mgr.load_manual(0)
+    if deploy_save_err != OK or deploy_load_err != OK or state.deployments.is_empty() or String(state.deployments[0].get("id", "")) != save_deployment_id:
+        push_error("Deployments did not survive save/load (save error %s, load error %s)" % [deploy_save_err, deploy_load_err])
+        quit(1)
+        return
+    print("SMOKE_OK: deployments persist across save/load")
+
+    state.models = []
+    state.deployments = []
+    state.work_orders = []
+
     quit(0)
