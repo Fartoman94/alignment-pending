@@ -47,6 +47,16 @@ var next_staff_id: int = 1
 ## started_day}. Kept in sync by TaskManager.
 var work_orders: Array = []
 var next_work_order_id: int = 1
+## Research node ids the player has fully unlocked. Kept in sync by
+## ResearchManager.
+var research_unlocked: Array = []
+## node_id -> accumulated progress_minutes toward that node's
+## duration_minutes. Only holds started-but-not-yet-unlocked nodes.
+var research_progress: Dictionary = {}
+## Cumulative compute bonus from unlocked research (see
+## ResearchNodeCatalog "compute_bonus" effects), folded into
+## compute_capacity by BuildController._recompute_infrastructure().
+var research_compute_bonus: float = 0.0
 
 func toggle_pause() -> void:
     paused = not paused
@@ -87,6 +97,9 @@ func reset_to_defaults() -> void:
     next_staff_id = 1
     work_orders = []
     next_work_order_id = 1
+    research_unlocked = []
+    research_progress = {}
+    research_compute_bonus = 0.0
 
 ## Campaign state payload only. The save format version lives one layer up,
 ## in SaveManager's envelope, so it isn't duplicated here.
@@ -113,6 +126,9 @@ func to_dict() -> Dictionary:
         "next_staff_id": next_staff_id,
         "work_orders": work_orders,
         "next_work_order_id": next_work_order_id,
+        "research_unlocked": research_unlocked,
+        "research_progress": research_progress,
+        "research_compute_bonus": research_compute_bonus,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -140,3 +156,8 @@ func from_dict(data: Dictionary) -> void:
     var loaded_work_orders: Variant = data.get("work_orders", [])
     work_orders = loaded_work_orders if loaded_work_orders is Array else []
     next_work_order_id = int(data.get("next_work_order_id", next_work_order_id))
+    var loaded_research_unlocked: Variant = data.get("research_unlocked", [])
+    research_unlocked = loaded_research_unlocked if loaded_research_unlocked is Array else []
+    var loaded_research_progress: Variant = data.get("research_progress", {})
+    research_progress = loaded_research_progress if loaded_research_progress is Dictionary else {}
+    research_compute_bonus = float(data.get("research_compute_bonus", research_compute_bonus))

@@ -96,6 +96,9 @@ func _on_section_pressed(section_name: String) -> void:
     if section_name == "Staff":
         _show_staff_panel()
         return
+    if section_name == "Research":
+        _show_research_panel()
+        return
     EventBus.build_tool_changed.emit("")
     _clear_dynamic_content()
     _inspector_title.text = section_name
@@ -198,6 +201,52 @@ func _show_staff_panel() -> void:
         row2.add_child(hire_btn)
         _dynamic_content.add_child(row2)
 
+func _show_research_panel() -> void:
+    EventBus.build_tool_changed.emit("")
+    _clear_dynamic_content()
+    _inspector_title.text = "Research"
+    _inspector_body.text = "Assign a researcher to a desk (Staff > Inspect > Assign) to make progress on a started node."
+
+    for node_id: String in ResearchNodeCatalog.ordered_ids():
+        var def: Dictionary = ResearchNodeCatalog.get_def(node_id)
+        var row: HBoxContainer = HBoxContainer.new()
+        var label: Label = Label.new()
+        var prereqs: Array = def.get("prerequisites", [])
+        var prereq_names: PackedStringArray = []
+        for prereq: Variant in prereqs:
+            prereq_names.append(String(ResearchNodeCatalog.get_def(String(prereq)).get("name", prereq)))
+        var prereq_text: String = "" if prereq_names.is_empty() else " (needs %s)" % ", ".join(prereq_names)
+
+        var status: String
+        if ResearchManager.is_unlocked(node_id):
+            status = "Unlocked"
+        elif ResearchManager.is_active(node_id):
+            status = "In progress %d%%" % int(round(ResearchManager.node_progress_fraction(node_id) * 100.0))
+        elif ResearchManager.prerequisites_met(node_id):
+            status = "Available"
+        else:
+            status = "Locked"
+
+        label.text = "[%s] %s — $%d%s — %s" % [
+            String(def.get("branch", "?")).capitalize(), String(def.get("name", node_id)),
+            int(def.get("cost", 0)), prereq_text, status,
+        ]
+        label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+        row.add_child(label)
+
+        if not ResearchManager.is_unlocked(node_id) and not ResearchManager.is_active(node_id):
+            var start_btn: Button = Button.new()
+            start_btn.text = "Start"
+            start_btn.disabled = not ResearchManager.can_start(node_id)
+            start_btn.pressed.connect(func() -> void:
+                ResearchManager.start(node_id)
+                _show_research_panel()
+            )
+            row.add_child(start_btn)
+
+        _dynamic_content.add_child(row)
+
 func _show_staff_detail(staff_id: String) -> void:
     var member: Dictionary = StaffManager.find(staff_id)
     if member.is_empty():
@@ -215,8 +264,12 @@ func _show_staff_detail(staff_id: String) -> void:
         var order: Dictionary = TaskManager.find_order_for_staff(staff_id)
         if not order.is_empty():
             var task_def: Dictionary = WorkTaskCatalog.get_def(String(order.get("task_id", "")))
-            status_line = "Working: %s (%d%%)" % [
-                String(task_def.get("name", "?")), int(round(TaskManager.progress_fraction(order) * 100.0)),
+            var order_target: String = String(order.get("target_id", ""))
+            var target_suffix: String = ""
+            if not order_target.is_empty():
+                target_suffix = " → %s" % String(ResearchNodeCatalog.get_def(order_target).get("name", order_target))
+            status_line = "Working: %s%s (%d%%)" % [
+                String(task_def.get("name", "?")), target_suffix, int(round(TaskManager.progress_fraction(order) * 100.0)),
             ]
     _inspector_body.text = "Role: %s\nSalary: $%d/day\nMorale: %d%%\nFatigue: %d%%\nHired day %d\nSkills: %s\nStatus: %s" % [
         member.get("role", "?"), int(member.get("salary", 0.0)), int(member.get("morale", 0)),
@@ -237,14 +290,24 @@ func _show_staff_detail(staff_id: String) -> void:
             var required_skill: String = String(task_def.get("required_skill", ""))
             if int(skills.get(required_skill, 0)) <= 0:
                 continue
+            # research_sprint needs an active (started) research node to
+            # apply progress to; no active node means nothing to work on.
+            var research_target: String = ""
+            if task_id == ResearchManager.RESEARCH_TASK_ID:
+                research_target = ResearchManager.pick_active_node_for_assignment()
+                if research_target.is_empty():
+                    continue
             var candidates: Array = TaskManager.available_buildings_for_task(task_id)
             if candidates.is_empty():
                 continue
             var assign_btn: Button = Button.new()
-            assign_btn.text = "Assign: %s" % String(task_def.get("name", task_id))
+            var label_suffix: String = ""
+            if not research_target.is_empty():
+                label_suffix = " (%s)" % String(ResearchNodeCatalog.get_def(research_target).get("name", research_target))
+            assign_btn.text = "Assign: %s%s" % [String(task_def.get("name", task_id)), label_suffix]
             var target_building_id: String = String((candidates[0] as Dictionary).get("id", ""))
             assign_btn.pressed.connect(func() -> void:
-                TaskManager.assign(staff_id, task_id, target_building_id)
+                TaskManager.assign(staff_id, task_id, target_building_id, research_target)
                 _show_staff_detail(staff_id)
             )
             _dynamic_content.add_child(assign_btn)

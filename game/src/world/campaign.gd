@@ -25,6 +25,7 @@ func _ready() -> void:
     EventBus.task_assigned.connect(_on_task_assigned)
     EventBus.task_completed.connect(_on_task_completed)
     EventBus.task_unassigned.connect(_on_task_unassigned)
+    EventBus.research_unlocked.connect(_on_research_unlocked)
     build_controller.load_from_state(GameState.buildings)
     _sync_staff_agents()
     SimClock.active = true
@@ -67,17 +68,22 @@ func _on_build_tool_changed(tool_id: String) -> void:
     else:
         build_controller.start_place(tool_id)
 
-func _on_task_assigned(staff_id: String, building_id: String) -> void:
+func _on_task_assigned(staff_id: String, building_id: String, _target_id: String) -> void:
     if not _staff_agents.has(staff_id):
         return
     var pos: Vector3 = build_controller.building_position(building_id)
     (_staff_agents[staff_id] as StaffAgent).assign_work(pos)
 
-func _on_task_completed(staff_id: String, _task_id: String) -> void:
+func _on_task_completed(staff_id: String, _task_id: String, _target_id: String) -> void:
     _clear_staff_work(staff_id)
 
 func _on_task_unassigned(staff_id: String) -> void:
     _clear_staff_work(staff_id)
+
+func _on_research_unlocked(_node_id: String) -> void:
+    # A "compute_bonus" unlock effect changes GameState.research_compute_bonus,
+    # which only feeds into compute_capacity when infrastructure is recomputed.
+    build_controller.recompute_infrastructure()
 
 func _clear_staff_work(staff_id: String) -> void:
     if _staff_agents.has(staff_id):

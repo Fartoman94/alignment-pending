@@ -671,4 +671,115 @@ func _initialize() -> void:
     bc2.queue_free()
     await process_frame
 
+    # P13: research tree — nodes, prerequisites, progress, unlock effects.
+    var research_mgr: Node = get_root().get_node("ResearchManager")
+    var node_ids: Array = ResearchNodeCatalog.ordered_ids()
+    if node_ids.size() != 8:
+        push_error("ResearchNodeCatalog should seed exactly 8 nodes (got %d)" % node_ids.size())
+        quit(1)
+        return
+    print("SMOKE_OK: ResearchNodeCatalog seeds 8 research nodes")
+
+    state.cash = 1000000.0
+    state.staff = []
+    state.buildings = [{"id": "research_desk_1", "buildable_id": "desk", "cell_x": 0, "cell_y": 0, "rotated": false}]
+    state.research_unlocked = []
+    state.research_progress = {}
+    state.research_compute_bonus = 0.0
+
+    if research_mgr.can_start("scaling_laws"):
+        push_error("ResearchManager allowed starting a node whose prerequisite is not unlocked")
+        quit(1)
+        return
+    if not research_mgr.can_start("core_architectures"):
+        push_error("ResearchManager should allow starting a prerequisite-free, affordable node")
+        quit(1)
+        return
+    print("SMOKE_OK: research prerequisites gate which nodes can start")
+
+    var cash_before_start: float = state.cash
+    var start_err: Error = research_mgr.start("core_architectures")
+    if start_err != OK or not state.research_progress.has("core_architectures"):
+        push_error("ResearchManager.start() failed to begin a valid node (error %s)" % start_err)
+        quit(1)
+        return
+    var core_cost: float = float(ResearchNodeCatalog.get_def("core_architectures").get("cost", 0.0))
+    if not is_equal_approx(state.cash, cash_before_start - core_cost):
+        push_error("ResearchManager.start() did not deduct the node's cash cost")
+        quit(1)
+        return
+    print("SMOKE_OK: starting research deducts cash and begins tracking progress")
+
+    staff_mgr.refresh_candidates()
+    staff_mgr.hire(0)
+    var researcher_id: String = String(state.staff[0].get("id", ""))
+
+    # core_architectures needs 480 minutes; each research_sprint session is
+    # 240 minutes, so it takes two full sessions (re-assign in between).
+    for session in 2:
+        var assign_err2: Error = task_mgr.assign(researcher_id, "research_sprint", "research_desk_1", "core_architectures")
+        if assign_err2 != OK:
+            push_error("Failed to assign researcher to research_sprint targeting core_architectures (session %d, error %s)" % [session, assign_err2])
+            quit(1)
+            return
+        for i in 5:
+            bus2.simulation_tick.emit(400)
+    if not research_mgr.is_unlocked("core_architectures"):
+        push_error("core_architectures did not unlock after enough worker time across two sessions")
+        quit(1)
+        return
+    if not state.research_unlocked.has("core_architectures"):
+        push_error("Unlocked node was not recorded in GameState.research_unlocked")
+        quit(1)
+        return
+    var expected_bonus: float = float((ResearchNodeCatalog.get_def("core_architectures").get("unlock_effect", {}) as Dictionary).get("amount", 0.0))
+    if not is_equal_approx(state.research_compute_bonus, expected_bonus):
+        push_error("compute_bonus unlock effect was not applied (expected %.1f, got %.1f)" % [expected_bonus, state.research_compute_bonus])
+        quit(1)
+        return
+    print("SMOKE_OK: enough worker time across sessions unlocks a node and applies its unlock effect (compute_bonus)")
+
+    if not research_mgr.prerequisites_met("scaling_laws"):
+        push_error("Unlocking core_architectures should satisfy scaling_laws' prerequisite")
+        quit(1)
+        return
+    print("SMOKE_OK: unlocking a node satisfies it as a prerequisite for dependent nodes")
+
+    # A second, independent unlock effect type (safety_debt_delta), applied
+    # directly to isolate the effect logic from the multi-session tick flow.
+    research_mgr.start("interpretability_basics")
+    var safety_before: float = state.safety_debt
+    research_mgr._on_task_completed("dummy_staff", "research_sprint", "interpretability_basics")
+    research_mgr._on_task_completed("dummy_staff", "research_sprint", "interpretability_basics")
+    if not research_mgr.is_unlocked("interpretability_basics"):
+        push_error("interpretability_basics did not unlock after enough recorded progress")
+        quit(1)
+        return
+    var expected_safety_delta: float = float((ResearchNodeCatalog.get_def("interpretability_basics").get("unlock_effect", {}) as Dictionary).get("amount", 0.0))
+    if not is_equal_approx(state.safety_debt, maxf(0.0, safety_before + expected_safety_delta)):
+        push_error("safety_debt_delta unlock effect was not applied correctly (before=%.1f after=%.1f)" % [safety_before, state.safety_debt])
+        quit(1)
+        return
+    print("SMOKE_OK: unlock effects are testable and correctly applied (safety_debt_delta)")
+
+    # Save/load stability of research progress and unlocks.
+    state.research_progress["datacenter_efficiency"] = 100.0
+    var research_save_err: Error = save_mgr.save_manual(0)
+    var unlocked_before_reload: Array = state.research_unlocked.duplicate()
+    state.research_unlocked = []
+    state.research_progress = {}
+    var research_load_err: Error = save_mgr.load_manual(0)
+    if research_save_err != OK or research_load_err != OK or state.research_unlocked != unlocked_before_reload or not state.research_progress.has("datacenter_efficiency"):
+        push_error("Research progress/unlocks did not survive save/load (save error %s, load error %s)" % [research_save_err, research_load_err])
+        quit(1)
+        return
+    print("SMOKE_OK: research progress and unlocked nodes persist across save/load")
+
+    state.staff = []
+    state.buildings = []
+    state.work_orders = []
+    state.research_unlocked = []
+    state.research_progress = {}
+    state.research_compute_bonus = 0.0
+
     quit(0)

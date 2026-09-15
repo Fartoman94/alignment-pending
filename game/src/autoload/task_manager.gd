@@ -76,7 +76,10 @@ func can_assign(staff_id: String, task_id: String, building_id: String) -> bool:
         return false
     return true
 
-func assign(staff_id: String, task_id: String, building_id: String) -> Error:
+## target_id is an optional task-specific reference (e.g. a research node
+## id for a research_sprint order) carried through unchanged; TaskManager
+## itself doesn't interpret it.
+func assign(staff_id: String, task_id: String, building_id: String, target_id: String = "") -> Error:
     if not can_assign(staff_id, task_id, building_id):
         return ERR_INVALID_PARAMETER
     var order_id: String = "wo_%d" % GameState.next_work_order_id
@@ -84,13 +87,13 @@ func assign(staff_id: String, task_id: String, building_id: String) -> Error:
     var order: Dictionary = {
         "id": order_id, "task_id": task_id, "staff_id": staff_id,
         "building_id": building_id, "progress_minutes": 0.0,
-        "started_day": GameState.calendar_day,
+        "started_day": GameState.calendar_day, "target_id": target_id,
     }
     GameState.work_orders.append(order)
     _reserved_buildings[building_id] = order_id
     _set_staff_field(staff_id, "assigned_task", order_id)
     _sync_compute_used()
-    EventBus.task_assigned.emit(staff_id, building_id)
+    EventBus.task_assigned.emit(staff_id, building_id, target_id)
     return OK
 
 ## Cancels the in-progress work order for staff_id, if any (no-op otherwise).
@@ -147,11 +150,12 @@ func _complete_order(order: Dictionary) -> void:
     var staff_id: String = String(order.get("staff_id", ""))
     var building_id: String = String(order.get("building_id", ""))
     var task_id: String = String(order.get("task_id", ""))
+    var target_id: String = String(order.get("target_id", ""))
     GameState.work_orders.erase(order)
     _reserved_buildings.erase(building_id)
     _set_staff_field(staff_id, "assigned_task", "")
     _sync_compute_used()
-    EventBus.task_completed.emit(staff_id, task_id)
+    EventBus.task_completed.emit(staff_id, task_id, target_id)
 
 func _reconcile_orphaned_orders() -> void:
     var valid_ids: Dictionary = {}

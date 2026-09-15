@@ -27,6 +27,10 @@ const STAFF_SKILL_KEYS: Array[String] = ["capability", "engineering", "operation
 
 const WORK_TASK_REQUIRED_FIELDS: Array[String] = ["id", "name", "category", "required_buildable", "required_skill", "duration_minutes"]
 
+const RESEARCH_NODE_REQUIRED_FIELDS: Array[String] = ["id", "name", "branch", "cost", "duration_minutes", "prerequisites", "unlock_effect"]
+const RESEARCH_BRANCHES: Array[String] = ["capability", "efficiency", "safety", "interpretability", "infrastructure", "organization"]
+const RESEARCH_EFFECT_TYPES: Array[String] = ["compute_bonus", "safety_debt_delta", "trust_delta"]
+
 ## One validation problem: which file, which record, and why.
 class Issue:
     var source: String
@@ -50,6 +54,7 @@ static func validate_all() -> Array[Issue]:
     issues.append_array(validate_buildable_file("res://data/buildables.json"))
     issues.append_array(validate_staff_role_file("res://data/staff_roles.json"))
     issues.append_array(validate_work_task_file("res://data/work_tasks.json"))
+    issues.append_array(validate_research_node_file("res://data/research_nodes.json"))
     return issues
 
 static func validate_event_file(path: String) -> Array[Issue]:
@@ -342,6 +347,97 @@ static func _validate_work_task_record(path: String, record: Variant, index: int
         var compute_cost: Variant = entry.get("compute_cost")
         if not (compute_cost is int or compute_cost is float) or float(compute_cost) < 0.0:
             issues.append(Issue.new(path, id_label, "'compute_cost' must be a number >= 0"))
+
+    return issues
+
+static func validate_research_node_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of research node records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_research_node_record(path, records[i], i, seen_ids))
+
+    # Second pass: prerequisites must reference ids that actually exist.
+    for i in records.size():
+        var record: Variant = records[i]
+        if not (record is Dictionary):
+            continue
+        var entry: Dictionary = record
+        var entry_id: String = str(entry.get("id", "record #%d" % i))
+        var prereqs: Variant = entry.get("prerequisites")
+        if prereqs is Array:
+            for prereq: Variant in prereqs:
+                if not seen_ids.has(str(prereq)):
+                    issues.append(Issue.new(path, entry_id, "prerequisite '%s' does not match any research node id" % prereq))
+
+    return issues
+
+static func _validate_research_node_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "research node record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in RESEARCH_NODE_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+
+    if entry.has("branch"):
+        var branch: String = str(entry.get("branch", ""))
+        if not RESEARCH_BRANCHES.has(branch):
+            issues.append(Issue.new(path, id_label, "unknown branch '%s' (expected one of %s)" % [branch, RESEARCH_BRANCHES]))
+
+    if entry.has("cost") and not _is_whole_number_at_least(entry.get("cost"), 1):
+        issues.append(Issue.new(path, id_label, "'cost' must be a whole number >= 1"))
+
+    if entry.has("duration_minutes") and not _is_whole_number_at_least(entry.get("duration_minutes"), 1):
+        issues.append(Issue.new(path, id_label, "'duration_minutes' must be a whole number >= 1"))
+
+    if entry.has("prerequisites") and not (entry["prerequisites"] is Array):
+        issues.append(Issue.new(path, id_label, "'prerequisites' must be an array"))
+
+    if entry.has("unlock_effect"):
+        var effect: Variant = entry.get("unlock_effect")
+        if not (effect is Dictionary) or not effect.has("type") or not effect.has("amount"):
+            issues.append(Issue.new(path, id_label, "'unlock_effect' must be an object with 'type' and 'amount'"))
+        else:
+            var effect_dict: Dictionary = effect
+            var effect_type: String = str(effect_dict.get("type", ""))
+            if not RESEARCH_EFFECT_TYPES.has(effect_type):
+                issues.append(Issue.new(path, id_label, "unknown unlock_effect.type '%s' (expected one of %s)" % [effect_type, RESEARCH_EFFECT_TYPES]))
+            var amount: Variant = effect_dict.get("amount")
+            if not (amount is int or amount is float):
+                issues.append(Issue.new(path, id_label, "'unlock_effect.amount' must be a number"))
+
+    if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))
 
     return issues
 

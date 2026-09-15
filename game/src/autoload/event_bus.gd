@@ -12,6 +12,9 @@ signal staff_roster_changed()
 ## Fires every SimClock logical tick with the number of simulated minutes
 ## that just elapsed. GameState.paused/SimClock.active already gate this.
 signal simulation_tick(minutes: int)
-signal task_assigned(staff_id: String, building_id: String)
-signal task_completed(staff_id: String, task_id: String)
+## target_id is an optional task-specific reference (e.g. a research node
+## id for a research_sprint work order); "" when not applicable.
+signal task_assigned(staff_id: String, building_id: String, target_id: String)
+signal task_completed(staff_id: String, task_id: String, target_id: String)
 signal task_unassigned(staff_id: String)
+signal research_unlocked(node_id: String)

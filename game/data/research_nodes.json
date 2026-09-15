@@ -1,0 +1,74 @@
+[
+  {
+    "id": "core_architectures",
+    "name": "Core Architectures",
+    "branch": "capability",
+    "cost": 5000,
+    "duration_minutes": 480,
+    "prerequisites": [],
+    "unlock_effect": { "type": "compute_bonus", "amount": 10 }
+  },
+  {
+    "id": "scaling_laws",
+    "name": "Scaling Laws",
+    "branch": "capability",
+    "cost": 9000,
+    "duration_minutes": 720,
+    "prerequisites": ["core_architectures"],
+    "unlock_effect": { "type": "compute_bonus", "amount": 15 }
+  },
+  {
+    "id": "efficient_inference",
+    "name": "Efficient Inference",
+    "branch": "efficiency",
+    "cost": 6000,
+    "duration_minutes": 480,
+    "prerequisites": ["core_architectures"],
+    "unlock_effect": { "type": "compute_bonus", "amount": 10 }
+  },
+  {
+    "id": "interpretability_basics",
+    "name": "Interpretability Basics",
+    "branch": "interpretability",
+    "cost": 4000,
+    "duration_minutes": 360,
+    "prerequisites": [],
+    "unlock_effect": { "type": "safety_debt_delta", "amount": -5 }
+  },
+  {
+    "id": "safety_evaluations",
+    "name": "Safety Evaluations",
+    "branch": "safety",
+    "cost": 7000,
+    "duration_minutes": 480,
+    "prerequisites": ["interpretability_basics"],
+    "unlock_effect": { "type": "safety_debt_delta", "amount": -10 }
+  },
+  {
+    "id": "red_teaming_protocols",
+    "name": "Red-Teaming Protocols",
+    "branch": "safety",
+    "cost": 8000,
+    "duration_minutes": 600,
+    "prerequisites": ["safety_evaluations"],
+    "unlock_effect": { "type": "safety_debt_delta", "amount": -15 }
+  },
+  {
+    "id": "datacenter_efficiency",
+    "name": "Datacenter Efficiency",
+    "branch": "infrastructure",
+    "cost": 6500,
+    "duration_minutes": 480,
+    "prerequisites": [],
+    "unlock_effect": { "type": "compute_bonus", "amount": 12 }
+  },
+  {
+    "id": "cross_team_processes",
+    "name": "Cross-Team Processes",
+    "branch": "organization",
+    "cost": 5000,
+    "duration_minutes": 360,
+    "prerequisites": ["core_architectures"],
+    "unlock_effect": { "type": "trust_delta", "amount": 5 }
+  }
+]
