@@ -45,6 +45,10 @@ func investor_obligation_cost() -> float:
 func datacenter_cost() -> float:
     return GameState.datacenter_operating_cost
 
+## The world's energy_price cycle (P31), directly visible in the ledger.
+func energy_cost() -> float:
+    return WorldStateManager.energy_cost()
+
 ## Full traceable daily cash-flow breakdown. Uses the exact same formulas
 ## the other managers apply on their own day_advanced handlers (StaffManager
 ## payroll, BuildController infrastructure upkeep already cached in
@@ -60,9 +64,10 @@ func daily_ledger() -> Dictionary:
     var support: float = support_cost()
     var investor_obligations: float = investor_obligation_cost()
     var datacenters: float = datacenter_cost()
+    var energy: float = energy_cost()
     var revenue: float = RevenueManager.total_daily_revenue()
     var inference_cost: float = RevenueManager.total_daily_cost()
-    var total_expenses: float = payroll + infrastructure + rent + legal + support + investor_obligations + datacenters + inference_cost
+    var total_expenses: float = payroll + infrastructure + rent + legal + support + investor_obligations + datacenters + energy + inference_cost
     return {
         "payroll": payroll,
         "infrastructure": infrastructure,
@@ -71,6 +76,7 @@ func daily_ledger() -> Dictionary:
         "support": support,
         "investor_obligations": investor_obligations,
         "datacenters": datacenters,
+        "energy": energy,
         "revenue": revenue,
         "inference_cost": inference_cost,
         "total_expenses": total_expenses,
@@ -95,7 +101,7 @@ func runway_days() -> float:
     return GameState.cash / -net
 
 func _on_day_advanced(_day: int) -> void:
-    GameState.cash -= rent_cost() + legal_cost() + support_cost() + investor_obligation_cost() + datacenter_cost()
+    GameState.cash -= rent_cost() + legal_cost() + support_cost() + investor_obligation_cost() + datacenter_cost() + energy_cost()
     _check_bankruptcy()
 
 ## Going negative doesn't end the campaign immediately — there's a

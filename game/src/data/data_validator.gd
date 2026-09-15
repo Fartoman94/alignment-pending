@@ -94,6 +94,10 @@ const WORKFORCE_SAFETY_DEBT_PER_PRESSURE_MAX: float = 5.0
 # P30: remote datacenter progression.
 const DATACENTER_TIER_REQUIRED_FIELDS: Array[String] = ["id", "name", "description", "cost", "compute_capacity_bonus", "operating_cost_per_day"]
 
+# P31: world-state simulation cycles. Amplitude is bounded relative to
+# midpoint so a cycle can never push the value outside [0, 100].
+const WORLD_VARIABLE_REQUIRED_FIELDS: Array[String] = ["id", "name", "description", "effect_description", "midpoint", "amplitude", "period_days"]
+
 ## One validation problem: which file, which record, and why.
 class Issue:
     var source: String
@@ -131,6 +135,7 @@ static func validate_all() -> Array[Issue]:
     issues.append_array(validate_agent_permission_file("res://data/agent_permissions.json"))
     issues.append_array(validate_workforce_policy_file("res://data/workforce_policies.json"))
     issues.append_array(validate_datacenter_tier_file("res://data/datacenter_tiers.json"))
+    issues.append_array(validate_world_variable_file("res://data/world_variables.json"))
     issues.append_array(validate_epilogue_file("res://data/epilogues.json"))
     return issues
 
@@ -1484,6 +1489,80 @@ static func _validate_datacenter_tier_record(path: String, record: Variant, inde
 
     if entry.has("operating_cost_per_day") and not _is_whole_number_at_least(entry.get("operating_cost_per_day"), 0):
         issues.append(Issue.new(path, id_label, "'operating_cost_per_day' must be a whole number >= 0"))
+
+    return issues
+
+static func validate_world_variable_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of world variable records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_world_variable_record(path, records[i], i, seen_ids))
+    return issues
+
+static func _validate_world_variable_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "world variable record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in WORLD_VARIABLE_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+
+    for text_field: String in ["name", "description", "effect_description"]:
+        if entry.has(text_field) and (not (entry[text_field] is String) or String(entry[text_field]).is_empty()):
+            issues.append(Issue.new(path, id_label, "'%s' must be a non-empty string" % text_field))
+
+    var midpoint: float = 50.0
+    var midpoint_ok: bool = false
+    if entry.has("midpoint"):
+        var midpoint_val: Variant = entry.get("midpoint")
+        midpoint_ok = (midpoint_val is int or midpoint_val is float) and float(midpoint_val) >= 0.0 and float(midpoint_val) <= 100.0
+        if midpoint_ok:
+            midpoint = float(midpoint_val)
+        else:
+            issues.append(Issue.new(path, id_label, "'midpoint' must be a number in [0, 100]"))
+
+    if entry.has("amplitude"):
+        var amplitude_val: Variant = entry.get("amplitude")
+        var amplitude_numeric: bool = (amplitude_val is int or amplitude_val is float) and float(amplitude_val) >= 0.0
+        if not amplitude_numeric:
+            issues.append(Issue.new(path, id_label, "'amplitude' must be a number >= 0"))
+        elif midpoint_ok:
+            var max_amplitude: float = minf(midpoint, 100.0 - midpoint)
+            if float(amplitude_val) > max_amplitude:
+                issues.append(Issue.new(path, id_label, "'amplitude' (%s) must be <= min(midpoint, 100-midpoint) = %s so the cycle can never leave [0, 100]" % [amplitude_val, max_amplitude]))
+
+    if entry.has("period_days") and not _is_whole_number_at_least(entry.get("period_days"), 1):
+        issues.append(Issue.new(path, id_label, "'period_days' must be a whole number >= 1"))
 
     return issues
 

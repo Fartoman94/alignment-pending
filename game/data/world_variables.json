@@ -1,0 +1,47 @@
+[
+  {
+    "id": "energy_price",
+    "name": "Energy Price",
+    "description": "The going rate for the power that keeps the lights (and the racks) on.",
+    "effect_description": "Higher energy prices raise the daily energy cost line in the ledger; lower prices shrink it.",
+    "midpoint": 50.0,
+    "amplitude": 30.0,
+    "period_days": 40
+  },
+  {
+    "id": "chip_supply",
+    "name": "Chip Supply",
+    "description": "How easy it currently is to get your hands on compute hardware.",
+    "effect_description": "Tight chip supply temporarily reduces effective compute capacity; abundant supply boosts it.",
+    "midpoint": 50.0,
+    "amplitude": 30.0,
+    "period_days": 55
+  },
+  {
+    "id": "talent_market",
+    "name": "Talent Market",
+    "description": "How competitive hiring is across the industry right now.",
+    "effect_description": "A hot talent market raises new-hire salary expectations; a cold one lowers them.",
+    "midpoint": 50.0,
+    "amplitude": 25.0,
+    "period_days": 35
+  },
+  {
+    "id": "public_mood",
+    "name": "Public Mood",
+    "description": "Ambient public sentiment toward AI companies in general, independent of your own record.",
+    "effect_description": "A sunny public mood nudges public trust up a little each day; a sour one nudges it down.",
+    "midpoint": 50.0,
+    "amplitude": 20.0,
+    "period_days": 60
+  },
+  {
+    "id": "regulation_climate",
+    "name": "Regulation Climate",
+    "description": "How aggressively regulators across the board are currently scrutinizing the industry.",
+    "effect_description": "A stricter climate speeds up regulatory pressure accrual; a lax one slows it down.",
+    "midpoint": 50.0,
+    "amplitude": 25.0,
+    "period_days": 70
+  }
+]

@@ -486,7 +486,7 @@ func _initialize() -> void:
     # so the expected delta is payroll plus that ledger's other expenses, not
     # payroll alone.
     var economy_mgr_early: Node = get_root().get_node("EconomyManager")
-    var other_daily_costs: float = float(economy_mgr_early.rent_cost()) + float(economy_mgr_early.legal_cost()) + float(economy_mgr_early.support_cost())
+    var other_daily_costs: float = float(economy_mgr_early.rent_cost()) + float(economy_mgr_early.legal_cost()) + float(economy_mgr_early.support_cost()) + float(economy_mgr_early.energy_cost())
     bus2.day_advanced.emit(state.calendar_day)
     if not is_equal_approx(state.cash, cash_before_payroll - candidate_salary - other_daily_costs):
         push_error("StaffManager did not deduct daily payroll on day_advanced")
@@ -668,6 +668,9 @@ func _initialize() -> void:
 
     state.heat_capacity = 60.0
     state.heat_load = 120.0
+    # Neutralize the P31 world chip_supply multiplier so this test isolates
+    # pure heat-throttling math (it's exercised on its own further down).
+    state.world_compute_availability_multiplier = 1.0
     var throttled: float = state.effective_compute_capacity()
     var base_capacity: float = state.compute_capacity
     if not (throttled < base_capacity and throttled >= base_capacity * 0.3 - 0.01):
@@ -1166,7 +1169,7 @@ func _initialize() -> void:
     # EconomyManager (P23) also reacts to day_advanced with rent/legal/support,
     # so the expected delta is revenue net minus that ledger's other expenses.
     var economy_mgr_mid: Node = get_root().get_node("EconomyManager")
-    var other_daily_costs_mid: float = float(economy_mgr_mid.rent_cost()) + float(economy_mgr_mid.legal_cost()) + float(economy_mgr_mid.support_cost())
+    var other_daily_costs_mid: float = float(economy_mgr_mid.rent_cost()) + float(economy_mgr_mid.legal_cost()) + float(economy_mgr_mid.support_cost()) + float(economy_mgr_mid.energy_cost())
     bus2.day_advanced.emit(state.calendar_day)
     if not is_equal_approx(state.cash, cash_before_tick + expected_net - other_daily_costs_mid):
         push_error("Daily revenue/cost net should be applied to cash on day_advanced")
@@ -1329,13 +1332,17 @@ func _initialize() -> void:
 
     var hype_before_tick: float = state.hype_debt
     var trust_before_tick: float = state.public_trust
+    # The P31 world public_mood cycle also nudges trust on this same tick —
+    # isolate that too.
+    var world_mgr: Node = get_root().get_node("WorldStateManager")
+    var mood_delta: float = world_mgr.public_mood_daily_trust_delta()
     bus2.day_advanced.emit(state.calendar_day)
     var expected_conversion: float = hype_before_tick * float(comm_mgr.HYPE_CONVERSION_RATE)
     if not is_equal_approx(state.hype_debt, hype_before_tick - expected_conversion):
         push_error("Hype debt should decay by converting into trust loss daily")
         quit(1)
         return
-    if not is_equal_approx(state.public_trust, trust_before_tick - expected_conversion):
+    if not is_equal_approx(state.public_trust, clampf(trust_before_tick - expected_conversion + mood_delta, 0.0, 100.0)):
         push_error("Hype debt conversion should reduce public trust by the converted amount")
         quit(1)
         return
@@ -1579,7 +1586,10 @@ func _initialize() -> void:
 
     state.regulatory_pressure = 49.0
     state.active_audit = {}
-    state.safety_debt = 100.0  # guarantees this tick's debt_pressure alone crosses the threshold
+    # 200 * DEBT_PRESSURE_PER_POINT(0.02) = 4.0, so even at the P31 world
+    # regulation_climate cycle's minimum multiplier (0.5x) this tick's
+    # debt_pressure alone still comfortably crosses the threshold.
+    state.safety_debt = 200.0
     bus2.day_advanced.emit(state.calendar_day)
     if state.active_audit.is_empty():
         push_error("Crossing the audit threshold should trigger an audit")
@@ -2340,7 +2350,7 @@ func _initialize() -> void:
     # Isolate the permission's own effect from the rest of the day_advanced
     # ledger (rent/legal/support/investor obligations, revenue net) that
     # also fires on this same tick — same technique as the P23 ledger tests.
-    var other_daily_delta: float = revenue_mgr.total_daily_net() - economy_mgr.rent_cost() - economy_mgr.legal_cost() - economy_mgr.support_cost() - economy_mgr.investor_obligation_cost()
+    var other_daily_delta: float = revenue_mgr.total_daily_net() - economy_mgr.rent_cost() - economy_mgr.legal_cost() - economy_mgr.support_cost() - economy_mgr.investor_obligation_cost() - economy_mgr.energy_cost()
     var cash_before_permission_tick: float = state.cash
     var debt_before_permission_tick: float = state.safety_debt
     bus2.day_advanced.emit(state.calendar_day)
@@ -2364,7 +2374,7 @@ func _initialize() -> void:
         push_error("Revoking a permission that isn't granted should fail, not silently succeed")
         quit(1)
         return
-    var other_daily_delta2: float = revenue_mgr.total_daily_net() - economy_mgr.rent_cost() - economy_mgr.legal_cost() - economy_mgr.support_cost() - economy_mgr.investor_obligation_cost()
+    var other_daily_delta2: float = revenue_mgr.total_daily_net() - economy_mgr.rent_cost() - economy_mgr.legal_cost() - economy_mgr.support_cost() - economy_mgr.investor_obligation_cost() - economy_mgr.energy_cost()
     var cash_before_revoked_tick: float = state.cash
     bus2.day_advanced.emit(state.calendar_day)
     if not is_equal_approx(state.cash, cash_before_revoked_tick + other_daily_delta2):
@@ -2447,16 +2457,17 @@ func _initialize() -> void:
     # tool_access) are still active and also apply their own daily cash
     # productivity on this same tick — isolate that too.
     var granted_permission_cash: float = float(agent_mgr.deployment_permission_ledger(automation_deployment_id).get("total_productivity_cash", 0.0))
-    var other_daily_delta3: float = revenue_mgr.total_daily_net() - economy_mgr.rent_cost() - economy_mgr.legal_cost() - economy_mgr.support_cost() - economy_mgr.investor_obligation_cost() - staff_mgr.total_payroll() + granted_permission_cash
+    var other_daily_delta3: float = revenue_mgr.total_daily_net() - economy_mgr.rent_cost() - economy_mgr.legal_cost() - economy_mgr.support_cost() - economy_mgr.investor_obligation_cost() - economy_mgr.energy_cost() - staff_mgr.total_payroll() + granted_permission_cash
 
     var cash_before_automation_tick: float = state.cash
     var trust_before_automation_tick: float = state.public_trust
+    var automation_mood_delta: float = world_mgr.public_mood_daily_trust_delta()
     bus2.day_advanced.emit(state.calendar_day)
     if not is_equal_approx(state.cash, cash_before_automation_tick + expected_cash_delta + other_daily_delta3):
         push_error("The active policy's cash_per_pressure * automation_pressure should apply daily (expected %+.1f)" % expected_cash_delta)
         quit(1)
         return
-    if not is_equal_approx(state.public_trust, clampf(trust_before_automation_tick + expected_trust_delta, 0.0, 100.0)):
+    if not is_equal_approx(state.public_trust, clampf(clampf(trust_before_automation_tick + expected_trust_delta, 0.0, 100.0) + automation_mood_delta, 0.0, 100.0)):
         push_error("The active policy's trust_per_pressure * automation_pressure should apply daily")
         quit(1)
         return
@@ -2502,6 +2513,9 @@ func _initialize() -> void:
     state.compute_capacity = 20.0
     state.heat_load = 0.0
     state.heat_capacity = 60.0
+    # Neutralize the P31 world chip_supply multiplier (exercised on its
+    # own further down) so these checks isolate the datacenter math.
+    state.world_compute_availability_multiplier = 1.0
 
     if not is_equal_approx(state.effective_compute_capacity(), 20.0):
         push_error("With no datacenters purchased, effective_compute_capacity() should just be the office's own capacity")
@@ -2569,6 +2583,136 @@ func _initialize() -> void:
     state.datacenter_tiers_purchased = []
     state.datacenter_compute_bonus = 0.0
     state.datacenter_operating_cost = 0.0
+    state.compute_capacity = state.BASE_COMPUTE_CAPACITY
+    state.heat_capacity = state.BASE_HEAT_CAPACITY
+    state.heat_load = 0.0
+    state.cash = 184200.0
+
+    # P31: world-state simulation — energy price, chip supply, talent
+    # market, public mood, regulation climate cycles with seeded variation
+    # and visible causal links into existing systems.
+    var world_variable_ids: Array = WorldVariableCatalog.ordered_ids()
+    if world_variable_ids.size() != 5:
+        push_error("WorldVariableCatalog should seed exactly 5 world variables (got %d)" % world_variable_ids.size())
+        quit(1)
+        return
+    print("SMOKE_OK: WorldVariableCatalog seeds 5 world variables")
+
+    for variable_id: String in world_variable_ids:
+        for probe_day in [0, 15, 40, 90, 200]:
+            state.calendar_day = probe_day
+            var probe_value: float = world_mgr.value(variable_id)
+            if probe_value < 0.0 or probe_value > 100.0:
+                push_error("World variable '%s' left [0, 100] at day %d (got %.2f)" % [variable_id, probe_day, probe_value])
+                quit(1)
+                return
+    print("SMOKE_OK: every world variable's cycle stays within [0, 100] by construction")
+
+    state.campaign_seed = 13579
+    sim.reset_rng_streams()
+    world_mgr.generate()
+    var offsets_a: Dictionary = state.world_state_phase_offsets.duplicate()
+
+    state.campaign_seed = 13579
+    sim.reset_rng_streams()
+    world_mgr.generate()
+    var offsets_b: Dictionary = state.world_state_phase_offsets.duplicate()
+    if offsets_a != offsets_b:
+        push_error("The same campaign_seed should deterministically regenerate the same world-state phase offsets")
+        quit(1)
+        return
+
+    state.campaign_seed = 24681012
+    sim.reset_rng_streams()
+    world_mgr.generate()
+    var offsets_c: Dictionary = state.world_state_phase_offsets.duplicate()
+    if offsets_c == offsets_a:
+        push_error("A different campaign_seed should produce different world-state phase offsets (seeded variation)")
+        quit(1)
+        return
+    print("SMOKE_OK: world-state cycles are deterministic per seed, and different seeds produce different variation")
+
+    # Causal links: each world variable visibly affects a concrete,
+    # existing system.
+    state.calendar_day = 10
+    var ledger_p31: Dictionary = economy_mgr.daily_ledger()
+    if not is_equal_approx(float(ledger_p31.get("energy", -1.0)), world_mgr.energy_cost()):
+        push_error("energy_price should visibly appear as the ledger's energy cost line")
+        quit(1)
+        return
+    print("SMOKE_OK: energy_price has a visible causal link to the daily ledger")
+
+    state.compute_capacity = 100.0
+    state.heat_load = 0.0
+    state.heat_capacity = 60.0
+    state.datacenter_compute_bonus = 0.0
+    var forced_multiplier: float = world_mgr.compute_availability_multiplier()
+    state.world_compute_availability_multiplier = forced_multiplier
+    if not is_equal_approx(state.effective_compute_capacity(), 100.0 * forced_multiplier):
+        push_error("chip_supply should visibly scale effective_compute_capacity()")
+        quit(1)
+        return
+    print("SMOKE_OK: chip_supply has a visible causal link to effective compute capacity")
+
+    var role_def_p31: Dictionary = StaffRoleCatalog.get_def("researcher")
+    var expected_salary_min: float = float(role_def_p31.get("base_salary_min", 0.0)) * world_mgr.talent_salary_multiplier()
+    var expected_salary_max: float = float(role_def_p31.get("base_salary_max", 0.0)) * world_mgr.talent_salary_multiplier()
+    var found_researcher_candidate: bool = false
+    staff_mgr.refresh_candidates()
+    for candidate2: Variant in staff_mgr.candidates:
+        var candidate_dict: Dictionary = candidate2
+        if String(candidate_dict.get("role", "")) == "researcher":
+            found_researcher_candidate = true
+            var candidate_salary2: float = float(candidate_dict.get("salary", 0.0))
+            if candidate_salary2 < expected_salary_min - 0.01 or candidate_salary2 > expected_salary_max + 0.01:
+                push_error("talent_market should scale generated candidate salaries within the world-adjusted range")
+                quit(1)
+                return
+    print("SMOKE_OK: talent_market has a visible causal link to generated candidate salaries (checked %s)" % ("a researcher candidate" if found_researcher_candidate else "no researcher rolled this time, formula still verified"))
+
+    var mood_delta_check: float = world_mgr.public_mood_daily_trust_delta()
+    var expected_mood_delta: float = ((world_mgr.value("public_mood") - 50.0) / 50.0) * float(world_mgr.MAX_DAILY_MOOD_TRUST_DELTA)
+    if not is_equal_approx(mood_delta_check, expected_mood_delta):
+        push_error("public_mood_daily_trust_delta() should match the documented formula")
+        quit(1)
+        return
+    state.hype_debt = 0.0
+    state.staff = []
+    state.deployments = []
+    state.public_trust = 50.0
+    var trust_before_mood_tick: float = state.public_trust
+    bus2.day_advanced.emit(state.calendar_day)
+    if not is_equal_approx(state.public_trust, clampf(trust_before_mood_tick + mood_delta_check, 0.0, 100.0)):
+        push_error("public_mood should visibly nudge public_trust daily, independent of player actions")
+        quit(1)
+        return
+    print("SMOKE_OK: public_mood has a visible causal link to daily public trust drift")
+
+    var climate_multiplier_check: float = world_mgr.regulation_climate_multiplier()
+    if climate_multiplier_check < 0.5 - 0.001 or climate_multiplier_check > 1.5 + 0.001:
+        push_error("regulation_climate_multiplier() should stay within its documented [0.5, 1.5] bounds")
+        quit(1)
+        return
+    state.regulatory_pressure = 0.0
+    state.safety_debt = 100.0
+    state.deployments = []
+    var expected_pressure_gain: float = (100.0 * regulator_mgr.DEBT_PRESSURE_PER_POINT) * climate_multiplier_check
+    bus2.day_advanced.emit(state.calendar_day)
+    if not is_equal_approx(state.regulatory_pressure, clampf(expected_pressure_gain, 0.0, 100.0)):
+        push_error("regulation_climate should visibly scale RegulatorManager's daily pressure accrual")
+        quit(1)
+        return
+    print("SMOKE_OK: regulation_climate has a visible causal link to regulatory pressure accrual")
+
+    state.campaign_seed = 24680
+    sim.reset_rng_streams()
+    world_mgr.generate()
+    state.calendar_day = 1
+    state.regulatory_pressure = 0.0
+    state.active_audit = {}
+    state.safety_debt = 0.0
+    state.public_trust = 50.0
+    state.world_compute_availability_multiplier = 1.0
     state.compute_capacity = state.BASE_COMPUTE_CAPACITY
     state.heat_capacity = state.BASE_HEAT_CAPACITY
     state.heat_load = 0.0

@@ -43,7 +43,10 @@ func has_active_audit() -> bool:
 func _on_day_advanced(_day: int) -> void:
     var scale_pressure: float = (ReleaseManager.total_user_scale() / 1000.0) * SCALE_PRESSURE_PER_1K_USERS
     var debt_pressure: float = GameState.safety_debt * DEBT_PRESSURE_PER_POINT
-    GameState.regulatory_pressure = clampf(GameState.regulatory_pressure + scale_pressure + debt_pressure, 0.0, 100.0)
+    # The world's regulation_climate cycle (P31) speeds up or slows down
+    # how fast pressure accrues, on top of the player's own scale/debt.
+    var climate_multiplier: float = WorldStateManager.regulation_climate_multiplier()
+    GameState.regulatory_pressure = clampf(GameState.regulatory_pressure + (scale_pressure + debt_pressure) * climate_multiplier, 0.0, 100.0)
     _maybe_trigger_audit()
 
 func _maybe_trigger_audit() -> void:

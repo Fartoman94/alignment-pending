@@ -828,6 +828,19 @@ func _show_world_panel() -> void:
         tier_row.add_child(purchase_btn)
         _dynamic_content.add_child(tier_row)
 
+    var world_state_header: Label = Label.new()
+    world_state_header.text = "World state — cycles that affect the company, independent of anything you do"
+    _dynamic_content.add_child(world_state_header)
+    for variable_id: String in WorldVariableCatalog.ordered_ids():
+        var variable_def: Dictionary = WorldVariableCatalog.get_def(variable_id)
+        var variable_label: Label = Label.new()
+        variable_label.text = "  %s: %d/100 — %s" % [
+            String(variable_def.get("name", variable_id)), int(round(WorldStateManager.value(variable_id))),
+            String(variable_def.get("effect_description", "")),
+        ]
+        variable_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+        _dynamic_content.add_child(variable_label)
+
 func _show_staff_detail(staff_id: String) -> void:
     var member: Dictionary = StaffManager.find(staff_id)
     if member.is_empty():

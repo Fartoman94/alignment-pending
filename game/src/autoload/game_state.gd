@@ -182,6 +182,16 @@ var datacenter_compute_bonus: float = 0.0
 ## cooling contracts). Read by EconomyManager.daily_ledger(). Kept in sync
 ## by DatacenterManager.
 var datacenter_operating_cost: float = 0.0
+## variable_id (WorldVariableCatalog) -> a per-campaign day offset for that
+## variable's cycle, rolled once per campaign from campaign_seed. Kept in
+## sync by WorldStateManager.generate().
+var world_state_phase_offsets: Dictionary = {}
+## WorldStateManager.compute_availability_multiplier() (from the
+## chip_supply world cycle), applied in effective_compute_capacity().
+## GameState doesn't call other autoloads, so this is written by
+## WorldStateManager and just read here as a plain field, like
+## datacenter_compute_bonus.
+var world_compute_availability_multiplier: float = 1.0
 
 func toggle_pause() -> void:
     paused = not paused
@@ -191,13 +201,16 @@ func toggle_pause() -> void:
 ## letting anything go negative/invalid. Below capacity, full capacity
 ## is usable. Remote datacenter capacity (P30, datacenter_compute_bonus)
 ## is deliberately abstract — it's not subject to the local office's heat
-## simulation, so it's added after throttling, not before.
+## simulation, so it's added after throttling, not before. The world's
+## chip_supply cycle (P31, world_compute_availability_multiplier) then
+## scales the combined total — a global hardware constraint affects both
+## the office and every remote site alike.
 func effective_compute_capacity() -> float:
     var office_capacity: float = compute_capacity
     if heat_load > heat_capacity and heat_load > 0.0:
         var cooling_efficiency: float = clampf(heat_capacity / heat_load, 0.3, 1.0)
         office_capacity = compute_capacity * cooling_efficiency
-    return office_capacity + datacenter_compute_bonus
+    return (office_capacity + datacenter_compute_bonus) * world_compute_availability_multiplier
 
 func recompute_compute_used() -> void:
     compute_used = training_compute_reserved + inference_compute_used
@@ -269,6 +282,8 @@ func reset_to_defaults() -> void:
     datacenter_tiers_purchased = []
     datacenter_compute_bonus = 0.0
     datacenter_operating_cost = 0.0
+    world_state_phase_offsets = {}
+    world_compute_availability_multiplier = 1.0
 
 ## Campaign state payload only. The save format version lives one layer up,
 ## in SaveManager's envelope, so it isn't duplicated here.
@@ -336,6 +351,8 @@ func to_dict() -> Dictionary:
         "datacenter_tiers_purchased": datacenter_tiers_purchased,
         "datacenter_compute_bonus": datacenter_compute_bonus,
         "datacenter_operating_cost": datacenter_operating_cost,
+        "world_state_phase_offsets": world_state_phase_offsets,
+        "world_compute_availability_multiplier": world_compute_availability_multiplier,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -426,3 +443,6 @@ func from_dict(data: Dictionary) -> void:
     datacenter_tiers_purchased = loaded_datacenter_tiers if loaded_datacenter_tiers is Array else []
     datacenter_compute_bonus = float(data.get("datacenter_compute_bonus", datacenter_compute_bonus))
     datacenter_operating_cost = float(data.get("datacenter_operating_cost", datacenter_operating_cost))
+    var loaded_world_phase_offsets: Variant = data.get("world_state_phase_offsets", {})
+    world_state_phase_offsets = loaded_world_phase_offsets if loaded_world_phase_offsets is Dictionary else {}
+    world_compute_availability_multiplier = float(data.get("world_compute_availability_multiplier", world_compute_availability_multiplier))

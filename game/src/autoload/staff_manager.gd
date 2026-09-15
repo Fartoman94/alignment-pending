@@ -93,8 +93,11 @@ func _generate_candidate() -> Dictionary:
     if skills.has(primary):
         skills[primary] = clampi(int(skills[primary]) + SimClock.rng("staff_skills").randi_range(10, 25), 0, 100)
 
-    var salary_min: float = float(role_def.get("base_salary_min", 600))
-    var salary_max: float = float(role_def.get("base_salary_max", 1000))
+    # The world's talent_market cycle (P31) scales the whole range: a hot
+    # market makes every fresh candidate pricier, a cold one cheaper.
+    var talent_multiplier: float = WorldStateManager.talent_salary_multiplier()
+    var salary_min: float = float(role_def.get("base_salary_min", 600)) * talent_multiplier
+    var salary_max: float = float(role_def.get("base_salary_max", 1000)) * talent_multiplier
     var salary: float = snappedf(SimClock.rng("staff_salary").randf_range(salary_min, salary_max), 1.0)
 
     return {

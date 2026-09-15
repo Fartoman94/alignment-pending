@@ -80,6 +80,21 @@ office's heat simulation) and a recurring `datacenter_operating_cost`
 (read by `EconomyManager.daily_ledger()`), so late-game compute scales
 without placing individual racks.
 
+## WorldVariable
+Config (`data/world_variables.json` + `WorldVariableCatalog`): `id, name,
+description, effect_description, midpoint, amplitude, period_days`.
+`WorldStateManager.value(id)` follows `midpoint + amplitude *
+sin(2*PI*(calendar_day + phase_offset)/period_days)`, always within
+[0, 100] (`DataValidator` requires `amplitude <= min(midpoint,
+100-midpoint)`). `phase_offset` (`GameState.world_state_phase_offsets`) is
+rolled once per campaign from `campaign_seed`, so different campaigns see
+differently-shaped cycles. Each variable feeds one concrete, named effect:
+`energy_price` → `EconomyManager` ledger line, `chip_supply` →
+`GameState.effective_compute_capacity()`, `talent_market` →
+`StaffManager` candidate salaries, `public_mood` → a small daily
+`public_trust` drift, `regulation_climate` → `RegulatorManager`'s
+pressure-accrual rate.
+
 ## IncidentDefinition
 `id, category, severity, prerequisites, weight, cooldown_days, title_template, body_template, choices[], tags[]`
 
