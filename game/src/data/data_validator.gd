@@ -1,0 +1,133 @@
+class_name DataValidator
+extends RefCounted
+
+## Startup validator for JSON content data: duplicate IDs, missing required
+## fields, invalid numeric ranges. Only validates fields the current data
+## actually uses (see docs/technical/DATA_SCHEMA.md); IncidentDefinition
+## fields owned by future systems (prerequisites, weight, cooldown_days,
+## tags) are intentionally not required yet.
+
+const EVENT_CATEGORIES: Array[String] = [
+    "reliability", "security", "misuse", "hallucination", "privacy",
+    "employee", "infrastructure", "legal", "media", "market",
+    "autonomous-agent", "governance",
+]
+# P0 (crisis) .. P3 (minor), matching the P0/P1/P2 release-gate severities
+# already used in docs/production/QA_MATRIX.md, extended one tier lower.
+const EVENT_SEVERITY_MIN: int = 0
+const EVENT_SEVERITY_MAX: int = 3
+const EVENT_MIN_CHOICES: int = 2
+const EVENT_MAX_CHOICES: int = 4
+const EVENT_REQUIRED_FIELDS: Array[String] = ["id", "category", "severity", "title", "body", "choices"]
+
+## One validation problem: which file, which record, and why.
+class Issue:
+    var source: String
+    var record_label: String
+    var message: String
+
+    func _init(p_source: String, p_record_label: String, p_message: String) -> void:
+        source = p_source
+        record_label = p_record_label
+        message = p_message
+
+    func format() -> String:
+        var label_part: String = "" if record_label.is_empty() else " [%s]" % record_label
+        return "%s%s: %s" % [source, label_part, message]
+
+## Validates every known startup dataset. Returns every issue found
+## (empty = all clean). Safe to call more than once.
+static func validate_all() -> Array[Issue]:
+    var issues: Array[Issue] = []
+    issues.append_array(validate_event_file("res://data/events_seed.json"))
+    return issues
+
+static func validate_event_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of event records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_event_record(path, records[i], i, seen_ids))
+    return issues
+
+static func _validate_event_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "event record must be a JSON object"))
+        return issues
+
+    var event: Dictionary = record
+    for field: String in EVENT_REQUIRED_FIELDS:
+        if not event.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var event_id: String = str(event.get("id", ""))
+    var id_label: String = event_id if not event_id.is_empty() else record_label
+    if event.has("id"):
+        if event_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(event_id):
+            issues.append(Issue.new(path, event_id, "duplicate id (first seen at record #%d)" % int(seen_ids[event_id])))
+        else:
+            seen_ids[event_id] = index
+
+    if event.has("category"):
+        var category: String = str(event.get("category", ""))
+        if not EVENT_CATEGORIES.has(category):
+            issues.append(Issue.new(path, id_label, "unknown category '%s' (expected one of %s)" % [category, EVENT_CATEGORIES]))
+
+    if event.has("severity"):
+        var severity: Variant = event.get("severity")
+        if not (severity is int or severity is float):
+            issues.append(Issue.new(path, id_label, "'severity' must be numeric"))
+        elif int(severity) < EVENT_SEVERITY_MIN or int(severity) > EVENT_SEVERITY_MAX:
+            issues.append(Issue.new(path, id_label, "'severity' %s out of range [%d, %d]" % [severity, EVENT_SEVERITY_MIN, EVENT_SEVERITY_MAX]))
+
+    if event.has("min_scale"):
+        var min_scale: Variant = event.get("min_scale")
+        if not (min_scale is int or min_scale is float) or float(min_scale) < 0.0:
+            issues.append(Issue.new(path, id_label, "'min_scale' must be a number >= 0"))
+
+    if event.has("choices"):
+        var choices: Variant = event.get("choices")
+        if not (choices is Array):
+            issues.append(Issue.new(path, id_label, "'choices' must be an array"))
+        else:
+            var choices_arr: Array = choices
+            if choices_arr.size() < EVENT_MIN_CHOICES or choices_arr.size() > EVENT_MAX_CHOICES:
+                issues.append(Issue.new(path, id_label, "'choices' has %d entries, expected %d-%d" % [choices_arr.size(), EVENT_MIN_CHOICES, EVENT_MAX_CHOICES]))
+            for choice: Variant in choices_arr:
+                if not (choice is String) or String(choice).is_empty():
+                    issues.append(Issue.new(path, id_label, "each choice must be a non-empty string"))
+                    break
+
+    if event.has("title") and (not (event["title"] is String) or String(event["title"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'title' must be a non-empty string"))
+    if event.has("body") and (not (event["body"] is String) or String(event["body"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'body' must be a non-empty string"))
+
+    return issues
+
+## Runs validate_all() and pushes one actionable engine error per issue.
+## Returns true if the data is clean.
+static func run_startup_validation() -> bool:
+    var issues: Array[Issue] = validate_all()
+    for issue: Issue in issues:
+        push_error("DataValidator: %s" % issue.format())
+    return issues.is_empty()

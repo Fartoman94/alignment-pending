@@ -163,4 +163,39 @@ func _initialize() -> void:
         return
     print("SMOKE_OK: a corrupted newest autosave falls back to the next valid rotating slot")
 
+    var seed_issues: Array = DataValidator.validate_all()
+    if not seed_issues.is_empty():
+        for issue in seed_issues:
+            push_error("DataValidator: %s" % issue.format())
+        push_error("Seed content data failed validation (%d issue(s))" % seed_issues.size())
+        quit(1)
+        return
+    print("SMOKE_OK: seed event data validates cleanly")
+
+    var bad_events_path: String = "user://smoke_test_bad_events.json"
+    var bad_file: FileAccess = FileAccess.open(bad_events_path, FileAccess.WRITE)
+    bad_file.store_string(JSON.stringify([
+        {"id": "dup", "category": "reliability", "severity": 1, "title": "A", "body": "b", "choices": ["x", "y"]},
+        {"id": "dup", "category": "not_a_real_category", "severity": 99, "title": "", "body": "b", "choices": ["only_one"]},
+        {"category": "governance", "severity": 1, "title": "Missing id", "body": "b", "choices": ["x", "y"]},
+    ]))
+    bad_file.close()
+    var bad_issues: Array = DataValidator.validate_event_file(bad_events_path)
+    DirAccess.remove_absolute(bad_events_path)
+    var expected_problems: Array[String] = ["duplicate id", "unknown category", "out of range", "non-empty string", "expected 2-4", "missing required field 'id'"]
+    var all_found: bool = true
+    for expected: String in expected_problems:
+        var found: bool = false
+        for issue in bad_issues:
+            if String(issue.format()).contains(expected):
+                found = true
+                break
+        if not found:
+            push_error("DataValidator did not flag expected problem: '%s'" % expected)
+            all_found = false
+    if not all_found:
+        quit(1)
+        return
+    print("SMOKE_OK: DataValidator catches duplicate ids, unknown categories, out-of-range severity, bad choices, and missing fields")
+
     quit(0)
