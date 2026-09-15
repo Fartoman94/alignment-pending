@@ -1773,4 +1773,156 @@ func _initialize() -> void:
     state.buildings = []
     state.work_orders = []
 
+    # P24: staff depth — traits, promotion/leadership, burnout, resignation.
+    state.staff = []
+    state.buildings = []
+    state.work_orders = []
+    state.cash = 100000.0
+
+    staff_mgr.refresh_candidates()
+    for candidate: Variant in staff_mgr.candidates:
+        var candidate_traits: Array = (candidate as Dictionary).get("traits", [])
+        if candidate_traits.size() > int(staff_mgr.MAX_TRAITS_PER_CANDIDATE):
+            push_error("Generated candidate has more traits than MAX_TRAITS_PER_CANDIDATE")
+            quit(1)
+            return
+        for trait_id: Variant in candidate_traits:
+            if StaffTraitCatalog.get_def(String(trait_id)).is_empty():
+                push_error("Generated candidate has an unknown trait id '%s'" % trait_id)
+                quit(1)
+                return
+    print("SMOKE_OK: generated candidates carry a bounded number of valid traits")
+
+    staff_mgr.hire(0)
+    var prodigy_id: String = String(state.staff[0].get("id", ""))
+    # "researcher" has primary_skill "capability" (data/staff_roles.json) —
+    # pinned explicitly so this test doesn't depend on which role the RNG
+    # happened to generate for candidate 0.
+    state.staff[0]["role"] = "researcher"
+    state.staff[0]["skills"] = {"capability": 50, "engineering": 50, "operations": 50, "safety": 50, "communication": 50}
+    state.staff[0]["traits"] = ["prodigy"]  # capability +15, per data/staff_traits.json
+    var prodigy_effective: int = staff_mgr.effective_skill(prodigy_id, "capability")
+    if prodigy_effective != 65:
+        push_error("Trait skill_deltas should shift effective_skill by exactly the trait's bounded delta (expected 65, got %d)" % prodigy_effective)
+        quit(1)
+        return
+    if staff_mgr.effective_skill(prodigy_id, "engineering") != 50:
+        push_error("A trait should only affect the skills it names, not unrelated ones")
+        quit(1)
+        return
+    print("SMOKE_OK: traits shift effective_skill by their bounded skill_deltas, and only for the skills they name")
+
+    staff_mgr.candidates.clear()
+    staff_mgr.refresh_candidates()
+    staff_mgr.hire(0)
+    var lead_candidate_id: String = String(state.staff[1].get("id", ""))
+    state.staff[1]["role"] = "researcher"
+    state.staff[1]["skills"] = {"capability": 90, "engineering": 90, "operations": 90, "safety": 90, "communication": 90}
+    state.staff[1]["is_lead"] = false
+
+    var before_leadership: int = staff_mgr.effective_skill(prodigy_id, "capability")
+    var lead_promote_err: Error = staff_mgr.promote(lead_candidate_id)
+    if lead_promote_err != OK:
+        push_error("Promoting a qualified staff member to department lead failed unexpectedly (error %s)" % lead_promote_err)
+        quit(1)
+        return
+    var after_leadership: int = staff_mgr.effective_skill(prodigy_id, "capability")
+    if after_leadership - before_leadership != int(staff_mgr.LEADERSHIP_SKILL_BONUS):
+        push_error("Promoting a department lead should grant every member of that department exactly LEADERSHIP_SKILL_BONUS (expected +%d, got +%d)" % [int(staff_mgr.LEADERSHIP_SKILL_BONUS), after_leadership - before_leadership])
+        quit(1)
+        return
+    var second_promote_err: Error = staff_mgr.promote(prodigy_id)
+    if second_promote_err == OK:
+        push_error("A department should only ever have one promoted lead at a time")
+        quit(1)
+        return
+    print("SMOKE_OK: promoting a department lead grants a bounded, department-wide leadership bonus, and only one lead per department")
+
+    state.staff[0]["assigned_task"] = "fake_wo_for_fatigue_test"
+    state.staff[0]["fatigue"] = 0.0
+    state.staff[0]["traits"] = []
+    bus2.day_advanced.emit(state.calendar_day)
+    if not is_equal_approx(float(state.staff[0].get("fatigue", 0.0)), staff_mgr.FATIGUE_GAIN_PER_DAY_ASSIGNED):
+        push_error("An assigned staff member should gain fatigue at FATIGUE_GAIN_PER_DAY_ASSIGNED per day (got %s)" % state.staff[0].get("fatigue"))
+        quit(1)
+        return
+    state.staff[0]["assigned_task"] = ""
+    var fatigue_before_recovery: float = float(state.staff[0].get("fatigue", 0.0))
+    bus2.day_advanced.emit(state.calendar_day)
+    if not (float(state.staff[0].get("fatigue", 0.0)) < fatigue_before_recovery):
+        push_error("An idle staff member's fatigue should recover, not stay flat or increase")
+        quit(1)
+        return
+    print("SMOKE_OK: fatigue rises while assigned to work and recovers while idle")
+
+    state.staff[0]["fatigue"] = 100.0
+    state.staff[0]["morale"] = 80.0
+    state.staff[0]["relationships"] = []
+    bus2.day_advanced.emit(state.calendar_day)
+    if not is_equal_approx(float(state.staff[0].get("morale", 0.0)), 80.0 - staff_mgr.MORALE_DECAY_HIGH_FATIGUE):
+        push_error("Sustained high fatigue should decay morale by exactly MORALE_DECAY_HIGH_FATIGUE (got %s)" % state.staff[0].get("morale"))
+        quit(1)
+        return
+    print("SMOKE_OK: sustained high fatigue erodes morale by a bounded daily amount")
+
+    if state.staff[0].get("relationships", []).size() < 1 or state.staff[1].get("relationships", []).size() < 1:
+        push_error("Coworkers in the same department should accrue a relationship entry with each other over time")
+        quit(1)
+        return
+    var rel_affinity: float = float((state.staff[0]["relationships"][0] as Dictionary).get("affinity", -999.0))
+    if not is_equal_approx(rel_affinity, staff_mgr.RELATIONSHIP_STEP):
+        push_error("A fresh relationship should start at exactly RELATIONSHIP_STEP (got %s)" % rel_affinity)
+        quit(1)
+        return
+    print("SMOKE_OK: department coworkers accrue a bounded, symmetric relationship affinity over time")
+
+    # Resignation must never soft-lock hiring: assign the low-morale staffer
+    # to a real task (so we can verify the reservation is cleanly freed),
+    # then force morale under threshold and tick until they resign.
+    state.buildings = [{"id": "b_p24_desk", "buildable_id": "desk"}]
+    state.work_orders = []
+    state.staff[0]["assigned_task"] = ""
+    var resign_assign_err: Error = task_mgr.assign(prodigy_id, "research_sprint", "b_p24_desk")
+    if resign_assign_err != OK:
+        push_error("Could not assign the resignation-test staffer to a real task (error %s)" % resign_assign_err)
+        quit(1)
+        return
+    state.staff[0]["morale"] = 0.0
+    state.staff[0]["fatigue"] = 0.0
+
+    var resigned: bool = false
+    var resign_guard: int = 0
+    while resign_guard < 400 and not resigned:
+        state.staff[0]["morale"] = 0.0  # never recovers, guarantees eligibility every roll
+        bus2.day_advanced.emit(state.calendar_day)
+        resigned = staff_mgr.find(prodigy_id).is_empty()
+        resign_guard += 1
+    if not resigned:
+        push_error("The low-morale staffer never resigned after %d days (RESIGNATION_CHANCE_PER_DAY may be miscalibrated)" % resign_guard)
+        quit(1)
+        return
+    if not task_mgr.find_order_for_staff(prodigy_id).is_empty():
+        push_error("Resigning should free the staffer's in-progress work order, not leave it dangling")
+        quit(1)
+        return
+    if task_mgr.is_building_reserved("b_p24_desk"):
+        push_error("Resigning should free the building the staffer had reserved")
+        quit(1)
+        return
+    if staff_mgr.candidates.is_empty():
+        push_error("The candidate pool must never be left empty — resignation must not soft-lock hiring")
+        quit(1)
+        return
+    var rehire_err: Error = staff_mgr.hire(0)
+    if rehire_err != OK:
+        push_error("Hiring after a resignation should still work (no soft-lock)")
+        quit(1)
+        return
+    print("SMOKE_OK: resignation frees the staffer's task/building reservation and never soft-locks hiring")
+
+    state.staff = []
+    state.buildings = []
+    state.work_orders = []
+    state.cash = 184200.0
+
     quit(0)

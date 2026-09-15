@@ -137,8 +137,9 @@ func _on_tick(minutes: int) -> void:
             continue
         var task_def: Dictionary = WorkTaskCatalog.get_def(String(entry.get("task_id", "")))
         var required_skill: String = String(task_def.get("required_skill", ""))
-        var skills: Dictionary = staff.get("skills", {})
-        var skill_value: int = int(skills.get(required_skill, 0))
+        # Traits and department leadership (P24) shift the effective skill
+        # used for work-rate, not just the base value stored on hire.
+        var skill_value: int = StaffManager.effective_skill(staff_id, required_skill)
         var multiplier: float = 0.5 + float(skill_value) / 100.0
         entry["progress_minutes"] = float(entry.get("progress_minutes", 0.0)) + float(minutes) * multiplier
         var duration: float = float(task_def.get("duration_minutes", 240.0))

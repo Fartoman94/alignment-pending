@@ -667,9 +667,15 @@ func _show_staff_detail(staff_id: String) -> void:
             status_line = "Working: %s%s (%d%%)" % [
                 String(task_def.get("name", "?")), target_suffix, int(round(TaskManager.progress_fraction(order) * 100.0)),
             ]
-    _inspector_body.text = "Role: %s\nSalary: $%d/day\nMorale: %d%%\nFatigue: %d%%\nHired day %d\nSkills: %s\nStatus: %s" % [
-        member.get("role", "?"), int(member.get("salary", 0.0)), int(member.get("morale", 0)),
-        int(member.get("fatigue", 0)), int(member.get("hire_date", 0)), ", ".join(skill_parts), status_line,
+    var trait_names: PackedStringArray = []
+    for trait_id: Variant in member.get("traits", []):
+        trait_names.append(String(StaffTraitCatalog.get_def(String(trait_id)).get("name", trait_id)))
+    var trait_text: String = ", ".join(trait_names) if not trait_names.is_empty() else "None"
+    var lead_text: String = " (Department Lead)" if bool(member.get("is_lead", false)) else ""
+
+    _inspector_body.text = "Role: %s%s\nSalary: $%d/day\nMorale: %d%%\nFatigue: %d%%\nTraits: %s\nHired day %d\nSkills: %s\nStatus: %s" % [
+        member.get("role", "?"), lead_text, int(member.get("salary", 0.0)), int(member.get("morale", 0)),
+        int(member.get("fatigue", 0)), trait_text, int(member.get("hire_date", 0)), ", ".join(skill_parts), status_line,
     ]
 
     if not assigned_task.is_empty():
@@ -719,6 +725,26 @@ func _show_staff_detail(staff_id: String) -> void:
                 _show_staff_detail(staff_id)
             )
             _dynamic_content.add_child(assign_btn)
+
+    if not bool(member.get("is_lead", false)):
+        var role_id: String = String(member.get("role", ""))
+        var role_def: Dictionary = StaffRoleCatalog.get_def(role_id)
+        var primary_skill: String = String(role_def.get("primary_skill", ""))
+        var already_has_lead: bool = false
+        for other: Variant in GameState.staff:
+            if String((other as Dictionary).get("role", "")) == role_id and bool((other as Dictionary).get("is_lead", false)):
+                already_has_lead = true
+                break
+        var qualifies: bool = int(skills.get(primary_skill, 0)) >= StaffManager.PROMOTION_SKILL_THRESHOLD
+
+        var promote_btn: Button = Button.new()
+        promote_btn.text = "Promote to Department Lead ($%d)" % int(StaffManager.PROMOTION_COST)
+        promote_btn.disabled = already_has_lead or not qualifies or GameState.cash < StaffManager.PROMOTION_COST
+        promote_btn.pressed.connect(func() -> void:
+            StaffManager.promote(staff_id)
+            _show_staff_detail(staff_id)
+        )
+        _dynamic_content.add_child(promote_btn)
 
     var fire_btn: Button = Button.new()
     fire_btn.text = "Fire"

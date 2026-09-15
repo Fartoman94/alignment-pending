@@ -32,6 +32,14 @@ const BUILDABLE_REQUIRED_FIELDS: Array[String] = ["id", "name", "category", "foo
 const STAFF_ROLE_REQUIRED_FIELDS: Array[String] = ["id", "name", "base_salary_min", "base_salary_max", "primary_skill"]
 const STAFF_SKILL_KEYS: Array[String] = ["capability", "engineering", "operations", "safety", "communication"]
 
+# P24: staff depth. Traits must have bounded impact (acceptance criterion),
+# so these caps are enforced at data-load time, not just by convention.
+const STAFF_TRAIT_REQUIRED_FIELDS: Array[String] = ["id", "name", "skill_deltas", "morale_delta", "fatigue_resistance"]
+const STAFF_TRAIT_SKILL_DELTA_MAX: float = 15.0
+const STAFF_TRAIT_MORALE_DELTA_MAX: float = 10.0
+const STAFF_TRAIT_FATIGUE_RESISTANCE_MIN: float = 0.7
+const STAFF_TRAIT_FATIGUE_RESISTANCE_MAX: float = 1.3
+
 const WORK_TASK_REQUIRED_FIELDS: Array[String] = ["id", "name", "category", "required_buildable", "required_skill", "duration_minutes"]
 
 const RESEARCH_NODE_REQUIRED_FIELDS: Array[String] = ["id", "name", "branch", "cost", "duration_minutes", "prerequisites", "unlock_effect"]
@@ -79,6 +87,7 @@ static func validate_all() -> Array[Issue]:
     issues.append_array(validate_event_file("res://data/events_seed.json"))
     issues.append_array(validate_buildable_file("res://data/buildables.json"))
     issues.append_array(validate_staff_role_file("res://data/staff_roles.json"))
+    issues.append_array(validate_staff_trait_file("res://data/staff_traits.json"))
     issues.append_array(validate_work_task_file("res://data/work_tasks.json"))
     issues.append_array(validate_research_node_file("res://data/research_nodes.json"))
     issues.append_array(validate_model_tier_file("res://data/model_tiers.json"))
@@ -362,6 +371,80 @@ static func _validate_staff_role_record(path: String, record: Variant, index: in
 
     if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
         issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))
+
+    return issues
+
+static func validate_staff_trait_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of staff trait records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_staff_trait_record(path, records[i], i, seen_ids))
+    return issues
+
+static func _validate_staff_trait_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "staff trait record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in STAFF_TRAIT_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+
+    if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))
+
+    if entry.has("skill_deltas"):
+        var skill_deltas: Variant = entry.get("skill_deltas")
+        if not (skill_deltas is Dictionary):
+            issues.append(Issue.new(path, id_label, "'skill_deltas' must be an object"))
+        else:
+            var deltas: Dictionary = skill_deltas
+            for skill_key: Variant in deltas:
+                if not STAFF_SKILL_KEYS.has(String(skill_key)):
+                    issues.append(Issue.new(path, id_label, "'skill_deltas' has unknown skill key '%s' (expected one of %s)" % [skill_key, STAFF_SKILL_KEYS]))
+                var delta_value: Variant = deltas[skill_key]
+                if not (delta_value is int or delta_value is float) or absf(float(delta_value)) > STAFF_TRAIT_SKILL_DELTA_MAX:
+                    issues.append(Issue.new(path, id_label, "'skill_deltas.%s' must be a number with |value| <= %s (bounded impact)" % [skill_key, STAFF_TRAIT_SKILL_DELTA_MAX]))
+
+    if entry.has("morale_delta"):
+        var morale_delta: Variant = entry.get("morale_delta")
+        if not (morale_delta is int or morale_delta is float) or absf(float(morale_delta)) > STAFF_TRAIT_MORALE_DELTA_MAX:
+            issues.append(Issue.new(path, id_label, "'morale_delta' must be a number with |value| <= %s (bounded impact)" % STAFF_TRAIT_MORALE_DELTA_MAX))
+
+    if entry.has("fatigue_resistance"):
+        var fatigue_resistance: Variant = entry.get("fatigue_resistance")
+        var in_range: bool = (fatigue_resistance is int or fatigue_resistance is float) and float(fatigue_resistance) >= STAFF_TRAIT_FATIGUE_RESISTANCE_MIN and float(fatigue_resistance) <= STAFF_TRAIT_FATIGUE_RESISTANCE_MAX
+        if not in_range:
+            issues.append(Issue.new(path, id_label, "'fatigue_resistance' must be a number in [%s, %s] (bounded impact)" % [STAFF_TRAIT_FATIGUE_RESISTANCE_MIN, STAFF_TRAIT_FATIGUE_RESISTANCE_MAX]))
 
     return issues
 

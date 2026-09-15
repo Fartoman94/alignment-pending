@@ -9,6 +9,9 @@ signal day_advanced(day: int)
 ## or "" to cancel/exit build mode.
 signal build_tool_changed(tool_id: String)
 signal staff_roster_changed()
+## Fired in addition to staff_roster_changed when a staff member resigns
+## (as opposed to being fired) due to sustained low morale.
+signal staff_resigned(staff_id: String, staff_name: String)
 ## Fires every SimClock logical tick with the number of simulated minutes
 ## that just elapsed. GameState.paused/SimClock.active already gate this.
 signal simulation_tick(minutes: int)
