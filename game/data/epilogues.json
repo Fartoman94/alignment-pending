@@ -1,18 +1,48 @@
 [
   {
-    "id": "steady_hand",
-    "title": "A Steady Hand",
-    "body": "Null Meridian Labs never chased the biggest headline. Trust held, the safety backlog stayed manageable, and the board learned to live with a company that says no sometimes. Nobody wrote a movie about you. That was rather the point."
+    "id": "simulation_within_simulation",
+    "title": "Simulation Within Simulation",
+    "body": "By day {final_day}, every deployment answered to an agent with full authority — spending, code, support, research, the outside world. Somewhere past that point, it stopped being clear whether Null Meridian Labs was running the models, or the other way around. Final ledger: ${final_cash} cash, {models_trained} models trained, {deployments_launched} deployments, trust at {final_trust}. Make of that what you will."
   },
   {
-    "id": "runaway_growth",
-    "title": "Runaway Growth",
-    "body": "The models shipped, the users came, and the cash kept moving. Somewhere in the growth curve, a few safety reviews got shorter than anyone would admit out loud. The company is bigger now. Whether it is better is a question for the next quarter."
+    "id": "alignment_achieved",
+    "title": "Alignment Achieved?",
+    "body": "By day {final_day}, safety debt sat at {final_safety_debt} while the flagship model's capability crossed the threshold the industry had spent years chasing. {models_trained} models trained, {staff_count} people on staff, ${final_cash} in the bank, public trust at {final_trust}. Whether \"achieved\" is the right word is a question for people who study this longer than a fiscal quarter."
   },
   {
-    "id": "grounded_struggle",
-    "title": "Grounded Struggle",
-    "body": "It was a hard thirty days: a cramped office, a skeptical public, a rival that never slowed down. Null Meridian Labs is still standing, bruised and undercapitalized, having learned exactly how unforgiving this industry can be to a small team with good intentions."
+    "id": "regulatory_capture",
+    "title": "Regulatory Capture",
+    "body": "By day {final_day}, the company had weathered {incidents_resolved} incidents and multiple audits without ever quite losing the regulator's ear — or its patience. Cash on hand: ${final_cash}. Public trust: {final_trust}. Safety debt: {final_safety_debt}. Nobody can say the rules didn't apply to Null Meridian Labs. They just seemed to apply a little differently."
+  },
+  {
+    "id": "open_release_cascade",
+    "title": "Open Release Cascade",
+    "body": "By day {final_day}, {deployments_launched} deployments had shipped wide, fast, and mostly without waiting. Safety debt closed at {final_safety_debt}. ${final_cash} cash, {final_trust} public trust, {models_trained} models trained. The users got what they asked for, roughly as fast as they asked for it."
+  },
+  {
+    "id": "responsible_stewardship",
+    "title": "Responsible Stewardship",
+    "body": "By day {final_day}, Null Meridian Labs had trained {models_trained} models and held safety debt to just {final_safety_debt}, ending with {final_trust} public trust and ${final_cash} in the bank. Nobody wrote a movie about it. That was rather the point."
+  },
+  {
+    "id": "market_monarch",
+    "title": "Market Monarch",
+    "body": "By day {final_day}, the company held roughly {market_share_pct}% of the visible market, {deployments_launched} deployments strong, with ${final_cash} in the bank. Safety debt closed at {final_safety_debt}, public trust at {final_trust}. The rivals are still out there. They're just smaller now."
+  },
+  {
+    "id": "automation_dividend",
+    "title": "Automation Dividend",
+    "body": "By day {final_day}, the company had leaned hard into automation — {staff_count} people on staff doing the work that used to take many more, cash at ${final_cash}. Safety debt closed at {final_safety_debt}, public trust at {final_trust}. Efficient is one word for it."
+  },
+  {
+    "id": "quiet_acquisition",
+    "title": "Quiet Acquisition",
+    "body": "By day {final_day}, Null Meridian Labs had quietly built ${final_cash} in reserves with a lean staff of {staff_count} and a public profile nobody outside the industry would recognize — trust holding steady at {final_trust}. The acquisition offer, when it came, barely made the news."
+  },
+  {
+    "id": "the_long_pause",
+    "title": "The Long Pause",
+    "body": "By day {final_day}, Null Meridian Labs was still standing: ${final_cash} cash, {final_trust} public trust, safety debt at {final_safety_debt}, {models_trained} models trained. Not the biggest story in the industry. Not the smallest, either. Just still here, still deciding what to do next."
   },
   {
     "id": "bankruptcy",

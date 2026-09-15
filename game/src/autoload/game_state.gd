@@ -123,9 +123,16 @@ var active_audit: Dictionary = {}
 ## Each entry: {id, triggered_day, resolved_day, disclosure_choice,
 ## effects_applied}.
 var audit_history: Array = []
-## "" until the vertical-slice mini-campaign ends; then one of
-## EpilogueCatalog's ids. Kept in sync by EndingManager.
+## "" until the campaign ends; then one of EpilogueCatalog's ids. Kept in
+## sync by EndingManager.
 var ending_id: String = ""
+## A frozen snapshot of tracked consequences at the moment the campaign
+## ended (final_day, final_cash, final_trust, final_safety_debt,
+## models_trained, deployments_launched, staff_count, incidents_resolved,
+## market_share_pct) — the epilogue's body is a String.format() template
+## filled from this, so it reports facts, never a computed moral score.
+## Kept in sync by EndingManager.
+var ending_summary: Dictionary = {}
 ## The calendar_day cash first went negative, or -1 when not in
 ## bankruptcy. Reset to -1 automatically the moment cash recovers. Kept in
 ## sync by EconomyManager.
@@ -288,6 +295,7 @@ func reset_to_defaults() -> void:
     active_audit = {}
     audit_history = []
     ending_id = ""
+    ending_summary = {}
     bankruptcy_day = -1
     board_control_pct = 100.0
     board_pressure = 0.0
@@ -360,6 +368,7 @@ func to_dict() -> Dictionary:
         "active_audit": active_audit,
         "audit_history": audit_history,
         "ending_id": ending_id,
+        "ending_summary": ending_summary,
         "bankruptcy_day": bankruptcy_day,
         "board_control_pct": board_control_pct,
         "board_pressure": board_pressure,
@@ -448,6 +457,8 @@ func from_dict(data: Dictionary) -> void:
     var loaded_audit_history: Variant = data.get("audit_history", [])
     audit_history = loaded_audit_history if loaded_audit_history is Array else []
     ending_id = String(data.get("ending_id", ending_id))
+    var loaded_ending_summary: Variant = data.get("ending_summary", {})
+    ending_summary = loaded_ending_summary if loaded_ending_summary is Dictionary else {}
     bankruptcy_day = int(data.get("bankruptcy_day", bankruptcy_day))
     board_control_pct = float(data.get("board_control_pct", board_control_pct))
     board_pressure = float(data.get("board_pressure", board_pressure))

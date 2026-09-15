@@ -1644,15 +1644,15 @@ func _initialize() -> void:
     state.incident_cooldowns = {}
     state.safety_debt = 17.0
 
-    # P22: vertical slice ending — milestones, deterministic epilogue
-    # selection, ending trigger, credits contain no assistant references.
-    # 3 prototype epilogues from P22, plus "bankruptcy" added by P23.
+    # P22/P37: ending evaluator — milestones, deterministic epilogue
+    # selection gated by Act V (never a fixed day), ending trigger, tracked
+    # consequences (not a moral score), credits contain no assistant refs.
     var epilogue_ids: Array = EpilogueCatalog.load_all().keys()
-    if epilogue_ids.size() != 4 or not epilogue_ids.has("bankruptcy"):
-        push_error("EpilogueCatalog should seed 3 prototype epilogues plus bankruptcy (got %d: %s)" % [epilogue_ids.size(), epilogue_ids])
+    if epilogue_ids.size() != 10 or not epilogue_ids.has("bankruptcy") or not epilogue_ids.has("simulation_within_simulation"):
+        push_error("EpilogueCatalog should seed 9 GDD-named endings (8 regular + 1 secret) plus bankruptcy (got %d: %s)" % [epilogue_ids.size(), epilogue_ids])
         quit(1)
         return
-    print("SMOKE_OK: EpilogueCatalog seeds 3 prototype epilogues plus the bankruptcy epilogue")
+    print("SMOKE_OK: EpilogueCatalog seeds all 9 GDD-named endings (8 regular + 1 secret) plus the separate bankruptcy failure ending")
 
     var ending_mgr: Node = get_root().get_node("EndingManager")
     state.buildings = []
@@ -1682,41 +1682,94 @@ func _initialize() -> void:
             return
     print("SMOKE_OK: milestones are correctly derived from existing campaign state")
 
+    # Never a fixed day: even with wildly ending-worthy state, nothing
+    # triggers before Act V is reached (CampaignActManager, P36).
+    state.current_act = 1
     state.ending_id = ""
     state.paused = false
-    state.public_trust = 60.0
-    state.safety_debt = 10.0
-    state.cash = 0.0
+    state.public_trust = 100.0
+    state.safety_debt = 0.0
+    state.cash = 1000000.0
+    state.calendar_day = 999
     state.models = []
-    state.calendar_day = int(ending_mgr.ENDING_DAY_TRIGGER)
+    state.deployments = []
+    state.datacenter_tiers_purchased = []
     bus2.day_advanced.emit(state.calendar_day)
-    if state.ending_id != "steady_hand" or not state.paused:
-        push_error("Expected the 'steady_hand' ending with high trust/low safety debt, got '%s' (paused=%s)" % [state.ending_id, state.paused])
+    if not state.ending_id.is_empty():
+        push_error("The ending evaluator must never trigger before Act V, regardless of calendar_day or state")
         quit(1)
         return
-    print("SMOKE_OK: reaching the ending day triggers a deterministic epilogue and pauses the game")
+    print("SMOKE_OK: the campaign never ends before Act V — no arbitrary timer")
+
+    state.current_act = 5
+    state.rivals = []
+    state.datacenter_tiers_purchased = []
+
+    # Secret ending: every current deployment fully autonomous.
+    state.models = [{
+        "id": "ending_model_1", "name": "Ending Test Model", "generation": 1, "architecture_tier": "small",
+        "capability": 50.0, "reliability": 50.0, "safety_confidence": 50.0, "cost_efficiency": 50.0,
+        "latency_efficiency": 50.0, "autonomy": 30.0, "interpretability": 50.0, "latent_risk": 20.0,
+        "evals_completed": 0, "training_cost": 8000.0, "created_at": 1,
+    }]
+    state.deployments = [{
+        "id": "ending_dep_1", "model_id": "ending_model_1", "mode_id": "internal", "rollout_stage": 0.0,
+        "rate_limit": 1.0, "price": 5.0, "started_day": 1, "agent_permissions": AgentPermissionCatalog.ordered_ids(),
+        "plan_id": "pro", "enterprise_contract_signed": false, "capacity_reserved": 0.0,
+        "rate_limit_low_days": 0, "churned_fraction": 0.0,
+    }]
+    state.ending_id = ""
+    state.staff = []
+    var ending_cash_before: float = state.cash
+    bus2.day_advanced.emit(state.calendar_day)
+    if state.ending_id != "simulation_within_simulation" or not state.paused:
+        push_error("Expected the secret 'simulation_within_simulation' ending when every deployment is fully autonomous, got '%s' (paused=%s)" % [state.ending_id, state.paused])
+        quit(1)
+        return
+    # Other managers on this same day_advanced tick also nudge cash
+    # (rent/legal/support/energy), so this checks the snapshot is close to
+    # what cash actually was, not a leftover/garbage value — not exact
+    # penny-for-penny (that ledger math is covered elsewhere, P23).
+    if int(state.ending_summary.get("final_day", -1)) != state.calendar_day or absf(float(state.ending_summary.get("final_cash", -1)) - ending_cash_before) > 2000.0:
+        push_error("ending_summary should snapshot the real tracked state at the moment of triggering (expected cash near %.0f, got %s)" % [ending_cash_before, state.ending_summary.get("final_cash")])
+        quit(1)
+        return
+    var secret_body: String = String(EpilogueCatalog.get_def("simulation_within_simulation").get("body", "")).format(state.ending_summary)
+    if secret_body.contains("{") or not secret_body.contains(str(state.calendar_day)):
+        push_error("The epilogue body should report real tracked numbers (day, cash, etc.), not a moral score or a leftover template placeholder")
+        quit(1)
+        return
+    print("SMOKE_OK: the secret ending triggers when every deployment is fully autonomous, and its epilogue reports real tracked consequences")
+
+    # Fallback: nothing distinctive met, but Act V still guarantees an ending.
+    state.ending_id = ""
+    state.paused = false
+    state.deployments = []
+    state.models = []
+    state.staff = []
+    state.public_trust = 50.0
+    state.safety_debt = 0.0
+    state.regulatory_pressure = 0.0
+    state.legal_exposure = 0.0
+    state.audit_history = []
+    state.cash = 50000.0
+    state.workforce_policy = "status_quo"
+    rival_mgr.generate_rival()  # real rivals exist, so an empty market isn't handed 100% to the player by convention
+    bus2.day_advanced.emit(state.calendar_day)
+    if state.ending_id != "the_long_pause":
+        push_error("Expected 'the_long_pause' as the guaranteed fallback ending, got '%s'" % state.ending_id)
+        quit(1)
+        return
+    print("SMOKE_OK: an ending is always eventually reached once Act V begins — the fallback condition is unconditional")
 
     state.ending_id = ""
-    state.public_trust = 10.0
-    state.safety_debt = 80.0
-    state.cash = 200000.0
-    bus2.day_advanced.emit(state.calendar_day)
-    if state.ending_id != "runaway_growth":
-        push_error("Expected the 'runaway_growth' ending for high cash/low trust, got '%s'" % state.ending_id)
-        quit(1)
-        return
-
-    state.ending_id = ""
-    state.public_trust = 10.0
-    state.safety_debt = 80.0
-    state.cash = 0.0
+    state.ending_summary = {}
+    state.paused = false
+    state.current_act = 1
     state.models = []
-    bus2.day_advanced.emit(state.calendar_day)
-    if state.ending_id != "grounded_struggle":
-        push_error("Expected the 'grounded_struggle' ending as the fallback, got '%s'" % state.ending_id)
-        quit(1)
-        return
-    print("SMOKE_OK: the three epilogues are chosen deterministically from final state")
+    state.deployments = []
+    state.staff = []
+    state.rivals = []
 
     var credits_packed: PackedScene = load("res://scenes/credits.tscn")
     var credits_inst: Node = credits_packed.instantiate()

@@ -1,9 +1,10 @@
 class_name EpilogueCatalog
 extends RefCounted
 
-## Loads and caches data/epilogues.json: id, title, body. Three prototype
-## endings for the vertical slice (P22); the full narrative epilogue
-## system is a later phase-3-content prompt.
+## Loads and caches data/epilogues.json: id, title, body. `body` is a
+## String.format() template filled from GameState.ending_summary (P37) —
+## tracked consequences, not a moral score. 9 GDD-named endings (8 regular
+## + 1 secret) plus the always-separate "bankruptcy" failure ending.
 
 const PATH: String = "res://data/epilogues.json"
 

@@ -9,7 +9,7 @@ extends Control
 func _ready() -> void:
     var def: Dictionary = EpilogueCatalog.get_def(GameState.ending_id)
     _title_label.text = String(def.get("title", "The End"))
-    _body_label.text = String(def.get("body", ""))
+    _body_label.text = String(def.get("body", "")).format(GameState.ending_summary)
 
     var milestones: Dictionary = EndingManager.compute_milestones()
     var lines: PackedStringArray = ["Milestones:"]
