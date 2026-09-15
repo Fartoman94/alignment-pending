@@ -1164,4 +1164,110 @@ func _initialize() -> void:
     state.models = []
     state.deployments = []
 
+    # P18: incident engine — condition/weight/cooldown, choice resolution,
+    # 20 original incidents, high severity pauses, history records
+    # causes/choice.
+    var incident_mgr: Node = get_root().get_node("IncidentManager")
+    var incident_ids: Array = IncidentCatalog.ordered_ids()
+    if incident_ids.size() != 20:
+        push_error("IncidentCatalog should seed exactly 20 incidents (got %d)" % incident_ids.size())
+        quit(1)
+        return
+    print("SMOKE_OK: IncidentCatalog seeds 20 original incidents")
+
+    state.deployments = []
+    state.staff = []
+    state.models = []
+    state.safety_debt = 0.0
+    state.public_trust = 50.0
+    state.cash = 100000.0
+    state.pending_incidents = []
+    state.incident_history = []
+    state.incident_cooldowns = {}
+    state.paused = false
+
+    if incident_mgr.eligible_incidents().has("confidently_incorrect"):
+        push_error("An incident whose prerequisites are unmet should not be eligible")
+        quit(1)
+        return
+    state.models = [{
+        "id": "inc_model", "name": "Inc Model", "generation": 1, "architecture_tier": "small",
+        "capability": 50.0, "reliability": 50.0, "safety_confidence": 50.0, "cost_efficiency": 50.0,
+        "latency_efficiency": 50.0, "autonomy": 20.0, "interpretability": 50.0, "latent_risk": 20.0,
+        "evals_completed": 0, "training_cost": 8000.0, "created_at": 1,
+    }]
+    var release_mgr3: Node = get_root().get_node("ReleaseManager")
+    release_mgr3.deploy("inc_model")
+    if not incident_mgr.eligible_incidents().has("confidently_incorrect"):
+        push_error("An incident should become eligible once its prerequisites are satisfied")
+        quit(1)
+        return
+    print("SMOKE_OK: incident eligibility is gated by data-driven prerequisites")
+
+    incident_mgr._trigger("data_leak_scare")
+    if state.pending_incidents.is_empty() or not state.paused:
+        push_error("Triggering a P0 (severity 0) incident should pause the game")
+        quit(1)
+        return
+    var pending_entry: Dictionary = state.pending_incidents[0]
+    var pending_id: String = String(pending_entry.get("id", ""))
+    if not pending_entry.has("state_snapshot") or (pending_entry["state_snapshot"] as Dictionary).is_empty():
+        push_error("A triggered incident should record a causal state snapshot")
+        quit(1)
+        return
+    print("SMOKE_OK: a high-severity (P0) incident pauses the game and records its trigger state")
+
+    if not (int(state.incident_cooldowns.get("data_leak_scare", 0)) > state.calendar_day):
+        push_error("Triggering an incident should start its cooldown")
+        quit(1)
+        return
+    if incident_mgr.eligible_incidents().has("data_leak_scare"):
+        push_error("An incident on cooldown should not be eligible again immediately")
+        quit(1)
+        return
+    print("SMOKE_OK: triggering an incident starts its cooldown, making it ineligible until it expires")
+
+    var choices: Array = pending_entry.get("choices", [])
+    var chosen_choice: Dictionary = choices[0]
+    var chosen_choice_id: String = String(chosen_choice.get("id", ""))
+    var cash_before_resolve: float = state.cash
+    var expected_cash_effect: float = float((chosen_choice.get("effects", {}) as Dictionary).get("cash", 0.0))
+    var resolve_err: Error = incident_mgr.resolve(pending_id, chosen_choice_id)
+    if resolve_err != OK or not state.pending_incidents.is_empty():
+        push_error("IncidentManager.resolve() failed to resolve the pending incident (error %s)" % resolve_err)
+        quit(1)
+        return
+    if not is_equal_approx(state.cash, cash_before_resolve + expected_cash_effect):
+        push_error("Resolving a choice should apply its cash effect")
+        quit(1)
+        return
+    if state.incident_history.is_empty():
+        push_error("Resolving an incident should record it in history")
+        quit(1)
+        return
+    var history_entry: Dictionary = state.incident_history[state.incident_history.size() - 1]
+    if String(history_entry.get("choice_id", "")) != chosen_choice_id or not history_entry.has("state_snapshot"):
+        push_error("Incident history should record both the cause (state snapshot) and the player's choice")
+        quit(1)
+        return
+    print("SMOKE_OK: resolving an incident applies the choice's effects and history records causes/choice")
+
+    var save_err_inc: Error = save_mgr.save_manual(0)
+    var history_len_before: int = state.incident_history.size()
+    state.incident_history = []
+    state.incident_cooldowns = {}
+    var load_err_inc: Error = save_mgr.load_manual(0)
+    if save_err_inc != OK or load_err_inc != OK or state.incident_history.size() != history_len_before or state.incident_cooldowns.is_empty():
+        push_error("Incident history/cooldowns did not survive save/load (save error %s, load error %s)" % [save_err_inc, load_err_inc])
+        quit(1)
+        return
+    print("SMOKE_OK: incident history and cooldowns persist across save/load")
+
+    state.models = []
+    state.deployments = []
+    state.pending_incidents = []
+    state.incident_history = []
+    state.incident_cooldowns = {}
+    state.paused = false
+
     quit(0)

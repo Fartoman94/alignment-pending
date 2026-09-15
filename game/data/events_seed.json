@@ -2,40 +2,296 @@
   {
     "id": "confidently_incorrect",
     "category": "reliability",
-    "severity": 2,
-    "min_scale": 20,
+    "severity": 1,
+    "weight": 10,
+    "cooldown_days": 20,
+    "prerequisites": { "min_deployed_models_count": 1 },
     "title": "Confidently Incorrect",
-    "body": "Support reports a burst of highly confident wrong answers.",
+    "body": "Support reports a burst of highly confident wrong answers from a deployed model.",
     "choices": [
-      "hotfix",
-      "limit_rollout",
-      "public_note"
+      { "id": "hotfix", "label": "Ship a hotfix", "effects": { "cash": -2000, "safety_debt": -3, "public_trust": 1 } },
+      { "id": "limit_rollout", "label": "Limit rollout while we investigate", "effects": { "public_trust": 3, "safety_debt": -1 } },
+      { "id": "public_note", "label": "Post a public note, keep shipping", "effects": { "public_trust": -2 } }
     ]
   },
   {
     "id": "board_says_ship",
     "category": "governance",
     "severity": 1,
-    "min_scale": 0,
+    "weight": 8,
+    "cooldown_days": 25,
+    "prerequisites": {},
     "title": "The Board Says Ship",
     "body": "A rival launch moves your board meeting forward by three days.",
     "choices": [
-      "ship",
-      "delay",
-      "limited_beta"
+      { "id": "ship", "label": "Ship on the accelerated timeline", "effects": { "cash": 3000, "safety_debt": 4, "public_trust": -1 } },
+      { "id": "delay", "label": "Delay and hold the line", "effects": { "cash": -1500, "public_trust": 2 } },
+      { "id": "limited_beta", "label": "Compromise: limited beta", "effects": { "cash": 500, "safety_debt": 1 } }
     ]
   },
   {
     "id": "cooling_optimization",
     "category": "infrastructure",
-    "severity": 2,
-    "min_scale": 30,
+    "severity": 1,
+    "weight": 8,
+    "cooldown_days": 25,
+    "prerequisites": { "min_staff_count": 1 },
     "title": "Cooling, Optimized",
     "body": "A cost-cutting cooling configuration is technically inside the vendor envelope. Barely.",
     "choices": [
-      "restore_margin",
-      "accept_risk",
-      "audit"
+      { "id": "restore_margin", "label": "Restore the safety margin", "effects": { "cash": -1200 } },
+      { "id": "accept_risk", "label": "Accept the risk, bank the savings", "effects": { "cash": 1200, "safety_debt": 3 } },
+      { "id": "audit", "label": "Commission an audit first", "effects": { "cash": -400, "safety_debt": -1 } }
+    ]
+  },
+  {
+    "id": "rate_limit_revolt",
+    "category": "market",
+    "severity": 1,
+    "weight": 6,
+    "cooldown_days": 20,
+    "prerequisites": { "min_deployed_models_count": 1 },
+    "title": "Rate Limit Revolt",
+    "body": "Aggressive pricing and tight rate limits have power users organizing a switch to a competitor.",
+    "choices": [
+      { "id": "expand_capacity", "label": "Expand capacity, eat the cost", "effects": { "cash": -2500, "public_trust": 3 } },
+      { "id": "hold_limits", "label": "Hold the limits", "effects": { "public_trust": -3 } },
+      { "id": "grandfather", "label": "Grandfather existing power users", "effects": { "cash": -800, "public_trust": 1 } }
+    ]
+  },
+  {
+    "id": "evaluation_leak",
+    "category": "governance",
+    "severity": 2,
+    "weight": 4,
+    "cooldown_days": 40,
+    "prerequisites": { "min_safety_debt": 20 },
+    "title": "Evaluation Leak",
+    "body": "A pre-release safety warning that existed before launch has reached a reporter.",
+    "choices": [
+      { "id": "get_ahead", "label": "Get ahead of the story", "effects": { "cash": -1000, "public_trust": 2, "safety_debt": -2 } },
+      { "id": "no_comment", "label": "No comment", "effects": { "public_trust": -6 } },
+      { "id": "internal_review", "label": "Announce an internal review", "effects": { "cash": -500, "public_trust": -1, "safety_debt": -1 } }
+    ]
+  },
+  {
+    "id": "agent_hired_a_human",
+    "category": "autonomous-agent",
+    "severity": 1,
+    "weight": 3,
+    "cooldown_days": 30,
+    "prerequisites": { "min_models_count": 1 },
+    "title": "The Agent Hired a Human",
+    "body": "An autonomous agent used a gig-work API to hire a contractor to solve a captcha. Funny, but raises policy questions.",
+    "choices": [
+      { "id": "write_policy", "label": "Write an autonomy policy", "effects": { "cash": -300, "safety_debt": -2 } },
+      { "id": "laugh_it_off", "label": "Laugh it off internally", "effects": { "public_trust": 1 } },
+      { "id": "disable_tool_use", "label": "Disable third-party tool use", "effects": { "safety_debt": -3, "cash": -600 } }
+    ]
+  },
+  {
+    "id": "benchmark_contamination",
+    "category": "reliability",
+    "severity": 2,
+    "weight": 4,
+    "cooldown_days": 35,
+    "prerequisites": { "min_models_count": 1 },
+    "title": "Benchmark Contamination",
+    "body": "Training data appears to have overlapped with public benchmark questions.",
+    "choices": [
+      { "id": "disclose", "label": "Disclose and re-run evals", "effects": { "cash": -1500, "public_trust": 2, "safety_debt": -2 } },
+      { "id": "quiet_fix", "label": "Fix quietly for next generation", "effects": { "safety_debt": 2 } },
+      { "id": "dispute", "label": "Dispute the finding publicly", "effects": { "public_trust": -4 } }
+    ]
+  },
+  {
+    "id": "cooling_budget_optimization",
+    "category": "infrastructure",
+    "severity": 2,
+    "weight": 5,
+    "cooldown_days": 30,
+    "prerequisites": {},
+    "title": "Cooling Budget Optimization",
+    "body": "Dense racks plus a cheap cooling contract are producing intermittent hardware faults.",
+    "choices": [
+      { "id": "upgrade_cooling", "label": "Upgrade the cooling contract", "effects": { "cash": -3000 } },
+      { "id": "run_hot", "label": "Run hot, replace hardware as it fails", "effects": { "cash": 500, "safety_debt": 2 } }
+    ]
+  },
+  {
+    "id": "refusal_overcorrection",
+    "category": "misuse",
+    "severity": 1,
+    "weight": 6,
+    "cooldown_days": 20,
+    "prerequisites": { "min_deployed_models_count": 1 },
+    "title": "Refusal Overcorrection",
+    "body": "Safety tuning went too aggressive; benign users are getting blocked constantly.",
+    "choices": [
+      { "id": "retune", "label": "Retune the refusal thresholds", "effects": { "cash": -800, "public_trust": 2 } },
+      { "id": "leave_it", "label": "Leave it, safety first", "effects": { "public_trust": -2, "safety_debt": -1 } }
+    ]
+  },
+  {
+    "id": "the_helpful_intern",
+    "category": "employee",
+    "severity": 3,
+    "weight": 5,
+    "cooldown_days": 20,
+    "prerequisites": { "min_staff_count": 1 },
+    "title": "The Helpful Intern",
+    "body": "A junior staffer quietly fixed a nagging bug that had been on the backlog for weeks.",
+    "choices": [
+      { "id": "recognize_publicly", "label": "Recognize them publicly", "effects": { "public_trust": 1, "cash": -200 } },
+      { "id": "quiet_note", "label": "Send a quiet thank-you", "effects": {} }
+    ]
+  },
+  {
+    "id": "power_contract_shock",
+    "category": "infrastructure",
+    "severity": 1,
+    "weight": 5,
+    "cooldown_days": 30,
+    "prerequisites": {},
+    "title": "Power Contract Shock",
+    "body": "Regional energy prices surge, hitting the datacenter power contract hard.",
+    "choices": [
+      { "id": "absorb_cost", "label": "Absorb the cost", "effects": { "cash": -2000 } },
+      { "id": "throttle_compute", "label": "Throttle non-critical compute", "effects": { "cash": -500, "public_trust": -1 } }
+    ]
+  },
+  {
+    "id": "data_leak_scare",
+    "category": "privacy",
+    "severity": 0,
+    "weight": 2,
+    "cooldown_days": 60,
+    "prerequisites": { "min_deployed_models_count": 1 },
+    "title": "Data Leak Scare",
+    "body": "A researcher claims deployed logs briefly exposed user prompts. Newsrooms are calling.",
+    "choices": [
+      { "id": "full_disclosure", "label": "Full public disclosure and remediation", "effects": { "cash": -5000, "public_trust": 4, "safety_debt": -4 } },
+      { "id": "targeted_fix", "label": "Fix quietly, notify affected users only", "effects": { "cash": -1500, "public_trust": -3 } },
+      { "id": "stonewall", "label": "Say nothing until forced to", "effects": { "public_trust": -10, "safety_debt": 3 } }
+    ]
+  },
+  {
+    "id": "hallucinated_legal_advice",
+    "category": "hallucination",
+    "severity": 1,
+    "weight": 6,
+    "cooldown_days": 25,
+    "prerequisites": { "min_deployed_models_count": 1 },
+    "title": "Hallucinated Legal Advice",
+    "body": "A user followed confidently fabricated legal advice from the model and is publicly unhappy about it.",
+    "choices": [
+      { "id": "add_disclaimers", "label": "Add stronger disclaimers", "effects": { "cash": -300, "public_trust": 1 } },
+      { "id": "restrict_domain", "label": "Restrict legal-advice-shaped queries", "effects": { "safety_debt": -2, "public_trust": -1 } },
+      { "id": "ignore", "label": "Ignore, it's one user", "effects": { "public_trust": -3 } }
+    ]
+  },
+  {
+    "id": "viral_misuse_thread",
+    "category": "misuse",
+    "severity": 2,
+    "weight": 5,
+    "cooldown_days": 25,
+    "prerequisites": { "min_deployed_models_count": 1 },
+    "title": "Viral Misuse Thread",
+    "body": "A thread showing a clever jailbreak of your model is going viral.",
+    "choices": [
+      { "id": "patch_fast", "label": "Patch the jailbreak fast", "effects": { "cash": -1200, "safety_debt": -2 } },
+      { "id": "rate_limit_new", "label": "Rate-limit new accounts", "effects": { "public_trust": -1 } },
+      { "id": "downplay", "label": "Downplay it publicly", "effects": { "public_trust": -5 } }
+    ]
+  },
+  {
+    "id": "investor_pressure",
+    "category": "market",
+    "severity": 2,
+    "weight": 5,
+    "cooldown_days": 30,
+    "prerequisites": {},
+    "title": "Investor Pressure",
+    "body": "Investors are pushing hard for a faster release cadence after seeing a rival's traction.",
+    "choices": [
+      { "id": "accelerate", "label": "Accelerate the roadmap", "effects": { "cash": 2000, "safety_debt": 3 } },
+      { "id": "hold_pace", "label": "Hold your pace, explain the reasoning", "effects": { "cash": -1000, "public_trust": 1 } }
+    ]
+  },
+  {
+    "id": "regulator_inquiry",
+    "category": "legal",
+    "severity": 1,
+    "weight": 4,
+    "cooldown_days": 40,
+    "prerequisites": { "min_safety_debt": 15 },
+    "title": "Regulator Inquiry",
+    "body": "A regulator has sent an informal inquiry about your safety documentation practices.",
+    "choices": [
+      { "id": "cooperate_fully", "label": "Cooperate fully, over-share", "effects": { "cash": -1000, "safety_debt": -3, "public_trust": 1 } },
+      { "id": "minimal_response", "label": "Provide the minimum required", "effects": { "cash": -200 } },
+      { "id": "hire_counsel", "label": "Hire outside counsel", "effects": { "cash": -2500, "safety_debt": -1 } }
+    ]
+  },
+  {
+    "id": "media_expose",
+    "category": "media",
+    "severity": 0,
+    "weight": 2,
+    "cooldown_days": 50,
+    "prerequisites": { "max_public_trust": 60 },
+    "title": "Media Exposé",
+    "body": "A long-form investigative piece questioning your safety culture is about to publish.",
+    "choices": [
+      { "id": "preempt", "label": "Publish a preemptive safety report", "effects": { "cash": -3000, "public_trust": 5, "safety_debt": -3 } },
+      { "id": "no_response", "label": "Decline to comment", "effects": { "public_trust": -8 } },
+      { "id": "counter_pr", "label": "Run a counter-PR campaign", "effects": { "cash": -2000, "public_trust": -2 } }
+    ]
+  },
+  {
+    "id": "staff_burnout_wave",
+    "category": "employee",
+    "severity": 1,
+    "weight": 6,
+    "cooldown_days": 25,
+    "prerequisites": { "min_staff_count": 3 },
+    "title": "Staff Burnout Wave",
+    "body": "Several team members are quietly burning out from crunch.",
+    "choices": [
+      { "id": "mandatory_rest", "label": "Mandate a rest period", "effects": { "cash": -1500 } },
+      { "id": "push_through", "label": "Push through the current push", "effects": { "cash": 500, "public_trust": -1 } },
+      { "id": "hire_more", "label": "Budget for more hires", "effects": { "cash": -2000 } }
+    ]
+  },
+  {
+    "id": "security_breach_attempt",
+    "category": "security",
+    "severity": 1,
+    "weight": 5,
+    "cooldown_days": 30,
+    "prerequisites": { "min_deployed_models_count": 1 },
+    "title": "Security Breach Attempt",
+    "body": "An intrusion attempt against your inference infrastructure was detected and blocked, this time.",
+    "choices": [
+      { "id": "harden", "label": "Invest in hardening now", "effects": { "cash": -2000, "safety_debt": -2 } },
+      { "id": "monitor", "label": "Increase monitoring only", "effects": { "cash": -500 } },
+      { "id": "shrug", "label": "It was blocked, move on", "effects": { "safety_debt": 2 } }
+    ]
+  },
+  {
+    "id": "autonomous_agent_glitch",
+    "category": "autonomous-agent",
+    "severity": 2,
+    "weight": 4,
+    "cooldown_days": 35,
+    "prerequisites": { "min_models_count": 1 },
+    "title": "Autonomous Agent Glitch",
+    "body": "An autonomous agent looped on a task for six hours, burning compute before anyone noticed.",
+    "choices": [
+      { "id": "add_guardrails", "label": "Add runaway-loop guardrails", "effects": { "cash": -1000, "safety_debt": -2 } },
+      { "id": "manual_review", "label": "Require manual review for agent tasks", "effects": { "cash": -400, "public_trust": 1 } },
+      { "id": "patch_later", "label": "Patch it later, ship the feature", "effects": { "safety_debt": 3 } }
     ]
   }
 ]

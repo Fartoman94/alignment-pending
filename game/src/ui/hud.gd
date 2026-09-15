@@ -26,6 +26,8 @@ const SPEED_TIER_VALUES: Array[float] = [1.0, 2.0, 4.0]
 @onready var _inspector_title: Label = $RightPanel/Margin/VBox/Title
 @onready var _inspector_body: Label = $RightPanel/Margin/VBox/Body
 @onready var _dynamic_content: VBoxContainer = $RightPanel/Margin/VBox/DynamicContent
+@onready var _incident_empty_label: Label = $LeftPanel/Margin/VBox/EmptyLabel
+@onready var _incident_list: VBoxContainer = $LeftPanel/Margin/VBox/IncidentList
 @onready var _section_buttons: Array[Button] = [
     $BottomBar/Margin/HBox/BuildButton,
     $BottomBar/Margin/HBox/StaffButton,
@@ -44,9 +46,11 @@ func _ready() -> void:
         btn.pressed.connect(_on_section_pressed.bind(btn.text))
     EventBus.selection_changed.connect(_on_selection_changed)
     EventBus.simulation_pause_changed.connect(_on_pause_changed)
+    EventBus.incident_raised.connect(_on_incident_raised)
     _sync_speed_buttons()
     _refresh_resource_strip()
     _refresh_inspector_empty()
+    _refresh_incident_inbox()
 
 func _process(_delta: float) -> void:
     _refresh_resource_strip()
@@ -123,6 +127,57 @@ func _on_selection_changed(kind: StringName, entity_id: String) -> void:
 func _clear_dynamic_content() -> void:
     for child in _dynamic_content.get_children():
         child.queue_free()
+
+func _on_incident_raised(_incident_id: StringName) -> void:
+    _refresh_incident_inbox()
+
+func _refresh_incident_inbox() -> void:
+    for child in _incident_list.get_children():
+        child.queue_free()
+    var pending: Array = GameState.pending_incidents
+    _incident_empty_label.visible = pending.is_empty()
+    for p: Variant in pending:
+        var entry: Dictionary = p
+        var pending_id: String = String(entry.get("id", ""))
+        var row: HBoxContainer = HBoxContainer.new()
+        var label: Label = Label.new()
+        var severity: int = int(entry.get("severity", 2))
+        label.text = "%s%s" % ["[P%d] " % severity if severity <= 0 else "", String(entry.get("title", "?"))]
+        label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+        row.add_child(label)
+        var respond_btn: Button = Button.new()
+        respond_btn.text = "Respond"
+        respond_btn.pressed.connect(func() -> void: _show_incident_detail(pending_id))
+        row.add_child(respond_btn)
+        _incident_list.add_child(row)
+
+func _show_incident_detail(pending_id: String) -> void:
+    var entry: Dictionary = IncidentManager.find_pending(pending_id)
+    if entry.is_empty():
+        return
+    EventBus.build_tool_changed.emit("")
+    _clear_dynamic_content()
+    _inspector_title.text = String(entry.get("title", "Incident"))
+    _inspector_body.text = "%s\n\nCategory: %s   Severity: P%d" % [
+        String(entry.get("body", "")), String(entry.get("category", "?")), int(entry.get("severity", 2)),
+    ]
+    for c: Variant in (entry.get("choices", []) as Array):
+        var choice: Dictionary = c
+        var choice_id: String = String(choice.get("id", ""))
+        var btn: Button = Button.new()
+        var effects: Dictionary = choice.get("effects", {})
+        var effect_parts: PackedStringArray = []
+        for key: String in effects:
+            effect_parts.append("%s %+.0f" % [key, float(effects[key])])
+        var effect_text: String = "" if effect_parts.is_empty() else " (%s)" % ", ".join(effect_parts)
+        btn.text = "%s%s" % [String(choice.get("label", choice_id)), effect_text]
+        btn.pressed.connect(func() -> void:
+            IncidentManager.resolve(pending_id, choice_id)
+            _refresh_incident_inbox()
+            _refresh_inspector_empty()
+        )
+        _dynamic_content.add_child(btn)
 
 func _show_build_palette() -> void:
     _clear_dynamic_content()

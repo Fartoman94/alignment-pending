@@ -3,9 +3,7 @@ extends RefCounted
 
 ## Startup validator for JSON content data: duplicate IDs, missing required
 ## fields, invalid numeric ranges. Only validates fields the current data
-## actually uses (see docs/technical/DATA_SCHEMA.md); IncidentDefinition
-## fields owned by future systems (prerequisites, weight, cooldown_days,
-## tags) are intentionally not required yet.
+## actually uses (see docs/technical/DATA_SCHEMA.md).
 
 const EVENT_CATEGORIES: Array[String] = [
     "reliability", "security", "misuse", "hallucination", "privacy",
@@ -18,7 +16,15 @@ const EVENT_SEVERITY_MIN: int = 0
 const EVENT_SEVERITY_MAX: int = 3
 const EVENT_MIN_CHOICES: int = 2
 const EVENT_MAX_CHOICES: int = 4
-const EVENT_REQUIRED_FIELDS: Array[String] = ["id", "category", "severity", "title", "body", "choices"]
+const EVENT_REQUIRED_FIELDS: Array[String] = ["id", "category", "severity", "weight", "cooldown_days", "prerequisites", "title", "body", "choices"]
+const EVENT_CHOICE_REQUIRED_FIELDS: Array[String] = ["id", "label", "effects"]
+const EVENT_EFFECT_KEYS: Array[String] = ["cash", "public_trust", "safety_debt"]
+# IncidentManager's generic min_<metric>/max_<metric> prerequisite vocabulary.
+const EVENT_CONDITION_METRICS: Array[String] = [
+    "safety_debt", "public_trust", "cash", "deployed_models_count",
+    "staff_count", "models_count", "calendar_day", "compute_used_ratio",
+    "total_user_scale", "total_incident_exposure",
+]
 
 const BUILDABLE_REQUIRED_FIELDS: Array[String] = ["id", "name", "category", "footprint", "cost", "refund_ratio"]
 
@@ -125,10 +131,33 @@ static func _validate_event_record(path: String, record: Variant, index: int, se
         elif int(severity) < EVENT_SEVERITY_MIN or int(severity) > EVENT_SEVERITY_MAX:
             issues.append(Issue.new(path, id_label, "'severity' %s out of range [%d, %d]" % [severity, EVENT_SEVERITY_MIN, EVENT_SEVERITY_MAX]))
 
-    if event.has("min_scale"):
-        var min_scale: Variant = event.get("min_scale")
-        if not (min_scale is int or min_scale is float) or float(min_scale) < 0.0:
-            issues.append(Issue.new(path, id_label, "'min_scale' must be a number >= 0"))
+    if event.has("weight"):
+        var weight: Variant = event.get("weight")
+        if not (weight is int or weight is float) or float(weight) <= 0.0:
+            issues.append(Issue.new(path, id_label, "'weight' must be a number > 0"))
+
+    if event.has("cooldown_days") and not _is_whole_number_at_least(event.get("cooldown_days"), 0):
+        issues.append(Issue.new(path, id_label, "'cooldown_days' must be a whole number >= 0"))
+
+    if event.has("prerequisites"):
+        var prereqs: Variant = event.get("prerequisites")
+        if not (prereqs is Dictionary):
+            issues.append(Issue.new(path, id_label, "'prerequisites' must be an object"))
+        else:
+            for key: String in (prereqs as Dictionary):
+                var metric: String = ""
+                if key.begins_with("min_"):
+                    metric = key.substr(4)
+                elif key.begins_with("max_"):
+                    metric = key.substr(4)
+                else:
+                    issues.append(Issue.new(path, id_label, "prerequisite key '%s' must start with 'min_' or 'max_'" % key))
+                    continue
+                if not EVENT_CONDITION_METRICS.has(metric):
+                    issues.append(Issue.new(path, id_label, "prerequisite key '%s' references unknown metric '%s' (expected one of %s)" % [key, metric, EVENT_CONDITION_METRICS]))
+                var value: Variant = (prereqs as Dictionary)[key]
+                if not (value is int or value is float):
+                    issues.append(Issue.new(path, id_label, "prerequisite '%s' value must be numeric" % key))
 
     if event.has("choices"):
         var choices: Variant = event.get("choices")
@@ -138,10 +167,35 @@ static func _validate_event_record(path: String, record: Variant, index: int, se
             var choices_arr: Array = choices
             if choices_arr.size() < EVENT_MIN_CHOICES or choices_arr.size() > EVENT_MAX_CHOICES:
                 issues.append(Issue.new(path, id_label, "'choices' has %d entries, expected %d-%d" % [choices_arr.size(), EVENT_MIN_CHOICES, EVENT_MAX_CHOICES]))
+            var seen_choice_ids: Dictionary = {}
             for choice: Variant in choices_arr:
-                if not (choice is String) or String(choice).is_empty():
-                    issues.append(Issue.new(path, id_label, "each choice must be a non-empty string"))
-                    break
+                if not (choice is Dictionary):
+                    issues.append(Issue.new(path, id_label, "each choice must be an object"))
+                    continue
+                var choice_dict: Dictionary = choice
+                for field: String in EVENT_CHOICE_REQUIRED_FIELDS:
+                    if not choice_dict.has(field):
+                        issues.append(Issue.new(path, id_label, "a choice is missing required field '%s'" % field))
+                var choice_id: String = str(choice_dict.get("id", ""))
+                if choice_id.is_empty():
+                    issues.append(Issue.new(path, id_label, "a choice has an empty 'id'"))
+                elif seen_choice_ids.has(choice_id):
+                    issues.append(Issue.new(path, id_label, "duplicate choice id '%s'" % choice_id))
+                else:
+                    seen_choice_ids[choice_id] = true
+                if choice_dict.has("label") and (not (choice_dict["label"] is String) or String(choice_dict["label"]).is_empty()):
+                    issues.append(Issue.new(path, id_label, "a choice's 'label' must be a non-empty string"))
+                if choice_dict.has("effects"):
+                    var effects: Variant = choice_dict.get("effects")
+                    if not (effects is Dictionary):
+                        issues.append(Issue.new(path, id_label, "a choice's 'effects' must be an object"))
+                    else:
+                        for effect_key: String in (effects as Dictionary):
+                            if not EVENT_EFFECT_KEYS.has(effect_key):
+                                issues.append(Issue.new(path, id_label, "unknown effect key '%s' (expected one of %s)" % [effect_key, EVENT_EFFECT_KEYS]))
+                            var effect_value: Variant = (effects as Dictionary)[effect_key]
+                            if not (effect_value is int or effect_value is float):
+                                issues.append(Issue.new(path, id_label, "effect '%s' value must be numeric" % effect_key))
 
     if event.has("title") and (not (event["title"] is String) or String(event["title"]).is_empty()):
         issues.append(Issue.new(path, id_label, "'title' must be a non-empty string"))

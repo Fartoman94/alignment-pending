@@ -82,6 +82,16 @@ var pending_evaluations: Dictionary = {}
 ## ReleaseManager.
 var deployments: Array = []
 var next_deployment_id: int = 1
+## Triggered, not-yet-resolved incidents. Each: {id, incident_id, category,
+## severity, title, body, choices, triggered_day, state_snapshot}. Kept in
+## sync by IncidentManager.
+var pending_incidents: Array = []
+## Resolved incidents: pending_incidents entries plus {choice_id,
+## resolved_day, effects_applied} — the "causes/choice" history record.
+var incident_history: Array = []
+## incident_id -> calendar_day it becomes eligible to trigger again.
+var incident_cooldowns: Dictionary = {}
+var next_incident_instance_id: int = 1
 
 func toggle_pause() -> void:
     paused = not paused
@@ -137,6 +147,10 @@ func reset_to_defaults() -> void:
     pending_evaluations = {}
     deployments = []
     next_deployment_id = 1
+    pending_incidents = []
+    incident_history = []
+    incident_cooldowns = {}
+    next_incident_instance_id = 1
 
 ## Campaign state payload only. The save format version lives one layer up,
 ## in SaveManager's envelope, so it isn't duplicated here.
@@ -175,6 +189,10 @@ func to_dict() -> Dictionary:
         "pending_evaluations": pending_evaluations,
         "deployments": deployments,
         "next_deployment_id": next_deployment_id,
+        "pending_incidents": pending_incidents,
+        "incident_history": incident_history,
+        "incident_cooldowns": incident_cooldowns,
+        "next_incident_instance_id": next_incident_instance_id,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -220,3 +238,10 @@ func from_dict(data: Dictionary) -> void:
     var loaded_deployments: Variant = data.get("deployments", [])
     deployments = loaded_deployments if loaded_deployments is Array else []
     next_deployment_id = int(data.get("next_deployment_id", next_deployment_id))
+    var loaded_pending_incidents: Variant = data.get("pending_incidents", [])
+    pending_incidents = loaded_pending_incidents if loaded_pending_incidents is Array else []
+    var loaded_incident_history: Variant = data.get("incident_history", [])
+    incident_history = loaded_incident_history if loaded_incident_history is Array else []
+    var loaded_incident_cooldowns: Variant = data.get("incident_cooldowns", {})
+    incident_cooldowns = loaded_incident_cooldowns if loaded_incident_cooldowns is Dictionary else {}
+    next_incident_instance_id = int(data.get("next_incident_instance_id", next_incident_instance_id))
