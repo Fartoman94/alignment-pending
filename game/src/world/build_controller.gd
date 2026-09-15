@@ -26,6 +26,11 @@ func _ready() -> void:
         var ev: InputEventKey = InputEventKey.new()
         ev.physical_keycode = KEY_R
         InputMap.action_add_event("build_rotate", ev)
+    EventBus.day_advanced.connect(_on_day_advanced)
+
+func _on_day_advanced(_day: int) -> void:
+    if GameState.daily_infrastructure_cost > 0.0:
+        GameState.cash -= GameState.daily_infrastructure_cost
 
 func start_place(buildable_id: String) -> void:
     var def: Dictionary = BuildableCatalog.get_def(buildable_id)
@@ -98,7 +103,8 @@ func _update_ghost_preview() -> void:
     var def: Dictionary = BuildableCatalog.get_def(current_buildable_id)
     var footprint: Dictionary = def.get("footprint", {"w": 1, "d": 1})
     var cells: Array[Vector2i] = grid.footprint_cells(cell, int(footprint.get("w", 1)), int(footprint.get("d", 1)), rotated)
-    var valid: bool = grid.is_area_free(cells) and GameState.cash >= float(def.get("cost", 0.0))
+    var fits_power: bool = GameState.power_used + float(def.get("power_draw", 0.0)) <= GameState.power_capacity
+    var valid: bool = grid.is_area_free(cells) and GameState.cash >= float(def.get("cost", 0.0)) and fits_power
     var mat: StandardMaterial3D = _ghost.mesh.material
     mat.albedo_color = Color(0.3, 0.9, 0.4, 0.55) if valid else Color(0.95, 0.25, 0.25, 0.55)
     _ghost.position = grid.cell_to_world(cell)
@@ -138,7 +144,8 @@ func try_place() -> Error:
     var cost: float = float(def.get("cost", 0.0))
     var footprint: Dictionary = def.get("footprint", {"w": 1, "d": 1})
     var cells: Array[Vector2i] = grid.footprint_cells(cell, int(footprint.get("w", 1)), int(footprint.get("d", 1)), rotated)
-    if not grid.is_area_free(cells) or GameState.cash < cost:
+    var power_draw: float = float(def.get("power_draw", 0.0))
+    if not grid.is_area_free(cells) or GameState.cash < cost or GameState.power_used + power_draw > GameState.power_capacity:
         return ERR_INVALID_PARAMETER
 
     GameState.cash -= cost
@@ -173,6 +180,26 @@ func try_sell(target_cell: Vector2i) -> Error:
 
 func _sync_game_state() -> void:
     GameState.buildings = save_to_state()
+    _recompute_infrastructure()
+
+## Recomputes compute/power/heat/operating-cost totals from every currently
+## placed building. Always derived, never independently mutated, so it can
+## never drift out of sync with the actual building list.
+func _recompute_infrastructure() -> void:
+    var compute_units: float = 0.0
+    var power_draw: float = 0.0
+    var heat_output: float = 0.0
+    var operating_cost: float = 0.0
+    for building_id: String in _placed:
+        var def: Dictionary = BuildableCatalog.get_def(_placed[building_id]["buildable_id"])
+        compute_units += float(def.get("compute_units", 0.0))
+        power_draw += float(def.get("power_draw", 0.0))
+        heat_output += float(def.get("heat_output", 0.0))
+        operating_cost += float(def.get("operating_cost_per_day", 0.0))
+    GameState.compute_capacity = GameState.BASE_COMPUTE_CAPACITY + compute_units
+    GameState.power_used = GameState.BASE_POWER_DRAW + power_draw
+    GameState.heat_load = heat_output
+    GameState.daily_infrastructure_cost = operating_cost
 
 func save_to_state() -> Array:
     var out: Array = []
@@ -223,6 +250,7 @@ func load_from_state(data: Array) -> void:
             "mesh": mesh, "cells": cells, "buildable_id": buildable_id,
             "rotated": was_rotated, "cell": cell,
         }
+    _recompute_infrastructure()
 
 ## World position of a placed building, or Vector3.ZERO if unknown.
 func building_position(building_id: String) -> Vector3:

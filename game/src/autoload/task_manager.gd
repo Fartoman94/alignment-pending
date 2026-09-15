@@ -13,11 +13,21 @@ func _ready() -> void:
     EventBus.simulation_tick.connect(_on_tick)
     EventBus.staff_roster_changed.connect(_reconcile_orphaned_orders)
     _rebuild_reservations()
+    _sync_compute_used()
 
 func _rebuild_reservations() -> void:
     _reserved_buildings.clear()
     for order: Dictionary in GameState.work_orders:
         _reserved_buildings[String(order.get("building_id", ""))] = String(order.get("id", ""))
+
+## GameState.compute_used always equals compute reserved by active work
+## orders — recomputed, never independently mutated.
+func _sync_compute_used() -> void:
+    var total: float = 0.0
+    for order: Variant in GameState.work_orders:
+        var task_def: Dictionary = WorkTaskCatalog.get_def(String((order as Dictionary).get("task_id", "")))
+        total += float(task_def.get("compute_cost", 0.0))
+    GameState.compute_used = total
 
 func is_building_reserved(building_id: String) -> bool:
     return _reserved_buildings.has(building_id)
@@ -57,7 +67,14 @@ func can_assign(staff_id: String, task_id: String, building_id: String) -> bool:
         return false
     var required_skill: String = String(task_def.get("required_skill", ""))
     var skills: Dictionary = staff.get("skills", {})
-    return int(skills.get(required_skill, 0)) > 0
+    if int(skills.get(required_skill, 0)) <= 0:
+        return false
+    # Over-capacity blocks the job outright rather than letting
+    # compute_used exceed the (heat-throttled) effective capacity.
+    var compute_cost: float = float(task_def.get("compute_cost", 0.0))
+    if compute_cost > 0.0 and compute_cost > GameState.effective_compute_capacity() - GameState.compute_used:
+        return false
+    return true
 
 func assign(staff_id: String, task_id: String, building_id: String) -> Error:
     if not can_assign(staff_id, task_id, building_id):
@@ -72,6 +89,7 @@ func assign(staff_id: String, task_id: String, building_id: String) -> Error:
     GameState.work_orders.append(order)
     _reserved_buildings[building_id] = order_id
     _set_staff_field(staff_id, "assigned_task", order_id)
+    _sync_compute_used()
     EventBus.task_assigned.emit(staff_id, building_id)
     return OK
 
@@ -83,6 +101,7 @@ func cancel(staff_id: String) -> Error:
             GameState.work_orders.erase(entry)
             _reserved_buildings.erase(String(entry.get("building_id", "")))
             _set_staff_field(staff_id, "assigned_task", "")
+            _sync_compute_used()
             EventBus.task_unassigned.emit(staff_id)
             return OK
     return ERR_DOES_NOT_EXIST
@@ -131,6 +150,7 @@ func _complete_order(order: Dictionary) -> void:
     GameState.work_orders.erase(order)
     _reserved_buildings.erase(building_id)
     _set_staff_field(staff_id, "assigned_task", "")
+    _sync_compute_used()
     EventBus.task_completed.emit(staff_id, task_id)
 
 func _reconcile_orphaned_orders() -> void:
@@ -146,6 +166,7 @@ func _reconcile_orphaned_orders() -> void:
         var staff_id: String = String(entry.get("staff_id", ""))
         GameState.work_orders.erase(entry)
         _reserved_buildings.erase(String(entry.get("building_id", "")))
+        _sync_compute_used()
         EventBus.task_unassigned.emit(staff_id)
 
 func _set_staff_field(staff_id: String, field: String, value: Variant) -> void:

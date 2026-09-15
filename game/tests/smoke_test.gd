@@ -585,4 +585,90 @@ func _initialize() -> void:
     state.buildings = []
     state.work_orders = []
 
+    # P12: compute/power/heat driven by server racks; over-capacity blocks
+    # jobs/placement instead of corrupting state.
+    var bc2: Node = build_controller_script.new()
+    get_root().add_child(bc2)
+    bc2.grid = build_grid_script.new()
+    get_root().add_child(bc2.grid)
+    state.cash = 1000000.0
+
+    bc2.start_place("server_rack")
+    await process_frame
+    bc2._ghost.set_meta("cell", Vector2i(0, 0))
+    bc2._ghost.set_meta("valid", true)
+    var place1_err: Error = bc2.try_place()
+    if place1_err != OK:
+        push_error("Placing the first server rack failed unexpectedly (error %s)" % place1_err)
+        quit(1)
+        return
+    var expected_compute: float = float(state.BASE_COMPUTE_CAPACITY) + 25.0
+    var expected_power: float = float(state.BASE_POWER_DRAW) + 18.0
+    if not is_equal_approx(state.compute_capacity, expected_compute) or not is_equal_approx(state.power_used, expected_power) or not is_equal_approx(state.heat_load, 20.0):
+        push_error("Placing a server rack did not correctly update compute/power/heat (compute=%s power=%s heat=%s)" % [state.compute_capacity, state.power_used, state.heat_load])
+        quit(1)
+        return
+    print("SMOKE_OK: placing a server rack increases compute capacity, power draw, and heat load")
+
+    for i in range(1, 5):
+        bc2.start_place("server_rack")
+        await process_frame
+        bc2._ghost.set_meta("cell", Vector2i(i, 0))
+        bc2._ghost.set_meta("valid", true)
+        var err_i: Error = bc2.try_place()
+        if err_i != OK:
+            push_error("Placing server rack #%d unexpectedly failed (error %s)" % [i + 1, err_i])
+            quit(1)
+            return
+    # 5 racks placed: base(10) + 5*18 = 100 = exactly at capacity.
+    if not is_equal_approx(state.power_used, float(state.BASE_POWER_CAPACITY)):
+        push_error("Expected power_used to reach exactly capacity after 5 racks (got %s)" % state.power_used)
+        quit(1)
+        return
+
+    var power_before_overflow: float = state.power_used
+    bc2.start_place("server_rack")
+    await process_frame
+    bc2._ghost.set_meta("cell", Vector2i(6, 0))
+    bc2._ghost.set_meta("valid", true)  # cached "valid" from the ghost; try_place() must still re-check.
+    var overflow_err: Error = bc2.try_place()
+    if overflow_err == OK:
+        push_error("BuildController allowed a rack placement that exceeds power capacity")
+        quit(1)
+        return
+    if not is_equal_approx(state.power_used, power_before_overflow):
+        push_error("A blocked over-capacity placement corrupted power_used (was %s, now %s)" % [power_before_overflow, state.power_used])
+        quit(1)
+        return
+    print("SMOKE_OK: a rack placement that would exceed power capacity is blocked, not silently corrupting state")
+
+    state.staff = []
+    state.work_orders = []
+    staff_mgr.refresh_candidates()
+    staff_mgr.hire(0)
+    var trainer_id: String = String(state.staff[0].get("id", ""))
+    var rack_building_id: String = String(state.buildings[0].get("id", ""))
+    state.compute_used = state.effective_compute_capacity()
+    var blocked_assign_err: Error = task_mgr.assign(trainer_id, "training_run", rack_building_id)
+    if blocked_assign_err == OK:
+        push_error("TaskManager allowed a training assignment with no free compute headroom")
+        quit(1)
+        return
+    print("SMOKE_OK: a training job is blocked when there is no free compute headroom")
+    state.compute_used = 0.0
+
+    state.heat_capacity = 60.0
+    state.heat_load = 120.0
+    var throttled: float = state.effective_compute_capacity()
+    var base_capacity: float = state.compute_capacity
+    if not (throttled < base_capacity and throttled >= base_capacity * 0.3 - 0.01):
+        push_error("Heat throttling formula produced an unexpected effective compute capacity (%.2f of %.2f)" % [throttled, base_capacity])
+        quit(1)
+        return
+    print("SMOKE_OK: heat above capacity throttles effective compute instead of corrupting state")
+
+    bc2.grid.queue_free()
+    bc2.queue_free()
+    await process_frame
+
     quit(0)

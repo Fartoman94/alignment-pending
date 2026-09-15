@@ -17,7 +17,11 @@
     "cost": 8000,
     "refund_ratio": 0.4,
     "color": "232a33",
-    "height": 2.0
+    "height": 2.0,
+    "compute_units": 25,
+    "power_draw": 18,
+    "heat_output": 20,
+    "operating_cost_per_day": 40
   },
   {
     "id": "safety_lab",

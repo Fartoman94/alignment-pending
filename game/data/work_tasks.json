@@ -13,7 +13,8 @@
     "category": "training",
     "required_buildable": "server_rack",
     "required_skill": "engineering",
-    "duration_minutes": 360
+    "duration_minutes": 360,
+    "compute_cost": 15
   },
   {
     "id": "safety_audit",

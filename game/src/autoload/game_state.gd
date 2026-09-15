@@ -2,12 +2,30 @@ extends Node
 
 const SAVE_VERSION: int = 1
 
+# Office infrastructure baselines (P12): before any server rack is built.
+const BASE_COMPUTE_CAPACITY: float = 20.0
+const BASE_POWER_CAPACITY: float = 100.0
+const BASE_POWER_DRAW: float = 10.0
+const BASE_HEAT_CAPACITY: float = 60.0
+
 var campaign_seed: int = 8124
 var cash: float = 184200.0
-var compute_capacity: float = 100.0
-var compute_used: float = 32.0
-var power_capacity: float = 100.0
-var power_used: float = 49.0
+var compute_capacity: float = BASE_COMPUTE_CAPACITY
+## Compute currently reserved by active (training) work orders. Kept in
+## sync by TaskManager.
+var compute_used: float = 0.0
+var power_capacity: float = BASE_POWER_CAPACITY
+## Sum of BASE_POWER_DRAW + every placed building's power_draw. Kept in
+## sync by BuildController.
+var power_used: float = BASE_POWER_DRAW
+## Sum of every placed building's heat_output. Kept in sync by
+## BuildController. Exceeding heat_capacity throttles effective compute
+## (see effective_compute_capacity()) instead of corrupting any state.
+var heat_capacity: float = BASE_HEAT_CAPACITY
+var heat_load: float = 0.0
+## Sum of every placed building's operating_cost_per_day, deducted daily
+## alongside payroll. Kept in sync by BuildController.
+var daily_infrastructure_cost: float = 0.0
 var public_trust: float = 43.0
 var safety_debt: float = 17.0
 var paused: bool = false
@@ -34,16 +52,28 @@ func toggle_pause() -> void:
     paused = not paused
     EventBus.simulation_pause_changed.emit(paused)
 
+## Heat above capacity thermally throttles usable compute instead of
+## letting anything go negative/invalid. Below capacity, full capacity
+## is usable.
+func effective_compute_capacity() -> float:
+    if heat_load <= heat_capacity or heat_load <= 0.0:
+        return compute_capacity
+    var cooling_efficiency: float = clampf(heat_capacity / heat_load, 0.3, 1.0)
+    return compute_capacity * cooling_efficiency
+
 ## Resets to a fresh campaign: a new random seed, default resources, and
 ## day-1 calendar. Does not touch player settings (SettingsManager owns
 ## those separately).
 func reset_to_defaults() -> void:
     campaign_seed = randi()
     cash = 184200.0
-    compute_capacity = 100.0
-    compute_used = 32.0
-    power_capacity = 100.0
-    power_used = 49.0
+    compute_capacity = BASE_COMPUTE_CAPACITY
+    compute_used = 0.0
+    power_capacity = BASE_POWER_CAPACITY
+    power_used = BASE_POWER_DRAW
+    heat_capacity = BASE_HEAT_CAPACITY
+    heat_load = 0.0
+    daily_infrastructure_cost = 0.0
     public_trust = 43.0
     safety_debt = 17.0
     paused = false
@@ -68,6 +98,9 @@ func to_dict() -> Dictionary:
         "compute_used": compute_used,
         "power_capacity": power_capacity,
         "power_used": power_used,
+        "heat_capacity": heat_capacity,
+        "heat_load": heat_load,
+        "daily_infrastructure_cost": daily_infrastructure_cost,
         "public_trust": public_trust,
         "safety_debt": safety_debt,
         "simulation_speed": simulation_speed,
@@ -89,6 +122,9 @@ func from_dict(data: Dictionary) -> void:
     compute_used = float(data.get("compute_used", compute_used))
     power_capacity = float(data.get("power_capacity", power_capacity))
     power_used = float(data.get("power_used", power_used))
+    heat_capacity = float(data.get("heat_capacity", heat_capacity))
+    heat_load = float(data.get("heat_load", heat_load))
+    daily_infrastructure_cost = float(data.get("daily_infrastructure_cost", daily_infrastructure_cost))
     public_trust = float(data.get("public_trust", public_trust))
     safety_debt = float(data.get("safety_debt", safety_debt))
     simulation_speed = float(data.get("simulation_speed", simulation_speed))

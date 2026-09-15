@@ -189,6 +189,14 @@ static func _validate_buildable_record(path: String, record: Variant, index: int
         if not (refund_ratio is int or refund_ratio is float) or float(refund_ratio) < 0.0 or float(refund_ratio) > 1.0:
             issues.append(Issue.new(path, id_label, "'refund_ratio' must be a number in [0, 1]"))
 
+    # Infrastructure fields (P12): optional, only server_rack-like buildables
+    # use them, but must be non-negative numbers when present.
+    for infra_field: String in ["compute_units", "power_draw", "heat_output", "operating_cost_per_day"]:
+        if entry.has(infra_field):
+            var value: Variant = entry.get(infra_field)
+            if not (value is int or value is float) or float(value) < 0.0:
+                issues.append(Issue.new(path, id_label, "'%s' must be a number >= 0" % infra_field))
+
     if entry.has("footprint"):
         var footprint: Variant = entry.get("footprint")
         if not (footprint is Dictionary) or not footprint.has("w") or not footprint.has("d"):
@@ -329,6 +337,11 @@ static func _validate_work_task_record(path: String, record: Variant, index: int
 
     if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
         issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))
+
+    if entry.has("compute_cost"):
+        var compute_cost: Variant = entry.get("compute_cost")
+        if not (compute_cost is int or compute_cost is float) or float(compute_cost) < 0.0:
+            issues.append(Issue.new(path, id_label, "'compute_cost' must be a number >= 0"))
 
     return issues
 

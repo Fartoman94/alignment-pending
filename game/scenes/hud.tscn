@@ -63,6 +63,11 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "SAFETY DEBT 0"
 
+[node name="HeatLabel" type="Label" parent="TopBar/Margin/HBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "HEAT 0%"
+
 [node name="DateLabel" type="Label" parent="TopBar/Margin/HBox"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 18

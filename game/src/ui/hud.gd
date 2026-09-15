@@ -13,6 +13,7 @@ extends CanvasLayer
 @onready var _power_label: Label = $TopBar/Margin/HBox/PowerLabel
 @onready var _trust_label: Label = $TopBar/Margin/HBox/TrustLabel
 @onready var _safety_label: Label = $TopBar/Margin/HBox/SafetyDebtLabel
+@onready var _heat_label: Label = $TopBar/Margin/HBox/HeatLabel
 @onready var _date_label: Label = $TopBar/Margin/HBox/DateLabel
 @onready var _pause_button: Button = $TopBar/Margin/HBox/TimeControls/PauseButton
 @onready var _speed_buttons: Array[Button] = [
@@ -52,10 +53,22 @@ func _process(_delta: float) -> void:
 
 func _refresh_resource_strip() -> void:
     _cash_label.text = "$%s" % _format_money(GameState.cash)
+    var effective_compute: float = GameState.effective_compute_capacity()
     _compute_label.text = "COMPUTE %d%%" % int(roundf(GameState.compute_used / GameState.compute_capacity * 100.0))
+    _compute_label.tooltip_text = "%.0f / %.0f used (%.0f effective after heat throttling). Training jobs need free headroom." % [
+        GameState.compute_used, GameState.compute_capacity, effective_compute,
+    ]
     _power_label.text = "POWER %d%%" % int(roundf(GameState.power_used / GameState.power_capacity * 100.0))
+    _power_label.tooltip_text = "%.0f / %.0f drawn. Building a rack that would exceed capacity is blocked." % [
+        GameState.power_used, GameState.power_capacity,
+    ]
     _trust_label.text = "TRUST %d" % int(roundf(GameState.public_trust))
     _safety_label.text = "SAFETY DEBT %d" % int(roundf(GameState.safety_debt))
+    var heat_pct: int = int(roundf(GameState.heat_load / GameState.heat_capacity * 100.0)) if GameState.heat_capacity > 0.0 else 0
+    _heat_label.text = "HEAT %d%%" % heat_pct
+    _heat_label.tooltip_text = "%.0f / %.0f. Over capacity throttles effective compute instead of corrupting state." % [
+        GameState.heat_load, GameState.heat_capacity,
+    ]
     _date_label.text = SimClock.format_calendar()
     _pause_button.text = "Resume" if GameState.paused else "Pause"
 
@@ -114,6 +127,11 @@ func _show_build_palette() -> void:
         var def: Dictionary = catalog[buildable_id]
         var btn: Button = Button.new()
         btn.text = "%s ($%d)" % [String(def.get("name", buildable_id)), int(def.get("cost", 0))]
+        if def.has("compute_units") or def.has("power_draw") or def.has("heat_output"):
+            btn.tooltip_text = "+%d compute, +%d power draw, +%d heat, $%d/day upkeep" % [
+                int(def.get("compute_units", 0)), int(def.get("power_draw", 0)),
+                int(def.get("heat_output", 0)), int(def.get("operating_cost_per_day", 0)),
+            ]
         btn.pressed.connect(func() -> void: EventBus.build_tool_changed.emit(buildable_id))
         _dynamic_content.add_child(btn)
     var sell_btn: Button = Button.new()
