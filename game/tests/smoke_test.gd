@@ -77,4 +77,20 @@ func _initialize() -> void:
         return
     print("SMOKE_OK: settings survive a save/load round-trip")
 
+    # boot.tscn is excluded: its _ready() actively calls SceneRouter.go_to(),
+    # which would swap this test's tree root out from under it.
+    var instantiable_scenes: Array[String] = [
+        "res://scenes/main_menu.tscn",
+        "res://scenes/settings.tscn",
+        "res://scenes/campaign.tscn",
+    ]
+    for scene_path: String in instantiable_scenes:
+        var packed: PackedScene = load(scene_path)
+        var inst: Node = packed.instantiate()
+        get_root().add_child(inst)
+        await process_frame
+        inst.queue_free()
+        await process_frame
+    print("SMOKE_OK: main_menu/settings/campaign scenes instantiate and process a frame without error")
+
     quit(0)

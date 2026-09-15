@@ -1,10 +1,7 @@
 extends Node3D
 
-var camera_rig: Node3D
-var camera: Camera3D
+var camera_controller: CameraController
 var hud_label: Label
-var yaw_target: float = deg_to_rad(45.0)
-var zoom_target: float = 18.0
 
 func _ready() -> void:
     _ensure_input_actions()
@@ -13,53 +10,26 @@ func _ready() -> void:
     _build_camera()
     _build_hud()
 
-
 func _ensure_input_actions() -> void:
-    var bindings := {
-        "pan_left": KEY_A,
-        "pan_right": KEY_D,
-        "pan_up": KEY_W,
-        "pan_down": KEY_S,
-        "rotate_left": KEY_Q,
-        "rotate_right": KEY_E,
+    var bindings: Dictionary = {
         "toggle_pause": KEY_SPACE,
-        "return_to_menu": KEY_ESCAPE
+        "return_to_menu": KEY_ESCAPE,
     }
     for action: String in bindings:
         if not InputMap.has_action(action):
             InputMap.add_action(action)
         if InputMap.action_get_events(action).is_empty():
-            var event := InputEventKey.new()
+            var event: InputEventKey = InputEventKey.new()
             event.physical_keycode = bindings[action]
             InputMap.action_add_event(action, event)
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
     if Input.is_action_just_pressed("toggle_pause"):
         GameState.toggle_pause()
     if Input.is_action_just_pressed("return_to_menu") and not SceneRouter.is_busy():
         await SceneRouter.go_to("res://scenes/main_menu.tscn")
         return
-    if Input.is_action_just_pressed("rotate_left"):
-        yaw_target += deg_to_rad(90.0)
-    if Input.is_action_just_pressed("rotate_right"):
-        yaw_target -= deg_to_rad(90.0)
-    var camera_lerp: float = 1.0 if SettingsManager.reduced_motion else min(delta * 7.0, 1.0)
-    var zoom_lerp: float = 1.0 if SettingsManager.reduced_motion else min(delta * 8.0, 1.0)
-    camera_rig.rotation.y = lerp_angle(camera_rig.rotation.y, yaw_target, camera_lerp)
-    camera.size = lerp(camera.size, zoom_target, zoom_lerp)
-    var pan := Vector3.ZERO
-    pan.x = Input.get_axis("pan_left", "pan_right")
-    pan.z = Input.get_axis("pan_up", "pan_down")
-    if pan.length_squared() > 0.0:
-        camera_rig.position += pan.normalized().rotated(Vector3.UP, camera_rig.rotation.y) * delta * 7.0
     _refresh_hud()
-
-func _unhandled_input(event: InputEvent) -> void:
-    if event is InputEventMouseButton and event.pressed:
-        if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-            zoom_target = max(8.0, zoom_target - 1.5)
-        elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-            zoom_target = min(34.0, zoom_target + 1.5)
 
 func _build_environment() -> void:
     var world_env := WorldEnvironment.new()
@@ -114,16 +84,15 @@ func _build_person(pos: Vector3, skin: Color, shirt: Color) -> void:
     var head := MeshInstance3D.new(); var sm := SphereMesh.new(); sm.radius=.29; sm.height=.58; sm.material=_mat(skin); head.mesh=sm; head.position.y=1.62; root.add_child(head)
 
 func _build_camera() -> void:
-    camera_rig = Node3D.new(); camera_rig.name="CameraRig"; add_child(camera_rig)
-    camera = Camera3D.new(); camera.projection=Camera3D.PROJECTION_ORTHOGONAL; camera.size=zoom_target
-    camera.position=Vector3(0,16,18); camera.rotation_degrees=Vector3(-38,0,0); camera.current=true
-    camera_rig.rotation.y=yaw_target; camera_rig.add_child(camera)
+    camera_controller = CameraController.new()
+    camera_controller.name = "CameraController"
+    add_child(camera_controller)
 
 func _build_hud() -> void:
     var layer := CanvasLayer.new(); add_child(layer)
     var panel := ColorRect.new(); panel.color=Color(0.04,0.055,0.075,.92); panel.set_anchors_preset(Control.PRESET_TOP_WIDE); panel.offset_bottom=68; layer.add_child(panel)
     hud_label=Label.new(); hud_label.position=Vector2(22,20); hud_label.add_theme_font_size_override("font_size",20); panel.add_child(hud_label)
-    var help:=Label.new(); help.text="WASD pan   Q/E rotate   wheel zoom   Space pause   Esc menu"; help.position=Vector2(22,680); help.add_theme_font_size_override("font_size",16); layer.add_child(help)
+    var help:=Label.new(); help.text="WASD/middle-drag pan   Q/E rotate   wheel zoom   F focus   Space pause   Esc menu"; help.position=Vector2(22,680); help.add_theme_font_size_override("font_size",16); layer.add_child(help)
 
 func _refresh_hud() -> void:
     if hud_label == null: return
