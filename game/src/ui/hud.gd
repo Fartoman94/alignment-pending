@@ -521,6 +521,23 @@ func _show_company_panel() -> void:
         RegulatorManager.regulator_name(), int(round(GameState.regulatory_pressure)),
     ]
 
+    var ledger: Dictionary = EconomyManager.daily_ledger()
+    var runway: float = EconomyManager.runway_days()
+    var runway_text: String = "no limit" if is_inf(runway) else "%d days" % int(floor(runway))
+    var ledger_label: Label = Label.new()
+    ledger_label.text = "Daily ledger: payroll -$%d, infra -$%d, rent -$%d, legal -$%d, support -$%d, revenue +$%d → net %+.0f/day. Runway: %s." % [
+        int(ledger.get("payroll", 0.0)), int(ledger.get("infrastructure", 0.0)), int(ledger.get("rent", 0.0)),
+        int(ledger.get("legal", 0.0)), int(ledger.get("support", 0.0)), int(ledger.get("revenue", 0.0)),
+        float(ledger.get("net", 0.0)), runway_text,
+    ]
+    ledger_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    _dynamic_content.add_child(ledger_label)
+    if GameState.bankruptcy_day >= 0:
+        var bankruptcy_label: Label = Label.new()
+        bankruptcy_label.text = "BANKRUPTCY: recover before cash goes negative again, or in %d day(s) the company folds." % EconomyManager.bankruptcy_days_remaining()
+        bankruptcy_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+        _dynamic_content.add_child(bankruptcy_label)
+
     if RegulatorManager.has_active_audit():
         var audit_header: Label = Label.new()
         audit_header.text = "Audit in progress — due day %d" % int(GameState.active_audit.get("deadline_day", 0))

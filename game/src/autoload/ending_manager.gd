@@ -38,14 +38,20 @@ func _on_day_advanced(_day: int) -> void:
     if has_ended():
         return
     if GameState.calendar_day >= ENDING_DAY_TRIGGER:
-        _trigger_ending()
+        trigger_ending(_determine_ending())
 
-func _trigger_ending() -> void:
-    GameState.ending_id = _determine_ending()
+## Forces a specific ending (e.g. EconomyManager calling
+## trigger_ending("bankruptcy") when the recovery window expires) instead
+## of the day-30 automatic determination. No-op if the campaign already
+## ended.
+func trigger_ending(ending_id: String) -> void:
+    if has_ended():
+        return
+    GameState.ending_id = ending_id
     if not GameState.paused:
         GameState.paused = true
         EventBus.simulation_pause_changed.emit(true)
-    EventBus.ending_triggered.emit(GameState.ending_id)
+    EventBus.ending_triggered.emit(ending_id)
 
 ## Deterministic, not random: the same final state always yields the same
 ## epilogue.

@@ -482,8 +482,13 @@ func _initialize() -> void:
 
     var cash_before_payroll: float = state.cash
     var bus2: Node = get_root().get_node("EventBus")
+    # EconomyManager (P23) also reacts to day_advanced with rent/legal/support,
+    # so the expected delta is payroll plus that ledger's other expenses, not
+    # payroll alone.
+    var economy_mgr_early: Node = get_root().get_node("EconomyManager")
+    var other_daily_costs: float = float(economy_mgr_early.rent_cost()) + float(economy_mgr_early.legal_cost()) + float(economy_mgr_early.support_cost())
     bus2.day_advanced.emit(state.calendar_day)
-    if not is_equal_approx(state.cash, cash_before_payroll - candidate_salary):
+    if not is_equal_approx(state.cash, cash_before_payroll - candidate_salary - other_daily_costs):
         push_error("StaffManager did not deduct daily payroll on day_advanced")
         quit(1)
         return
@@ -1158,8 +1163,12 @@ func _initialize() -> void:
     revenue_mgr.set_price(revenue_deployment_id, 3.0)
     var cash_before_tick: float = state.cash
     var expected_net: float = revenue_mgr.total_daily_net()
+    # EconomyManager (P23) also reacts to day_advanced with rent/legal/support,
+    # so the expected delta is revenue net minus that ledger's other expenses.
+    var economy_mgr_mid: Node = get_root().get_node("EconomyManager")
+    var other_daily_costs_mid: float = float(economy_mgr_mid.rent_cost()) + float(economy_mgr_mid.legal_cost()) + float(economy_mgr_mid.support_cost())
     bus2.day_advanced.emit(state.calendar_day)
-    if not is_equal_approx(state.cash, cash_before_tick + expected_net):
+    if not is_equal_approx(state.cash, cash_before_tick + expected_net - other_daily_costs_mid):
         push_error("Daily revenue/cost net should be applied to cash on day_advanced")
         quit(1)
         return
@@ -1571,12 +1580,13 @@ func _initialize() -> void:
 
     # P22: vertical slice ending — milestones, deterministic epilogue
     # selection, ending trigger, credits contain no assistant references.
+    # 3 prototype epilogues from P22, plus "bankruptcy" added by P23.
     var epilogue_ids: Array = EpilogueCatalog.load_all().keys()
-    if epilogue_ids.size() != 3:
-        push_error("EpilogueCatalog should seed exactly 3 prototype epilogues (got %d)" % epilogue_ids.size())
+    if epilogue_ids.size() != 4 or not epilogue_ids.has("bankruptcy"):
+        push_error("EpilogueCatalog should seed 3 prototype epilogues plus bankruptcy (got %d: %s)" % [epilogue_ids.size(), epilogue_ids])
         quit(1)
         return
-    print("SMOKE_OK: EpilogueCatalog seeds 3 prototype epilogues")
+    print("SMOKE_OK: EpilogueCatalog seeds 3 prototype epilogues plus the bankruptcy epilogue")
 
     var ending_mgr: Node = get_root().get_node("EndingManager")
     state.buildings = []
@@ -1674,5 +1684,93 @@ func _initialize() -> void:
     state.next_building_id = 1
     state.next_staff_id = 1
     state.next_deployment_id = 1
+
+    # P23: economy production balance — rent/legal/support, runway
+    # forecast, bankruptcy recovery window.
+    var economy_mgr: Node = get_root().get_node("EconomyManager")
+    state.models = []
+    state.deployments = []
+    state.staff = []
+    state.buildings = []
+    state.work_orders = []
+    # The BuildController instance from the P12 compute/power test was freed
+    # after that block, so this cached field is stale and nothing is left to
+    # deduct it from cash — zero it out so the ledger doesn't forecast a
+    # cost that will never actually be applied.
+    state.daily_infrastructure_cost = 0.0
+    state.cash = 100000.0
+    state.bankruptcy_day = -1
+    state.ending_id = ""
+    state.paused = false
+    # Stay well below EndingManager.ENDING_DAY_TRIGGER so the automatic
+    # day-30 epilogue doesn't fire mid-sequence and consume ending_id before
+    # the bankruptcy-window test below gets to check it.
+    state.calendar_day = 1
+
+    staff_mgr.refresh_candidates()
+    staff_mgr.hire(0)
+
+    var cash_before_tick2: float = state.cash
+    var ledger: Dictionary = economy_mgr.daily_ledger()
+    var expected_net2: float = float(ledger.get("net", 0.0))
+    bus2.day_advanced.emit(state.calendar_day)
+    if not is_equal_approx(state.cash, cash_before_tick2 + expected_net2):
+        push_error("Forecast ledger did not match the actual cash delta after one day (expected net %.4f, got %.4f)" % [expected_net2, state.cash - cash_before_tick2])
+        quit(1)
+        return
+    print("SMOKE_OK: the daily ledger matches the actual cash change within rounding")
+
+    var forecast5: float = economy_mgr.forecast_cash_at(5)
+    for i in 5:
+        bus2.day_advanced.emit(state.calendar_day)
+    if not is_equal_approx(state.cash, forecast5):
+        push_error("5-day forecast (%.4f) did not match actual cash after 5 days (%.4f)" % [forecast5, state.cash])
+        quit(1)
+        return
+    print("SMOKE_OK: the runway forecast matches the ledger over multiple days within rounding")
+
+    state.cash = -10.0
+    state.bankruptcy_day = -1
+    bus2.day_advanced.emit(state.calendar_day)
+    if state.bankruptcy_day < 0:
+        push_error("Going negative should start the bankruptcy recovery window")
+        quit(1)
+        return
+
+    state.cash = 5000.0
+    bus2.day_advanced.emit(state.calendar_day)
+    if state.bankruptcy_day != -1:
+        push_error("Recovering cash before the window expires should clear bankruptcy")
+        quit(1)
+        return
+    print("SMOKE_OK: bankruptcy has a recovery window, and recovering cash clears it")
+
+    state.cash = -10.0
+    state.bankruptcy_day = -1
+    state.ending_id = ""
+    state.paused = false
+    bus2.day_advanced.emit(state.calendar_day)
+    var recovery_days: int = int(economy_mgr.BANKRUPTCY_RECOVERY_DAYS)
+    for i in recovery_days:
+        state.calendar_day += 1
+        state.cash = -10.0  # never recovers
+        bus2.day_advanced.emit(state.calendar_day)
+        if not state.ending_id.is_empty():
+            break
+    if state.ending_id != "bankruptcy":
+        push_error("Exhausting the recovery window while still in the red should trigger the bankruptcy ending (got '%s')" % state.ending_id)
+        quit(1)
+        return
+    print("SMOKE_OK: exhausting the recovery window while still bankrupt ends the campaign")
+
+    state.ending_id = ""
+    state.paused = false
+    state.bankruptcy_day = -1
+    state.cash = 184200.0
+    state.staff = []
+    state.models = []
+    state.deployments = []
+    state.buildings = []
+    state.work_orders = []
 
     quit(0)

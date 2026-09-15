@@ -25,7 +25,7 @@ Run exactly one prompt at a time. Do not skip quality gates.
 - [x] `phase_01_vertical_slice/P20_first_rival_company.md` — First rival company
 - [x] `phase_01_vertical_slice/P21_regulator_track_mvp.md` — Regulator track MVP
 - [x] `phase_01_vertical_slice/P22_vertical_slice_ending.md` — Vertical slice ending
-- [ ] `phase_02_core_sim/P23_economy_production_balance.md` — Economy production balance
+- [x] `phase_02_core_sim/P23_economy_production_balance.md` — Economy production balance
 - [ ] `phase_02_core_sim/P24_staff_depth.md` — Staff depth
 - [ ] `phase_02_core_sim/P25_board_and_funding_rounds.md` — Board and funding rounds
 - [ ] `phase_02_core_sim/P26_full_competitor_simulation.md` — Full competitor simulation

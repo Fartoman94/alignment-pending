@@ -93,10 +93,20 @@ func compute_breakdown(deployment: Dictionary) -> Dictionary:
     }
 
 func total_daily_net() -> float:
+    return total_daily_revenue() - total_daily_cost()
+
+## Split out from total_daily_net() for full ledger traceability (see
+## EconomyManager.daily_ledger()).
+func total_daily_revenue() -> float:
     var total: float = 0.0
     for d: Variant in GameState.deployments:
-        var breakdown: Dictionary = compute_breakdown(d)
-        total += float(breakdown.get("net", 0.0))
+        total += float(compute_breakdown(d).get("total_revenue", 0.0))
+    return total
+
+func total_daily_cost() -> float:
+    var total: float = 0.0
+    for d: Variant in GameState.deployments:
+        total += float(compute_breakdown(d).get("total_cost", 0.0))
     return total
 
 func _on_day_advanced(_day: int) -> void:

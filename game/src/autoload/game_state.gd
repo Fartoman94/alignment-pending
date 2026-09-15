@@ -121,6 +121,10 @@ var audit_history: Array = []
 ## "" until the vertical-slice mini-campaign ends; then one of
 ## EpilogueCatalog's ids. Kept in sync by EndingManager.
 var ending_id: String = ""
+## The calendar_day cash first went negative, or -1 when not in
+## bankruptcy. Reset to -1 automatically the moment cash recovers. Kept in
+## sync by EconomyManager.
+var bankruptcy_day: int = -1
 
 func toggle_pause() -> void:
     paused = not paused
@@ -189,6 +193,7 @@ func reset_to_defaults() -> void:
     active_audit = {}
     audit_history = []
     ending_id = ""
+    bankruptcy_day = -1
 
 ## Campaign state payload only. The save format version lives one layer up,
 ## in SaveManager's envelope, so it isn't duplicated here.
@@ -240,6 +245,7 @@ func to_dict() -> Dictionary:
         "active_audit": active_audit,
         "audit_history": audit_history,
         "ending_id": ending_id,
+        "bankruptcy_day": bankruptcy_day,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -307,3 +313,4 @@ func from_dict(data: Dictionary) -> void:
     var loaded_audit_history: Variant = data.get("audit_history", [])
     audit_history = loaded_audit_history if loaded_audit_history is Array else []
     ending_id = String(data.get("ending_id", ending_id))
+    bankruptcy_day = int(data.get("bankruptcy_day", bankruptcy_day))
