@@ -507,6 +507,34 @@ func _add_deployment_controls(model_id: String) -> void:
     revenue_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     _dynamic_content.add_child(revenue_label)
 
+    var permissions_header: Label = Label.new()
+    permissions_header.text = "  Autonomy permissions (each is a productivity gain traded for an explicit risk)"
+    permissions_header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    _dynamic_content.add_child(permissions_header)
+    for permission_id: String in AgentPermissionCatalog.ordered_ids():
+        var perm_def: Dictionary = AgentPermissionCatalog.get_def(permission_id)
+        var granted: bool = AgentPermissionManager.has_permission(deployment_id, permission_id)
+        var perm_row: HBoxContainer = HBoxContainer.new()
+        var perm_label: Label = Label.new()
+        perm_label.text = "  [%s] %s — %s" % [
+            "ON" if granted else "off", String(perm_def.get("name", permission_id)),
+            String(perm_def.get("productivity_description", "")) if not granted else String(perm_def.get("risk_description", "")),
+        ]
+        perm_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        perm_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+        perm_row.add_child(perm_label)
+        var toggle_btn: Button = Button.new()
+        toggle_btn.text = "Revoke" if granted else "Grant"
+        toggle_btn.pressed.connect(func() -> void:
+            if granted:
+                AgentPermissionManager.revoke(deployment_id, permission_id)
+            else:
+                AgentPermissionManager.grant(deployment_id, permission_id)
+            _show_models_panel()
+        )
+        perm_row.add_child(toggle_btn)
+        _dynamic_content.add_child(perm_row)
+
 ## Trust/hype/communication actions plus the incident history log. PR
 ## actions here can only ever nudge trust (see
 ## CommunicationActionCatalog's data-validated cap) — the incident log

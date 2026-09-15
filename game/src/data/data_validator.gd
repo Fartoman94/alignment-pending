@@ -77,6 +77,13 @@ const BOARD_EFFECT_KEYS: Array[String] = ["cash", "public_trust", "safety_debt",
 const LEGAL_CASE_TYPE_REQUIRED_FIELDS: Array[String] = ["id", "name", "trigger_min_exposure", "case_deadline_days", "cooldown_days", "injunction_probability_per_day", "settle", "fight", "injunction"]
 const LEGAL_EFFECT_KEYS: Array[String] = ["cash", "public_trust", "safety_debt", "legal_exposure"]
 
+# P28: autonomous agent permissions. Acceptance criterion "each autonomy
+# permission has productivity gain + explicit risk surface" is enforced
+# here at load time: both effect dicts must be non-empty.
+const AGENT_PERMISSION_REQUIRED_FIELDS: Array[String] = ["id", "name", "category", "productivity_description", "risk_description", "productivity_effects", "risk_effects"]
+const AGENT_PERMISSION_CATEGORIES: Array[String] = ["coding", "support", "research", "tool_access", "spending"]
+const AGENT_PERMISSION_EFFECT_KEYS: Array[String] = ["cash", "public_trust", "safety_debt", "regulatory_pressure", "legal_exposure"]
+
 ## One validation problem: which file, which record, and why.
 class Issue:
     var source: String
@@ -111,6 +118,7 @@ static func validate_all() -> Array[Issue]:
     issues.append_array(validate_funding_round_file("res://data/funding_rounds.json"))
     issues.append_array(validate_board_track_file("res://data/board_track.json"))
     issues.append_array(validate_legal_case_type_file("res://data/legal_case_types.json"))
+    issues.append_array(validate_agent_permission_file("res://data/agent_permissions.json"))
     issues.append_array(validate_epilogue_file("res://data/epilogues.json"))
     return issues
 
@@ -1215,6 +1223,79 @@ static func _validate_legal_case_type_record(path: String, record: Variant, inde
                     var effect_value: Variant = (effects as Dictionary)[effect_key]
                     if not (effect_value is int or effect_value is float):
                         issues.append(Issue.new(path, id_label, "'%s' effect '%s' value must be numeric" % [choice_field, effect_key]))
+
+    return issues
+
+static func validate_agent_permission_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of agent permission records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_agent_permission_record(path, records[i], i, seen_ids))
+    return issues
+
+static func _validate_agent_permission_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "agent permission record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in AGENT_PERMISSION_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+
+    if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))
+
+    if entry.has("category"):
+        var category: String = str(entry.get("category", ""))
+        if not AGENT_PERMISSION_CATEGORIES.has(category):
+            issues.append(Issue.new(path, id_label, "unknown category '%s' (expected one of %s)" % [category, AGENT_PERMISSION_CATEGORIES]))
+
+    for desc_field: String in ["productivity_description", "risk_description"]:
+        if entry.has(desc_field) and (not (entry[desc_field] is String) or String(entry[desc_field]).is_empty()):
+            issues.append(Issue.new(path, id_label, "'%s' must be a non-empty string" % desc_field))
+
+    for effect_field: String in ["productivity_effects", "risk_effects"]:
+        if not entry.has(effect_field):
+            continue
+        var effects: Variant = entry.get(effect_field)
+        if not (effects is Dictionary) or (effects as Dictionary).is_empty():
+            issues.append(Issue.new(path, id_label, "'%s' must be a non-empty object — every permission needs both a productivity gain and an explicit risk surface" % effect_field))
+        else:
+            for effect_key: String in (effects as Dictionary):
+                if not AGENT_PERMISSION_EFFECT_KEYS.has(effect_key):
+                    issues.append(Issue.new(path, id_label, "'%s' has unknown effect key '%s' (expected one of %s)" % [effect_field, effect_key, AGENT_PERMISSION_EFFECT_KEYS]))
+                var effect_value: Variant = (effects as Dictionary)[effect_key]
+                if not (effect_value is int or effect_value is float):
+                    issues.append(Issue.new(path, id_label, "'%s' effect '%s' value must be numeric" % [effect_field, effect_key]))
 
     return issues
 

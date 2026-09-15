@@ -2278,4 +2278,104 @@ func _initialize() -> void:
     state.safety_debt = 0.0
     state.cash = 184200.0
 
+    # P28: autonomous agent permissions — coding/support/research/tool
+    # access/spending, each a data-driven productivity gain traded for an
+    # explicit, bounded risk.
+    var agent_mgr: Node = get_root().get_node("AgentPermissionManager")
+    var permission_ids: Array = AgentPermissionCatalog.ordered_ids()
+    if permission_ids.size() != 5:
+        push_error("AgentPermissionCatalog should seed exactly 5 autonomy permissions (got %d)" % permission_ids.size())
+        quit(1)
+        return
+    for permission_id: String in permission_ids:
+        var perm_def: Dictionary = AgentPermissionCatalog.get_def(permission_id)
+        if (perm_def.get("productivity_effects", {}) as Dictionary).is_empty() or (perm_def.get("risk_effects", {}) as Dictionary).is_empty():
+            push_error("Permission '%s' must have both a productivity gain and an explicit risk surface" % permission_id)
+            quit(1)
+            return
+    print("SMOKE_OK: AgentPermissionCatalog seeds 5 permissions, each with a productivity gain and an explicit risk surface")
+
+    state.models = [{
+        "id": "agent_model_1", "name": "Agent Test Model", "generation": 1, "architecture_tier": "small",
+        "capability": 50.0, "reliability": 50.0, "safety_confidence": 50.0, "cost_efficiency": 50.0,
+        "latency_efficiency": 50.0, "autonomy": 50.0, "interpretability": 50.0, "latent_risk": 50.0,
+        "evals_completed": 0, "training_cost": 8000.0, "created_at": 1,
+    }]
+    state.deployments = []
+    state.safety_debt = 0.0
+    state.cash = 100000.0
+    release_mgr.deploy("agent_model_1")
+    var agent_deployment_id: String = String(state.deployments[0].get("id", ""))
+    # Zero rate_limit keeps user_scale (and RevenueManager's net) at exactly
+    # 0 regardless of rollout_stage advancing mid-tick, so the cash checks
+    # below isolate AgentPermissionManager's own effect cleanly.
+    release_mgr.set_rate_limit(agent_deployment_id, 0.0)
+
+    var bad_grant_err: Error = agent_mgr.grant(agent_deployment_id, "not_a_real_permission")
+    if bad_grant_err == OK:
+        push_error("grant() should reject an unknown permission id")
+        quit(1)
+        return
+    var missing_deployment_err: Error = agent_mgr.grant("not_a_real_deployment", "coding_assistance")
+    if missing_deployment_err == OK:
+        push_error("grant() should reject a nonexistent deployment id")
+        quit(1)
+        return
+
+    var grant_err: Error = agent_mgr.grant(agent_deployment_id, "coding_assistance")
+    if grant_err != OK or not agent_mgr.has_permission(agent_deployment_id, "coding_assistance"):
+        push_error("Granting a valid permission to a real deployment should succeed (error %s)" % grant_err)
+        quit(1)
+        return
+    var double_grant_err: Error = agent_mgr.grant(agent_deployment_id, "coding_assistance")
+    if double_grant_err == OK:
+        push_error("Granting the same permission twice should be rejected, not silently duplicated")
+        quit(1)
+        return
+    print("SMOKE_OK: granting an autonomy permission to a real deployment works, and rejects unknown ids/duplicates")
+
+    var coding_def: Dictionary = AgentPermissionCatalog.get_def("coding_assistance")
+    var expected_productivity_cash: float = float((coding_def.get("productivity_effects", {}) as Dictionary).get("cash", 0.0))
+    var expected_risk_debt: float = float((coding_def.get("risk_effects", {}) as Dictionary).get("safety_debt", 0.0))
+    # Isolate the permission's own effect from the rest of the day_advanced
+    # ledger (rent/legal/support/investor obligations, revenue net) that
+    # also fires on this same tick — same technique as the P23 ledger tests.
+    var other_daily_delta: float = revenue_mgr.total_daily_net() - economy_mgr.rent_cost() - economy_mgr.legal_cost() - economy_mgr.support_cost() - economy_mgr.investor_obligation_cost()
+    var cash_before_permission_tick: float = state.cash
+    var debt_before_permission_tick: float = state.safety_debt
+    bus2.day_advanced.emit(state.calendar_day)
+    if not is_equal_approx(state.cash, cash_before_permission_tick + expected_productivity_cash + other_daily_delta):
+        push_error("A granted permission's productivity_effects should apply daily (expected +%.1f cash on top of the rest of the ledger)" % expected_productivity_cash)
+        quit(1)
+        return
+    if not is_equal_approx(state.safety_debt, debt_before_permission_tick + expected_risk_debt):
+        push_error("A granted permission's risk_effects should apply daily (expected +%.1f safety_debt)" % expected_risk_debt)
+        quit(1)
+        return
+    print("SMOKE_OK: a granted permission's productivity gain and risk cost both apply daily, exactly matching its data")
+
+    var revoke_err: Error = agent_mgr.revoke(agent_deployment_id, "coding_assistance")
+    if revoke_err != OK or agent_mgr.has_permission(agent_deployment_id, "coding_assistance"):
+        push_error("Revoking a granted permission should succeed and clear it (error %s)" % revoke_err)
+        quit(1)
+        return
+    var double_revoke_err: Error = agent_mgr.revoke(agent_deployment_id, "coding_assistance")
+    if double_revoke_err == OK:
+        push_error("Revoking a permission that isn't granted should fail, not silently succeed")
+        quit(1)
+        return
+    var other_daily_delta2: float = revenue_mgr.total_daily_net() - economy_mgr.rent_cost() - economy_mgr.legal_cost() - economy_mgr.support_cost() - economy_mgr.investor_obligation_cost()
+    var cash_before_revoked_tick: float = state.cash
+    bus2.day_advanced.emit(state.calendar_day)
+    if not is_equal_approx(state.cash, cash_before_revoked_tick + other_daily_delta2):
+        push_error("A revoked permission should stop applying its effects (only the rest of the ledger should move cash)")
+        quit(1)
+        return
+    print("SMOKE_OK: revoking a permission stops applying its effects")
+
+    state.models = []
+    state.deployments = []
+    state.safety_debt = 0.0
+    state.cash = 184200.0
+
     quit(0)

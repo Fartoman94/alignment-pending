@@ -1,0 +1,47 @@
+[
+  {
+    "id": "coding_assistance",
+    "name": "Coding Assistance",
+    "category": "coding",
+    "productivity_description": "Writes and ships code changes on its own — cuts engineering overhead.",
+    "risk_description": "Unreviewed changes can quietly introduce bugs and safety regressions.",
+    "productivity_effects": { "cash": 150.0 },
+    "risk_effects": { "safety_debt": 1.5 }
+  },
+  {
+    "id": "support_autonomy",
+    "name": "Support Autonomy",
+    "category": "support",
+    "productivity_description": "Resolves user support tickets end-to-end without a human in the loop.",
+    "risk_description": "Bad automated resolutions erode user trust when they go wrong.",
+    "productivity_effects": { "cash": 120.0 },
+    "risk_effects": { "public_trust": -0.5 }
+  },
+  {
+    "id": "research_assistance",
+    "name": "Research Assistance",
+    "category": "research",
+    "productivity_description": "Runs literature review and experiment design legwork for the research team.",
+    "risk_description": "Research shortcuts taken without oversight accrue hidden safety debt.",
+    "productivity_effects": { "cash": 180.0 },
+    "risk_effects": { "safety_debt": 2.0 }
+  },
+  {
+    "id": "tool_access",
+    "name": "External Tool Access",
+    "category": "tool_access",
+    "productivity_description": "Calls external tools and services directly to get more done per session.",
+    "risk_description": "Broad tool access widens the surface for misuse and creates legal exposure.",
+    "productivity_effects": { "cash": 200.0 },
+    "risk_effects": { "legal_exposure": 2.5 }
+  },
+  {
+    "id": "spending_authority",
+    "name": "Spending Authority",
+    "category": "spending",
+    "productivity_description": "Authorizes its own purchases and vendor spend without a human approval step.",
+    "risk_description": "Unaccountable spending draws regulatory scrutiny and accrues safety debt.",
+    "productivity_effects": { "cash": 220.0 },
+    "risk_effects": { "regulatory_pressure": 1.5, "safety_debt": 1.0 }
+  }
+]

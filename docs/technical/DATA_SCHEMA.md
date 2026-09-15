@@ -49,6 +49,16 @@ instance_id, filed_day, deadline_day}`. Resolved either by the player
 case can never sit open forever); every path applies one of the type's
 own bounded, data-driven effect sets.
 
+## AgentPermission
+Config (`data/agent_permissions.json`): `id, name, category,
+productivity_description, risk_description, productivity_effects,
+risk_effects` — `productivity_effects` and `risk_effects` are both
+required to be non-empty (every autonomy permission has a gain and an
+explicit risk, enforced by `DataValidator`). Granted per-deployment: a
+deployment's `agent_permissions` field is an array of permission ids
+(`AgentPermissionManager.grant()`/`revoke()`); both effect sets apply
+daily to every deployment holding that permission.
+
 ## IncidentDefinition
 `id, category, severity, prerequisites, weight, cooldown_days, title_template, body_template, choices[], tags[]`
 
