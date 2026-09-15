@@ -59,21 +59,20 @@ func _clear_ghost() -> void:
         _ghost.queue_free()
         _ghost = null
 
+## Buildable geometry (P39: routed through ProceduralMeshFactory instead of
+## building BoxMesh/StandardMaterial3D inline).
 func _make_mesh(def: Dictionary, tint: Color) -> MeshInstance3D:
     var footprint: Dictionary = def.get("footprint", {"w": 1, "d": 1})
     var w: int = int(footprint.get("w", 1))
     var d: int = int(footprint.get("d", 1))
     var height: float = float(def.get("height", 1.0))
-    var mi: MeshInstance3D = MeshInstance3D.new()
-    var mesh: BoxMesh = BoxMesh.new()
-    mesh.size = Vector3(w * BuildGrid.CELL_SIZE * 0.9, height, d * BuildGrid.CELL_SIZE * 0.9)
-    var mat: StandardMaterial3D = StandardMaterial3D.new()
     var base_color: Color = Color(String(def.get("color", "888888")))
-    mat.albedo_color = Color(base_color.r * tint.r, base_color.g * tint.g, base_color.b * tint.b, tint.a)
-    if tint.a < 1.0:
-        mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-    mesh.material = mat
-    mi.mesh = mesh
+    var tinted_color: Color = Color(base_color.r * tint.r, base_color.g * tint.g, base_color.b * tint.b, tint.a)
+    var mi: MeshInstance3D = ProceduralMeshFactory.make_box(
+        String(def.get("id", "Buildable")).capitalize(),
+        Vector3(w * BuildGrid.CELL_SIZE * 0.9, height, d * BuildGrid.CELL_SIZE * 0.9),
+        tinted_color,
+    )
     mi.position.y = height * 0.5
     return mi
 

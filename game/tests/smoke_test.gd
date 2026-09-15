@@ -3342,4 +3342,66 @@ func _initialize() -> void:
     state.next_staff_id = 1
     state.next_deployment_id = 1
 
+    # P39: art production tools — original procedural mesh/material
+    # helpers, no external assets, staff are now visible.
+    var box: MeshInstance3D = ProceduralMeshFactory.make_box("TestBox", Vector3(1, 2, 3), Color(0.2, 0.4, 0.6))
+    if not (box.mesh is BoxMesh) or (box.mesh as BoxMesh).size != Vector3(1, 2, 3):
+        push_error("ProceduralMeshFactory.make_box() should produce a correctly-sized BoxMesh")
+        quit(1)
+        return
+    var box_mat: StandardMaterial3D = box.mesh.material
+    if not is_equal_approx(box_mat.albedo_color.r, 0.2) or not is_equal_approx(box_mat.albedo_color.b, 0.6):
+        push_error("ProceduralMeshFactory.make_box() should apply the requested tint")
+        quit(1)
+        return
+    box.queue_free()
+
+    var capsule: MeshInstance3D = ProceduralMeshFactory.make_capsule("TestCapsule", 0.3, 1.6, Color.RED)
+    if not (capsule.mesh is CapsuleMesh) or not is_equal_approx((capsule.mesh as CapsuleMesh).radius, 0.3):
+        push_error("ProceduralMeshFactory.make_capsule() should produce a correctly-sized CapsuleMesh")
+        quit(1)
+        return
+    capsule.queue_free()
+
+    var translucent: StandardMaterial3D = ProceduralMeshFactory.make_material(Color(1, 1, 1, 0.5))
+    if translucent.transparency != BaseMaterial3D.TRANSPARENCY_ALPHA:
+        push_error("ProceduralMeshFactory.make_material() should enable alpha transparency for a translucent color")
+        quit(1)
+        return
+    print("SMOKE_OK: ProceduralMeshFactory produces correctly-configured, tinted, original procedural meshes and materials")
+
+    for role_id: String in StaffRoleCatalog.load_all():
+        var role_visual_color: String = String(StaffRoleCatalog.get_def(role_id).get("visual_color", ""))
+        if not role_visual_color.is_valid_html_color():
+            push_error("Staff role '%s' should have a valid visual_color for its placeholder body" % role_id)
+            quit(1)
+            return
+    print("SMOKE_OK: every staff role has a valid, data-driven placeholder body color")
+
+    # Loaded dynamically for the same compile-order reason as the 20-agent
+    # nav test above (StaffAgent touches GameState.paused).
+    var test_agent: Node3D = load("res://src/world/staff_agent.gd").new()
+    test_agent.role_color = Color("4c7ea8")
+    get_root().add_child(test_agent)
+    await process_frame
+    var found_torso: bool = false
+    var found_head: bool = false
+    for child in test_agent.get_children():
+        if child is MeshInstance3D and String(child.name) == "Torso":
+            found_torso = true
+            var torso_mat: StandardMaterial3D = (child as MeshInstance3D).mesh.material
+            if not torso_mat.albedo_color.is_equal_approx(Color("4c7ea8")):
+                push_error("A staff agent's Torso mesh should be tinted with its role_color")
+                quit(1)
+                return
+        if child is MeshInstance3D and String(child.name) == "Head":
+            found_head = true
+    if not found_torso or not found_head:
+        push_error("A real StaffAgent should build a visible Torso + Head placeholder body (no more invisible staff)")
+        quit(1)
+        return
+    test_agent.queue_free()
+    await process_frame
+    print("SMOKE_OK: a real StaffAgent builds a visible, role-tinted placeholder body — staff are no longer invisible")
+
     quit(0)

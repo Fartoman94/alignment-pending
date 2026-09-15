@@ -114,19 +114,10 @@ func _build_environment() -> void:
     light.shadow_enabled = true
     add_child(light)
 
-func _mat(color: Color) -> StandardMaterial3D:
-    var m := StandardMaterial3D.new()
-    m.albedo_color = color
-    m.roughness = 0.82
-    return m
-
+## Office shell geometry (P39: routed through ProceduralMeshFactory
+## instead of building BoxMesh/StandardMaterial3D inline).
 func _box(name_: String, pos: Vector3, size: Vector3, color: Color) -> MeshInstance3D:
-    var mi := MeshInstance3D.new()
-    mi.name = name_
-    var mesh := BoxMesh.new()
-    mesh.size = size
-    mesh.material = _mat(color)
-    mi.mesh = mesh
+    var mi: MeshInstance3D = ProceduralMeshFactory.make_box(name_, size, color)
     mi.position = pos
     add_child(mi)
     return mi
@@ -195,6 +186,9 @@ func _spawn_staff_agent(staff_id: String) -> void:
     agent.coordinator = nav_coordinator
     agent.bounds_min = Vector2(-7.0, -5.0)
     agent.bounds_max = Vector2(7.0, 5.0)
+    var role_id: String = String(StaffManager.find(staff_id).get("role", ""))
+    var role_def: Dictionary = StaffRoleCatalog.get_def(role_id)
+    agent.role_color = Color(String(role_def.get("visual_color", "ffffff")))
     agent.rng.randomize()
     agent.position = Vector3(randf_range(-6.0, 6.0), 0.0, randf_range(-4.0, 4.0))
     add_child(agent)

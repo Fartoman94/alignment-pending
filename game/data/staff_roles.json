@@ -1,8 +1,8 @@
 [
-  { "id": "researcher", "name": "Researcher", "base_salary_min": 900, "base_salary_max": 1400, "primary_skill": "capability" },
-  { "id": "engineer", "name": "Engineer", "base_salary_min": 850, "base_salary_max": 1300, "primary_skill": "engineering" },
-  { "id": "data_ops", "name": "Data Ops", "base_salary_min": 700, "base_salary_max": 1100, "primary_skill": "operations" },
-  { "id": "safety_analyst", "name": "Safety Analyst", "base_salary_min": 800, "base_salary_max": 1250, "primary_skill": "safety" },
-  { "id": "product_manager", "name": "Product Manager", "base_salary_min": 750, "base_salary_max": 1200, "primary_skill": "communication" },
-  { "id": "support_specialist", "name": "Support Specialist", "base_salary_min": 600, "base_salary_max": 950, "primary_skill": "operations" }
+  { "id": "researcher", "name": "Researcher", "base_salary_min": 900, "base_salary_max": 1400, "primary_skill": "capability", "visual_color": "4c7ea8" },
+  { "id": "engineer", "name": "Engineer", "base_salary_min": 850, "base_salary_max": 1300, "primary_skill": "engineering", "visual_color": "c97a3a" },
+  { "id": "data_ops", "name": "Data Ops", "base_salary_min": 700, "base_salary_max": 1100, "primary_skill": "operations", "visual_color": "3f9e8f" },
+  { "id": "safety_analyst", "name": "Safety Analyst", "base_salary_min": 800, "base_salary_max": 1250, "primary_skill": "safety", "visual_color": "5aa552" },
+  { "id": "product_manager", "name": "Product Manager", "base_salary_min": 750, "base_salary_max": 1200, "primary_skill": "communication", "visual_color": "8a5cb0" },
+  { "id": "support_specialist", "name": "Support Specialist", "base_salary_min": 600, "base_salary_max": 950, "primary_skill": "operations", "visual_color": "c9a83a" }
 ]

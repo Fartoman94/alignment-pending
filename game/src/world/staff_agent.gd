@@ -18,6 +18,11 @@ var bounds_min: Vector2 = Vector2(-7.0, -5.0)
 var bounds_max: Vector2 = Vector2(7.0, 5.0)
 var coordinator: NavCoordinator
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+## Set by the spawner (Campaign._spawn_staff_agent()) from the staff
+## member's role (StaffRoleCatalog.visual_color) before this node enters
+## the tree. P39: a minimal procedural placeholder body — real character
+## art/animation is P40's job.
+var role_color: Color = Color.WHITE
 
 var state: State = State.IDLE
 var total_distance_traveled: float = 0.0
@@ -38,12 +43,25 @@ func _ready() -> void:
     _nav_agent.avoidance_enabled = true
     _nav_agent.velocity_computed.connect(_on_velocity_computed)
     add_child(_nav_agent)
+    _build_visual()
     _idle_timer = rng.randf_range(IDLE_MIN_SECONDS, IDLE_MAX_SECONDS)
     # The navigation map needs at least one sync pass before path queries
     # return anything useful.
     await get_tree().physics_frame
     await get_tree().physics_frame
     _synced = true
+
+## A minimal procedural placeholder body: a tinted capsule "torso" plus a
+## smaller capsule "head", tinted by department (role_color). Real
+## character art/animation is P40's job — this just makes staff visible
+## and roughly distinguishable by role in the meantime.
+func _build_visual() -> void:
+    var torso: MeshInstance3D = ProceduralMeshFactory.make_capsule("Torso", 0.28, 1.3, role_color)
+    torso.position.y = 0.75
+    add_child(torso)
+    var head: MeshInstance3D = ProceduralMeshFactory.make_capsule("Head", 0.16, 0.32, role_color.lightened(0.3))
+    head.position.y = 1.55
+    add_child(head)
 
 func _physics_process(delta: float) -> void:
     if not _synced or GameState.paused:

@@ -29,7 +29,7 @@ const EVENT_CONDITION_METRICS: Array[String] = [
 
 const BUILDABLE_REQUIRED_FIELDS: Array[String] = ["id", "name", "category", "footprint", "cost", "refund_ratio"]
 
-const STAFF_ROLE_REQUIRED_FIELDS: Array[String] = ["id", "name", "base_salary_min", "base_salary_max", "primary_skill"]
+const STAFF_ROLE_REQUIRED_FIELDS: Array[String] = ["id", "name", "base_salary_min", "base_salary_max", "primary_skill", "visual_color"]
 const STAFF_SKILL_KEYS: Array[String] = ["capability", "engineering", "operations", "safety", "communication"]
 
 # P24: staff depth. Traits must have bounded impact (acceptance criterion),
@@ -453,6 +453,11 @@ static func _validate_staff_role_record(path: String, record: Variant, index: in
 
     if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
         issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))
+
+    if entry.has("visual_color"):
+        var visual_color: Variant = entry.get("visual_color")
+        if not (visual_color is String) or not String(visual_color).is_valid_html_color():
+            issues.append(Issue.new(path, id_label, "'visual_color' must be a valid hex color string (e.g. 'a1b2c3')"))
 
     return issues
 
