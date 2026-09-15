@@ -16,7 +16,7 @@ Run exactly one prompt at a time. Do not skip quality gates.
 - [x] `phase_01_vertical_slice/P11_task_assignment_and_workstations.md` — Task assignment and workstations
 - [x] `phase_01_vertical_slice/P12_compute,_power_and_heat.md` — Compute, power and heat
 - [x] `phase_01_vertical_slice/P13_research_tree_mvp.md` — Research tree MVP
-- [ ] `phase_01_vertical_slice/P14_model_training_pipeline.md` — Model training pipeline
+- [x] `phase_01_vertical_slice/P14_model_training_pipeline.md` — Model training pipeline
 - [ ] `phase_01_vertical_slice/P15_evaluation_system.md` — Evaluation system
 - [ ] `phase_01_vertical_slice/P16_release_and_rollout.md` — Release and rollout
 - [ ] `phase_01_vertical_slice/P17_users,_pricing_and_revenue.md` — Users, pricing and revenue

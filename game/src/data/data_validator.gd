@@ -31,6 +31,9 @@ const RESEARCH_NODE_REQUIRED_FIELDS: Array[String] = ["id", "name", "branch", "c
 const RESEARCH_BRANCHES: Array[String] = ["capability", "efficiency", "safety", "interpretability", "infrastructure", "organization"]
 const RESEARCH_EFFECT_TYPES: Array[String] = ["compute_bonus", "safety_debt_delta", "trust_delta"]
 
+const MODEL_TIER_REQUIRED_FIELDS: Array[String] = ["id", "name", "cost", "duration_minutes", "capability_base", "safety_base", "autonomy_base", "cost_efficiency_base"]
+const MODEL_TIER_STAT_FIELDS: Array[String] = ["capability_base", "safety_base", "autonomy_base", "cost_efficiency_base"]
+
 ## One validation problem: which file, which record, and why.
 class Issue:
     var source: String
@@ -55,6 +58,7 @@ static func validate_all() -> Array[Issue]:
     issues.append_array(validate_staff_role_file("res://data/staff_roles.json"))
     issues.append_array(validate_work_task_file("res://data/work_tasks.json"))
     issues.append_array(validate_research_node_file("res://data/research_nodes.json"))
+    issues.append_array(validate_model_tier_file("res://data/model_tiers.json"))
     return issues
 
 static func validate_event_file(path: String) -> Array[Issue]:
@@ -435,6 +439,68 @@ static func _validate_research_node_record(path: String, record: Variant, index:
             var amount: Variant = effect_dict.get("amount")
             if not (amount is int or amount is float):
                 issues.append(Issue.new(path, id_label, "'unlock_effect.amount' must be a number"))
+
+    if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))
+
+    return issues
+
+static func validate_model_tier_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of model tier records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_model_tier_record(path, records[i], i, seen_ids))
+    return issues
+
+static func _validate_model_tier_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "model tier record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in MODEL_TIER_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+
+    if entry.has("cost") and not _is_whole_number_at_least(entry.get("cost"), 1):
+        issues.append(Issue.new(path, id_label, "'cost' must be a whole number >= 1"))
+
+    if entry.has("duration_minutes") and not _is_whole_number_at_least(entry.get("duration_minutes"), 1):
+        issues.append(Issue.new(path, id_label, "'duration_minutes' must be a whole number >= 1"))
+
+    for stat_field: String in MODEL_TIER_STAT_FIELDS:
+        if entry.has(stat_field):
+            var value: Variant = entry.get(stat_field)
+            if not (value is int or value is float) or float(value) < 0.0 or float(value) > 100.0:
+                issues.append(Issue.new(path, id_label, "'%s' must be a number in [0, 100]" % stat_field))
 
     if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
         issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))

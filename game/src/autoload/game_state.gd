@@ -57,6 +57,17 @@ var research_progress: Dictionary = {}
 ## ResearchNodeCatalog "compute_bonus" effects), folded into
 ## compute_capacity by BuildController._recompute_infrastructure().
 var research_compute_bonus: float = 0.0
+## Each entry: {id, tier_id, progress_minutes, started_day}. Kept in sync
+## by ModelManager.
+var model_projects: Array = []
+var next_model_project_id: int = 1
+## Each entry is a ModelArtifact dict (see docs/technical/DATA_SCHEMA.md):
+## id, name, generation, architecture_tier, capability, reliability,
+## safety_confidence, cost_efficiency, latency_efficiency, autonomy,
+## interpretability, latent_risk, evals_completed, training_cost,
+## created_at. Kept in sync by ModelManager.
+var models: Array = []
+var next_model_id: int = 1
 
 func toggle_pause() -> void:
     paused = not paused
@@ -100,6 +111,10 @@ func reset_to_defaults() -> void:
     research_unlocked = []
     research_progress = {}
     research_compute_bonus = 0.0
+    model_projects = []
+    next_model_project_id = 1
+    models = []
+    next_model_id = 1
 
 ## Campaign state payload only. The save format version lives one layer up,
 ## in SaveManager's envelope, so it isn't duplicated here.
@@ -129,6 +144,10 @@ func to_dict() -> Dictionary:
         "research_unlocked": research_unlocked,
         "research_progress": research_progress,
         "research_compute_bonus": research_compute_bonus,
+        "model_projects": model_projects,
+        "next_model_project_id": next_model_project_id,
+        "models": models,
+        "next_model_id": next_model_id,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -161,3 +180,9 @@ func from_dict(data: Dictionary) -> void:
     var loaded_research_progress: Variant = data.get("research_progress", {})
     research_progress = loaded_research_progress if loaded_research_progress is Dictionary else {}
     research_compute_bonus = float(data.get("research_compute_bonus", research_compute_bonus))
+    var loaded_model_projects: Variant = data.get("model_projects", [])
+    model_projects = loaded_model_projects if loaded_model_projects is Array else []
+    next_model_project_id = int(data.get("next_model_project_id", next_model_project_id))
+    var loaded_models: Variant = data.get("models", [])
+    models = loaded_models if loaded_models is Array else []
+    next_model_id = int(data.get("next_model_id", next_model_id))

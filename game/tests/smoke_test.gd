@@ -782,4 +782,110 @@ func _initialize() -> void:
     state.research_progress = {}
     state.research_compute_bonus = 0.0
 
+    # P14: model training pipeline — 3 generations, safe cancel, never
+    # negative compute/cash.
+    var model_mgr: Node = get_root().get_node("ModelManager")
+    var tier_ids: Array = ModelTierCatalog.ordered_ids()
+    if tier_ids.size() != 3:
+        push_error("ModelTierCatalog should seed exactly 3 architecture tiers (got %d)" % tier_ids.size())
+        quit(1)
+        return
+    print("SMOKE_OK: ModelTierCatalog seeds 3 architecture tiers")
+
+    state.cash = 1000000.0
+    state.staff = []
+    state.buildings = [{"id": "rack_1", "buildable_id": "server_rack", "cell_x": 0, "cell_y": 0, "rotated": false}]
+    state.model_projects = []
+    state.models = []
+    state.work_orders = []
+
+    if not model_mgr.can_start("small"):
+        push_error("ModelManager should allow starting an affordable tier")
+        quit(1)
+        return
+
+    var project_err: Error = model_mgr.start_project("small")
+    if project_err != OK or state.model_projects.size() != 1:
+        push_error("ModelManager.start_project() failed to queue a project (error %s)" % project_err)
+        quit(1)
+        return
+    var cash_after_start: float = state.cash
+    var queued_project_id: String = String(state.model_projects[0].get("id", ""))
+    var cancel_err: Error = model_mgr.cancel_project(queued_project_id)
+    if cancel_err != OK or not state.model_projects.is_empty():
+        push_error("ModelManager.cancel_project() failed to remove a queued project (error %s)" % cancel_err)
+        quit(1)
+        return
+    if state.cash < 0.0 or not is_equal_approx(state.cash, cash_after_start):
+        push_error("Cancelling a project should not change cash further (sunk cost only)")
+        quit(1)
+        return
+    print("SMOKE_OK: model projects can be cancelled safely with no leftover state")
+
+    staff_mgr.refresh_candidates()
+    staff_mgr.hire(0)
+    var engineer_id: String = String(state.staff[0].get("id", ""))
+    model_mgr.start_project("small")
+    var active_project_id: String = String(state.model_projects[0].get("id", ""))
+    task_mgr.assign(engineer_id, "training_run", "rack_1", active_project_id)
+    if String(state.staff[0].get("assigned_task", "")).is_empty():
+        push_error("Setup: engineer should be assigned before testing mid-task cancellation")
+        quit(1)
+        return
+    model_mgr.cancel_project(active_project_id)
+    if not String(state.staff[0].get("assigned_task", "")).is_empty():
+        push_error("Cancelling a project did not free the assigned staff member")
+        quit(1)
+        return
+    if task_mgr.is_building_reserved("rack_1"):
+        push_error("Cancelling a project did not free the reserved workstation")
+        quit(1)
+        return
+    print("SMOKE_OK: cancelling an in-progress project frees the assigned staff and workstation")
+
+    for gen in range(1, 4):
+        var start_err2: Error = model_mgr.start_project("small")
+        if start_err2 != OK:
+            push_error("Failed to start generation %d project (error %s)" % [gen, start_err2])
+            quit(1)
+            return
+        var gen_project_id: String = String(state.model_projects[0].get("id", ""))
+        # small tier needs 720 minutes; each training_run session is 360,
+        # so it takes two sessions.
+        for session in 2:
+            var assign_err3: Error = task_mgr.assign(engineer_id, "training_run", "rack_1", gen_project_id)
+            if assign_err3 != OK:
+                push_error("Failed to assign engineer for generation %d, session %d (error %s)" % [gen, session, assign_err3])
+                quit(1)
+                return
+            for i in 5:
+                bus2.simulation_tick.emit(400)
+        if state.models.size() != gen:
+            push_error("Expected %d trained model(s) after generation %d, got %d" % [gen, gen, state.models.size()])
+            quit(1)
+            return
+        var latest_model: Dictionary = state.models[state.models.size() - 1]
+        if int(latest_model.get("generation", -1)) != gen:
+            push_error("Model generation field incorrect (expected %d, got %s)" % [gen, latest_model.get("generation")])
+            quit(1)
+            return
+        if state.cash < 0.0 or state.compute_used < 0.0:
+            push_error("Cash or compute went negative while training generation %d" % gen)
+            quit(1)
+            return
+    print("SMOKE_OK: can create 3 generations sequentially, each with the correct generation number")
+
+    state.cash = 0.0
+    if model_mgr.can_start("large") or model_mgr.start_project("large") == OK:
+        push_error("ModelManager allowed starting a project with insufficient cash")
+        quit(1)
+        return
+    print("SMOKE_OK: starting a model project without enough cash is rejected, never goes negative")
+
+    state.staff = []
+    state.buildings = []
+    state.work_orders = []
+    state.model_projects = []
+    state.models = []
+
     quit(0)

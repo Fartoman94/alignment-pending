@@ -99,6 +99,9 @@ func _on_section_pressed(section_name: String) -> void:
     if section_name == "Research":
         _show_research_panel()
         return
+    if section_name == "Models":
+        _show_models_panel()
+        return
     EventBus.build_tool_changed.emit("")
     _clear_dynamic_content()
     _inspector_title.text = section_name
@@ -247,6 +250,68 @@ func _show_research_panel() -> void:
 
         _dynamic_content.add_child(row)
 
+func _show_models_panel() -> void:
+    EventBus.build_tool_changed.emit("")
+    _clear_dynamic_content()
+    _inspector_title.text = "Models"
+    _inspector_body.text = "Trained: %d   Configure a project below, then assign a researcher (Staff > Inspect > Assign)." % GameState.models.size()
+
+    for tier_id: String in ModelTierCatalog.ordered_ids():
+        var tier: Dictionary = ModelTierCatalog.get_def(tier_id)
+        var row: HBoxContainer = HBoxContainer.new()
+        var label: Label = Label.new()
+        label.text = "%s — $%d" % [String(tier.get("name", tier_id)), int(tier.get("cost", 0))]
+        label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        label.tooltip_text = "capability~%d safety~%d cost_eff~%d autonomy~%d" % [
+            int(tier.get("capability_base", 0)), int(tier.get("safety_base", 0)),
+            int(tier.get("cost_efficiency_base", 0)), int(tier.get("autonomy_base", 0)),
+        ]
+        row.add_child(label)
+        var start_btn: Button = Button.new()
+        start_btn.text = "Start Training"
+        start_btn.disabled = not ModelManager.can_start(tier_id)
+        start_btn.pressed.connect(func() -> void:
+            ModelManager.start_project(tier_id)
+            _show_models_panel()
+        )
+        row.add_child(start_btn)
+        _dynamic_content.add_child(row)
+
+    if not GameState.model_projects.is_empty():
+        var projects_header: Label = Label.new()
+        projects_header.text = "In progress"
+        _dynamic_content.add_child(projects_header)
+        for project: Variant in GameState.model_projects:
+            var p: Dictionary = project
+            var project_id: String = String(p.get("id", ""))
+            var tier_def: Dictionary = ModelTierCatalog.get_def(String(p.get("tier_id", "")))
+            var prow: HBoxContainer = HBoxContainer.new()
+            var plabel: Label = Label.new()
+            plabel.text = "%s (%d%%)" % [String(tier_def.get("name", "?")), int(round(ModelManager.project_progress_fraction(project_id) * 100.0))]
+            plabel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+            prow.add_child(plabel)
+            var cancel_btn: Button = Button.new()
+            cancel_btn.text = "Cancel"
+            cancel_btn.pressed.connect(func() -> void:
+                ModelManager.cancel_project(project_id)
+                _show_models_panel()
+            )
+            prow.add_child(cancel_btn)
+            _dynamic_content.add_child(prow)
+
+    if not GameState.models.is_empty():
+        var models_header: Label = Label.new()
+        models_header.text = "Trained models"
+        _dynamic_content.add_child(models_header)
+        for model: Variant in GameState.models:
+            var m: Dictionary = model
+            var mlabel: Label = Label.new()
+            mlabel.text = "%s — capability %d, safety %d" % [
+                String(m.get("name", "?")), int(m.get("capability", 0.0)), int(m.get("safety_confidence", 0.0)),
+            ]
+            mlabel.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+            _dynamic_content.add_child(mlabel)
+
 func _show_staff_detail(staff_id: String) -> void:
     var member: Dictionary = StaffManager.find(staff_id)
     if member.is_empty():
@@ -264,10 +329,17 @@ func _show_staff_detail(staff_id: String) -> void:
         var order: Dictionary = TaskManager.find_order_for_staff(staff_id)
         if not order.is_empty():
             var task_def: Dictionary = WorkTaskCatalog.get_def(String(order.get("task_id", "")))
+            var order_task_id: String = String(order.get("task_id", ""))
             var order_target: String = String(order.get("target_id", ""))
             var target_suffix: String = ""
             if not order_target.is_empty():
-                target_suffix = " → %s" % String(ResearchNodeCatalog.get_def(order_target).get("name", order_target))
+                var target_name: String = order_target
+                if order_task_id == ResearchManager.RESEARCH_TASK_ID:
+                    target_name = String(ResearchNodeCatalog.get_def(order_target).get("name", order_target))
+                elif order_task_id == ModelManager.TRAINING_TASK_ID:
+                    var order_tier_id: String = ModelManager.project_tier_id(order_target)
+                    target_name = String(ModelTierCatalog.get_def(order_tier_id).get("name", order_tier_id))
+                target_suffix = " → %s" % target_name
             status_line = "Working: %s%s (%d%%)" % [
                 String(task_def.get("name", "?")), target_suffix, int(round(TaskManager.progress_fraction(order) * 100.0)),
             ]
@@ -290,24 +362,31 @@ func _show_staff_detail(staff_id: String) -> void:
             var required_skill: String = String(task_def.get("required_skill", ""))
             if int(skills.get(required_skill, 0)) <= 0:
                 continue
-            # research_sprint needs an active (started) research node to
-            # apply progress to; no active node means nothing to work on.
-            var research_target: String = ""
+            # research_sprint/training_run need an active started
+            # node/project to apply progress to; none active means there's
+            # nothing to work on yet.
+            var assign_target: String = ""
+            var target_label: String = ""
             if task_id == ResearchManager.RESEARCH_TASK_ID:
-                research_target = ResearchManager.pick_active_node_for_assignment()
-                if research_target.is_empty():
+                assign_target = ResearchManager.pick_active_node_for_assignment()
+                if assign_target.is_empty():
                     continue
+                target_label = String(ResearchNodeCatalog.get_def(assign_target).get("name", assign_target))
+            elif task_id == ModelManager.TRAINING_TASK_ID:
+                assign_target = ModelManager.pick_active_project_for_assignment()
+                if assign_target.is_empty():
+                    continue
+                var tier_id: String = ModelManager.project_tier_id(assign_target)
+                target_label = String(ModelTierCatalog.get_def(tier_id).get("name", tier_id))
             var candidates: Array = TaskManager.available_buildings_for_task(task_id)
             if candidates.is_empty():
                 continue
             var assign_btn: Button = Button.new()
-            var label_suffix: String = ""
-            if not research_target.is_empty():
-                label_suffix = " (%s)" % String(ResearchNodeCatalog.get_def(research_target).get("name", research_target))
+            var label_suffix: String = "" if target_label.is_empty() else " (%s)" % target_label
             assign_btn.text = "Assign: %s%s" % [String(task_def.get("name", task_id)), label_suffix]
             var target_building_id: String = String((candidates[0] as Dictionary).get("id", ""))
             assign_btn.pressed.connect(func() -> void:
-                TaskManager.assign(staff_id, task_id, target_building_id, research_target)
+                TaskManager.assign(staff_id, task_id, target_building_id, assign_target)
                 _show_staff_detail(staff_id)
             )
             _dynamic_content.add_child(assign_btn)

@@ -1,0 +1,32 @@
+[
+  {
+    "id": "small",
+    "name": "Small Model",
+    "cost": 8000,
+    "duration_minutes": 720,
+    "capability_base": 40,
+    "safety_base": 55,
+    "autonomy_base": 15,
+    "cost_efficiency_base": 65
+  },
+  {
+    "id": "medium",
+    "name": "Medium Model",
+    "cost": 20000,
+    "duration_minutes": 1200,
+    "capability_base": 60,
+    "safety_base": 60,
+    "autonomy_base": 25,
+    "cost_efficiency_base": 55
+  },
+  {
+    "id": "large",
+    "name": "Large Model",
+    "cost": 45000,
+    "duration_minutes": 1800,
+    "capability_base": 78,
+    "safety_base": 65,
+    "autonomy_base": 40,
+    "cost_efficiency_base": 45
+  }
+]
