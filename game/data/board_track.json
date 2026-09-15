@@ -1,0 +1,9 @@
+{
+  "id": "board",
+  "name": "The Board",
+  "demand_threshold": 60.0,
+  "demand_deadline_days": 14,
+  "ask": "The board wants faster shipping and leaner safety spend to protect the round.",
+  "yield_to_board": { "cash": 8000.0, "safety_debt": 15.0, "public_trust": -5.0, "board_pressure": -30.0 },
+  "hold_the_line": { "public_trust": 5.0, "board_pressure": -10.0 }
+}

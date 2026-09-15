@@ -32,27 +32,37 @@ func legal_cost() -> float:
 func support_cost() -> float:
     return (ReleaseManager.total_user_scale() / 1000.0) * SUPPORT_COST_PER_1K_USERS
 
+## Recurring investor return expectations from accepted funding rounds
+## (BoardManager.accept_funding()). Read directly off GameState rather than
+## through BoardManager, since it's just an accumulated total, not a
+## per-day computation.
+func investor_obligation_cost() -> float:
+    return GameState.investor_obligation_per_day
+
 ## Full traceable daily cash-flow breakdown. Uses the exact same formulas
 ## the other managers apply on their own day_advanced handlers (StaffManager
 ## payroll, BuildController infrastructure upkeep already cached in
 ## GameState.daily_infrastructure_cost, RevenueManager revenue/inference
-## cost) plus this manager's own rent/legal/support, so a forecast built
-## from this never drifts from what day_advanced will actually deduct.
+## cost) plus this manager's own rent/legal/support/investor obligations, so
+## a forecast built from this never drifts from what day_advanced will
+## actually deduct.
 func daily_ledger() -> Dictionary:
     var payroll: float = StaffManager.total_payroll()
     var infrastructure: float = GameState.daily_infrastructure_cost
     var rent: float = rent_cost()
     var legal: float = legal_cost()
     var support: float = support_cost()
+    var investor_obligations: float = investor_obligation_cost()
     var revenue: float = RevenueManager.total_daily_revenue()
     var inference_cost: float = RevenueManager.total_daily_cost()
-    var total_expenses: float = payroll + infrastructure + rent + legal + support + inference_cost
+    var total_expenses: float = payroll + infrastructure + rent + legal + support + investor_obligations + inference_cost
     return {
         "payroll": payroll,
         "infrastructure": infrastructure,
         "rent": rent,
         "legal": legal,
         "support": support,
+        "investor_obligations": investor_obligations,
         "revenue": revenue,
         "inference_cost": inference_cost,
         "total_expenses": total_expenses,
@@ -77,7 +87,7 @@ func runway_days() -> float:
     return GameState.cash / -net
 
 func _on_day_advanced(_day: int) -> void:
-    GameState.cash -= rent_cost() + legal_cost() + support_cost()
+    GameState.cash -= rent_cost() + legal_cost() + support_cost() + investor_obligation_cost()
     _check_bankruptcy()
 
 ## Going negative doesn't end the campaign immediately — there's a

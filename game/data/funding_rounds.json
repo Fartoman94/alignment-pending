@@ -1,0 +1,26 @@
+[
+  {
+    "id": "seed",
+    "name": "Seed Round",
+    "min_valuation": 0,
+    "amount": 20000,
+    "equity_pct": 8,
+    "obligation_per_day": 15
+  },
+  {
+    "id": "series_a",
+    "name": "Series A",
+    "min_valuation": 150000,
+    "amount": 150000,
+    "equity_pct": 15,
+    "obligation_per_day": 120
+  },
+  {
+    "id": "series_b",
+    "name": "Series B",
+    "min_valuation": 600000,
+    "amount": 500000,
+    "equity_pct": 15,
+    "obligation_per_day": 350
+  }
+]

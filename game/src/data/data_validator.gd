@@ -65,6 +65,13 @@ const REGULATOR_REQUIRED_FIELDS: Array[String] = ["id", "name", "audit_threshold
 
 const EPILOGUE_REQUIRED_FIELDS: Array[String] = ["id", "title", "body"]
 
+# P25: board and funding rounds.
+const FUNDING_ROUND_REQUIRED_FIELDS: Array[String] = ["id", "name", "min_valuation", "amount", "equity_pct", "obligation_per_day"]
+const BOARD_TRACK_REQUIRED_FIELDS: Array[String] = ["id", "name", "demand_threshold", "demand_deadline_days", "ask", "yield_to_board", "hold_the_line"]
+## Board demand choice effects reuse the incident effect vocabulary plus
+## "board_pressure", which only the board track uses.
+const BOARD_EFFECT_KEYS: Array[String] = ["cash", "public_trust", "safety_debt", "regulatory_pressure", "board_pressure"]
+
 ## One validation problem: which file, which record, and why.
 class Issue:
     var source: String
@@ -96,6 +103,8 @@ static func validate_all() -> Array[Issue]:
     issues.append_array(validate_communication_action_file("res://data/communication_actions.json"))
     issues.append_array(validate_rival_doctrine_file("res://data/rival_doctrines.json"))
     issues.append_array(validate_regulator_file("res://data/regulator_track.json"))
+    issues.append_array(validate_funding_round_file("res://data/funding_rounds.json"))
+    issues.append_array(validate_board_track_file("res://data/board_track.json"))
     issues.append_array(validate_epilogue_file("res://data/epilogues.json"))
     return issues
 
@@ -999,6 +1008,128 @@ static func validate_regulator_file(path: String) -> Array[Issue]:
                     var effect_value: Variant = (effects as Dictionary)[effect_key]
                     if not (effect_value is int or effect_value is float):
                         issues.append(Issue.new(path, "", "'%s' effect '%s' value must be numeric" % [disclosure_field, effect_key]))
+
+    return issues
+
+static func validate_funding_round_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of funding round records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_funding_round_record(path, records[i], i, seen_ids))
+    return issues
+
+static func _validate_funding_round_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "funding round record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in FUNDING_ROUND_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+
+    if entry.has("min_valuation") and not _is_whole_number_at_least(entry.get("min_valuation"), 0):
+        issues.append(Issue.new(path, id_label, "'min_valuation' must be a whole number >= 0"))
+
+    if entry.has("amount"):
+        var amount: Variant = entry.get("amount")
+        if not (amount is int or amount is float) or float(amount) <= 0.0:
+            issues.append(Issue.new(path, id_label, "'amount' must be a number > 0"))
+
+    if entry.has("equity_pct"):
+        var equity_pct: Variant = entry.get("equity_pct")
+        if not (equity_pct is int or equity_pct is float) or float(equity_pct) <= 0.0 or float(equity_pct) > 100.0:
+            issues.append(Issue.new(path, id_label, "'equity_pct' must be a number in (0, 100]"))
+
+    if entry.has("obligation_per_day"):
+        var obligation: Variant = entry.get("obligation_per_day")
+        if not (obligation is int or obligation is float) or float(obligation) < 0.0:
+            issues.append(Issue.new(path, id_label, "'obligation_per_day' must be a number >= 0"))
+
+    if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))
+
+    return issues
+
+## The board track config is a single object (one board for the MVP), not
+## an array of records — same shape as the regulator config.
+static func validate_board_track_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Dictionary):
+        issues.append(Issue.new(path, "", "root must be a JSON object (a single board)"))
+        return issues
+
+    var entry: Dictionary = parsed
+    for field: String in BOARD_TRACK_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, "", "missing required field '%s'" % field))
+
+    if entry.has("id") and (not (entry["id"] is String) or String(entry["id"]).is_empty()):
+        issues.append(Issue.new(path, "", "'id' must be a non-empty string"))
+    if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
+        issues.append(Issue.new(path, "", "'name' must be a non-empty string"))
+    if entry.has("ask") and (not (entry["ask"] is String) or String(entry["ask"]).is_empty()):
+        issues.append(Issue.new(path, "", "'ask' must be a non-empty string"))
+
+    if entry.has("demand_threshold"):
+        var threshold: Variant = entry.get("demand_threshold")
+        if not (threshold is int or threshold is float) or float(threshold) < 0.0 or float(threshold) > 100.0:
+            issues.append(Issue.new(path, "", "'demand_threshold' must be a number in [0, 100]"))
+
+    if entry.has("demand_deadline_days") and not _is_whole_number_at_least(entry.get("demand_deadline_days"), 1):
+        issues.append(Issue.new(path, "", "'demand_deadline_days' must be a whole number >= 1"))
+
+    for choice_field: String in ["yield_to_board", "hold_the_line"]:
+        if entry.has(choice_field):
+            var effects: Variant = entry.get(choice_field)
+            if not (effects is Dictionary):
+                issues.append(Issue.new(path, "", "'%s' must be an object of effects" % choice_field))
+            else:
+                for effect_key: String in (effects as Dictionary):
+                    if not BOARD_EFFECT_KEYS.has(effect_key):
+                        issues.append(Issue.new(path, "", "'%s' has unknown effect key '%s' (expected one of %s)" % [choice_field, effect_key, BOARD_EFFECT_KEYS]))
+                    var effect_value: Variant = (effects as Dictionary)[effect_key]
+                    if not (effect_value is int or effect_value is float):
+                        issues.append(Issue.new(path, "", "'%s' effect '%s' value must be numeric" % [choice_field, effect_key]))
 
     return issues
 

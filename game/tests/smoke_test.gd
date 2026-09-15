@@ -1925,4 +1925,165 @@ func _initialize() -> void:
     state.work_orders = []
     state.cash = 184200.0
 
+    # P25: board and funding rounds — valuation, staged funding rounds,
+    # board pressure/demands (a decision, never an instant ending).
+    var board_mgr: Node = get_root().get_node("BoardManager")
+    state.ending_id = ""
+    state.paused = false
+    state.cash = 0.0
+    state.board_control_pct = 100.0
+    state.board_pressure = 0.0
+    state.investor_obligation_per_day = 0.0
+    state.funding_rounds_raised = []
+    state.active_board_demand = {}
+    state.board_demand_history = []
+    state.models = []
+    state.deployments = []
+    state.staff = []
+    state.public_trust = 50.0
+    state.safety_debt = 0.0
+
+    var expected_valuation: float = float(board_mgr.VALUATION_BASE) + state.public_trust * float(board_mgr.VALUATION_PER_TRUST_POINT)
+    if not is_equal_approx(board_mgr.valuation(), expected_valuation):
+        push_error("BoardManager.valuation() should be a pure function of existing state (expected %.1f, got %.1f)" % [expected_valuation, board_mgr.valuation()])
+        quit(1)
+        return
+    print("SMOKE_OK: valuation is a deterministic function of existing campaign state")
+
+    if String(board_mgr.next_round_id()) != "seed":
+        push_error("The first funding round offered should be 'seed'")
+        quit(1)
+        return
+    if not board_mgr.can_accept_funding("seed"):
+        push_error("Seed round should be available at 0 valuation requirement")
+        quit(1)
+        return
+    if board_mgr.can_accept_funding("series_a"):
+        push_error("Rounds must be raised strictly in order — series_a shouldn't be available before seed")
+        quit(1)
+        return
+
+    var seed_def: Dictionary = FundingRoundCatalog.get_def("seed")
+    var cash_before_seed: float = state.cash
+    var control_before_seed: float = state.board_control_pct
+    var seed_err: Error = board_mgr.accept_funding("seed")
+    if seed_err != OK:
+        push_error("Accepting the seed round failed unexpectedly (error %s)" % seed_err)
+        quit(1)
+        return
+    if not is_equal_approx(state.cash, cash_before_seed + float(seed_def.get("amount", 0.0))):
+        push_error("Accepting a funding round should add its amount to cash")
+        quit(1)
+        return
+    if not is_equal_approx(state.board_control_pct, control_before_seed - float(seed_def.get("equity_pct", 0.0))):
+        push_error("Accepting a funding round should reduce board_control_pct by its equity_pct")
+        quit(1)
+        return
+    if not is_equal_approx(state.investor_obligation_per_day, float(seed_def.get("obligation_per_day", 0.0))):
+        push_error("Accepting a funding round should add its obligation_per_day to the running total")
+        quit(1)
+        return
+    if String(board_mgr.next_round_id()) != "series_a":
+        push_error("After raising seed, series_a should be the next round offered")
+        quit(1)
+        return
+    print("SMOKE_OK: funding changes both cash (now) and obligations (ongoing), and control is traded for it")
+
+    if board_mgr.can_accept_funding("series_a"):
+        push_error("series_a should be gated by valuation (min_valuation 150000), not available yet")
+        quit(1)
+        return
+    var series_a_gate_err: Error = board_mgr.accept_funding("series_a")
+    if series_a_gate_err == OK:
+        push_error("accept_funding() should refuse a round whose valuation gate isn't met")
+        quit(1)
+        return
+
+    state.models = [{"id": "m1"}, {"id": "m2"}]  # pushes valuation over series_a's min_valuation
+    if not board_mgr.can_accept_funding("series_a"):
+        push_error("series_a should become available once valuation clears its min_valuation gate")
+        quit(1)
+        return
+    var obligation_before_series_a: float = state.investor_obligation_per_day
+    var series_a_err: Error = board_mgr.accept_funding("series_a")
+    if series_a_err != OK:
+        push_error("Accepting series_a failed unexpectedly once its valuation gate was met (error %s)" % series_a_err)
+        quit(1)
+        return
+    var series_a_def: Dictionary = FundingRoundCatalog.get_def("series_a")
+    if not is_equal_approx(state.investor_obligation_per_day, obligation_before_series_a + float(series_a_def.get("obligation_per_day", 0.0))):
+        push_error("Obligations from multiple rounds should accumulate")
+        quit(1)
+        return
+    print("SMOKE_OK: later rounds are gated by valuation, and obligations accumulate across rounds")
+
+    var ledger_p25: Dictionary = economy_mgr.daily_ledger()
+    if not is_equal_approx(float(ledger_p25.get("investor_obligations", -1.0)), state.investor_obligation_per_day):
+        push_error("EconomyManager.daily_ledger() should report the exact same investor_obligations the funding rounds accrued")
+        quit(1)
+        return
+    print("SMOKE_OK: the daily ledger/runway forecast reflects investor obligations from accepted funding")
+
+    state.board_pressure = 59.0  # control already given away this tick pushes it over the 60 threshold
+    state.active_board_demand = {}
+    bus2.day_advanced.emit(state.calendar_day)
+    if state.active_board_demand.is_empty():
+        push_error("Crossing the board pressure threshold should trigger a demand")
+        quit(1)
+        return
+    if String(state.active_board_demand.get("ask", "")).is_empty():
+        push_error("A board demand should carry a clear, non-empty ask")
+        quit(1)
+        return
+    print("SMOKE_OK: board pressure from control given away and low runway triggers a demand with a clear ask")
+
+    var bad_choice_err: Error = board_mgr.resolve_demand("not_a_real_choice")
+    if bad_choice_err == OK:
+        push_error("resolve_demand() should reject an unknown choice id")
+        quit(1)
+        return
+
+    var trust_before_demand: float = state.public_trust
+    var hold_the_line_def: Dictionary = board_mgr.demand_choice_effects("hold_the_line")
+    var demand_resolve_err: Error = board_mgr.resolve_demand("hold_the_line")
+    if demand_resolve_err != OK:
+        push_error("Resolving an active board demand with a valid choice failed unexpectedly (error %s)" % demand_resolve_err)
+        quit(1)
+        return
+    if not state.active_board_demand.is_empty():
+        push_error("Resolving a demand should clear active_board_demand")
+        quit(1)
+        return
+    if state.board_demand_history.is_empty() or String((state.board_demand_history[-1] as Dictionary).get("choice", "")) != "hold_the_line":
+        push_error("Resolving a demand should record it in board_demand_history with the choice made")
+        quit(1)
+        return
+    if not is_equal_approx(state.public_trust, trust_before_demand + float(hold_the_line_def.get("public_trust", 0.0))):
+        push_error("Resolving a demand should apply that choice's data-driven effects")
+        quit(1)
+        return
+    if not state.ending_id.is_empty():
+        push_error("A board demand must always resolve into a decision, never an instant ending")
+        quit(1)
+        return
+    print("SMOKE_OK: resolving a board demand applies its data-driven effects and is always a decision, never an instant ending")
+
+    var double_resolve_err: Error = board_mgr.resolve_demand("hold_the_line")
+    if double_resolve_err == OK:
+        push_error("Resolving a demand with none active should fail, not silently succeed")
+        quit(1)
+        return
+
+    state.ending_id = ""
+    state.paused = false
+    state.board_control_pct = 100.0
+    state.board_pressure = 0.0
+    state.investor_obligation_per_day = 0.0
+    state.funding_rounds_raised = []
+    state.active_board_demand = {}
+    state.board_demand_history = []
+    state.models = []
+    state.deployments = []
+    state.cash = 184200.0
+
     quit(0)

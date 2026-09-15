@@ -525,10 +525,10 @@ func _show_company_panel() -> void:
     var runway: float = EconomyManager.runway_days()
     var runway_text: String = "no limit" if is_inf(runway) else "%d days" % int(floor(runway))
     var ledger_label: Label = Label.new()
-    ledger_label.text = "Daily ledger: payroll -$%d, infra -$%d, rent -$%d, legal -$%d, support -$%d, revenue +$%d → net %+.0f/day. Runway: %s." % [
+    ledger_label.text = "Daily ledger: payroll -$%d, infra -$%d, rent -$%d, legal -$%d, support -$%d, investors -$%d, revenue +$%d → net %+.0f/day. Runway: %s." % [
         int(ledger.get("payroll", 0.0)), int(ledger.get("infrastructure", 0.0)), int(ledger.get("rent", 0.0)),
-        int(ledger.get("legal", 0.0)), int(ledger.get("support", 0.0)), int(ledger.get("revenue", 0.0)),
-        float(ledger.get("net", 0.0)), runway_text,
+        int(ledger.get("legal", 0.0)), int(ledger.get("support", 0.0)), int(ledger.get("investor_obligations", 0.0)),
+        int(ledger.get("revenue", 0.0)), float(ledger.get("net", 0.0)), runway_text,
     ]
     ledger_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     _dynamic_content.add_child(ledger_label)
@@ -563,6 +563,61 @@ func _show_company_panel() -> void:
         )
         audit_row.add_child(minimal_btn)
         _dynamic_content.add_child(audit_row)
+
+    var board_header: Label = Label.new()
+    board_header.text = "%s — control %d%%, pressure %d/100, valuation ~$%d" % [
+        BoardManager.board_name(), int(round(GameState.board_control_pct)),
+        int(round(GameState.board_pressure)), int(BoardManager.valuation()),
+    ]
+    board_header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    _dynamic_content.add_child(board_header)
+
+    var next_round_id: String = BoardManager.next_round_id()
+    if not next_round_id.is_empty():
+        var round_def: Dictionary = FundingRoundCatalog.get_def(next_round_id)
+        var round_row: HBoxContainer = HBoxContainer.new()
+        var round_label: Label = Label.new()
+        round_label.text = "%s available: +$%d cash for %d%% equity, +$%d/day obligation (needs valuation $%d)" % [
+            String(round_def.get("name", next_round_id)), int(round_def.get("amount", 0.0)),
+            int(round_def.get("equity_pct", 0.0)), int(round_def.get("obligation_per_day", 0.0)),
+            int(round_def.get("min_valuation", 0.0)),
+        ]
+        round_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        round_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+        round_row.add_child(round_label)
+        var raise_btn: Button = Button.new()
+        raise_btn.text = "Raise"
+        raise_btn.disabled = not BoardManager.can_accept_funding(next_round_id)
+        raise_btn.pressed.connect(func() -> void:
+            BoardManager.accept_funding(next_round_id)
+            _show_company_panel()
+        )
+        round_row.add_child(raise_btn)
+        _dynamic_content.add_child(round_row)
+
+    if BoardManager.has_active_demand():
+        var demand_header: Label = Label.new()
+        demand_header.text = "Board demand (due day %d): %s" % [
+            int(GameState.active_board_demand.get("deadline_day", 0)), String(GameState.active_board_demand.get("ask", "")),
+        ]
+        demand_header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+        _dynamic_content.add_child(demand_header)
+        var demand_row: HBoxContainer = HBoxContainer.new()
+        var yield_btn: Button = Button.new()
+        yield_btn.text = "Yield to the board"
+        yield_btn.pressed.connect(func() -> void:
+            BoardManager.resolve_demand("yield_to_board")
+            _show_company_panel()
+        )
+        demand_row.add_child(yield_btn)
+        var hold_btn: Button = Button.new()
+        hold_btn.text = "Hold the line"
+        hold_btn.pressed.connect(func() -> void:
+            BoardManager.resolve_demand("hold_the_line")
+            _show_company_panel()
+        )
+        demand_row.add_child(hold_btn)
+        _dynamic_content.add_child(demand_row)
 
     var actions_header: Label = Label.new()
     actions_header.text = "Communication actions"

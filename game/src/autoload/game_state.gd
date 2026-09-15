@@ -125,6 +125,26 @@ var ending_id: String = ""
 ## bankruptcy. Reset to -1 automatically the moment cash recovers. Kept in
 ## sync by EconomyManager.
 var bankruptcy_day: int = -1
+## 0-100: the founders' share of control. Starts at 100 and only ever drops
+## when a funding round's equity_pct is accepted (BoardManager.accept_funding()).
+var board_control_pct: float = 100.0
+## 0-100 meter: board pressure to prioritize investor returns over
+## everything else. Rises with equity sold and low runway. Kept in sync by
+## BoardManager.
+var board_pressure: float = 0.0
+## Recurring daily cash obligation accrued from accepted funding rounds
+## (investor return expectations). Read by EconomyManager.daily_ledger() —
+## see BoardManager for how it's set.
+var investor_obligation_per_day: float = 0.0
+## Ids of funding rounds already raised, in order (FundingRoundCatalog gates
+## the next available round on this). Kept in sync by BoardManager.
+var funding_rounds_raised: Array = []
+## {id, name, ask, deadline_day}, or {} when no demand is pending. Kept in
+## sync by BoardManager. Resolving one always applies a data-driven choice —
+## never an instant ending (see docs/production/P25 acceptance criteria).
+var active_board_demand: Dictionary = {}
+## Each entry: {id, triggered_day, resolved_day, choice, effects_applied}.
+var board_demand_history: Array = []
 
 func toggle_pause() -> void:
     paused = not paused
@@ -194,6 +214,12 @@ func reset_to_defaults() -> void:
     audit_history = []
     ending_id = ""
     bankruptcy_day = -1
+    board_control_pct = 100.0
+    board_pressure = 0.0
+    investor_obligation_per_day = 0.0
+    funding_rounds_raised = []
+    active_board_demand = {}
+    board_demand_history = []
 
 ## Campaign state payload only. The save format version lives one layer up,
 ## in SaveManager's envelope, so it isn't duplicated here.
@@ -246,6 +272,12 @@ func to_dict() -> Dictionary:
         "audit_history": audit_history,
         "ending_id": ending_id,
         "bankruptcy_day": bankruptcy_day,
+        "board_control_pct": board_control_pct,
+        "board_pressure": board_pressure,
+        "investor_obligation_per_day": investor_obligation_per_day,
+        "funding_rounds_raised": funding_rounds_raised,
+        "active_board_demand": active_board_demand,
+        "board_demand_history": board_demand_history,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -314,3 +346,12 @@ func from_dict(data: Dictionary) -> void:
     audit_history = loaded_audit_history if loaded_audit_history is Array else []
     ending_id = String(data.get("ending_id", ending_id))
     bankruptcy_day = int(data.get("bankruptcy_day", bankruptcy_day))
+    board_control_pct = float(data.get("board_control_pct", board_control_pct))
+    board_pressure = float(data.get("board_pressure", board_pressure))
+    investor_obligation_per_day = float(data.get("investor_obligation_per_day", investor_obligation_per_day))
+    var loaded_funding_rounds: Variant = data.get("funding_rounds_raised", [])
+    funding_rounds_raised = loaded_funding_rounds if loaded_funding_rounds is Array else []
+    var loaded_board_demand: Variant = data.get("active_board_demand", {})
+    active_board_demand = loaded_board_demand if loaded_board_demand is Dictionary else {}
+    var loaded_board_demand_history: Variant = data.get("board_demand_history", [])
+    board_demand_history = loaded_board_demand_history if loaded_board_demand_history is Array else []

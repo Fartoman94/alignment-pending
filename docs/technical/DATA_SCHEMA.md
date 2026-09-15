@@ -34,5 +34,21 @@ modifiers, see `data/staff_traits.json`). `relationships` is a list of
 ## IncidentDefinition
 `id, category, severity, prerequisites, weight, cooldown_days, title_template, body_template, choices[], tags[]`
 
+## FundingRound
+`id, name, min_valuation, amount, equity_pct, obligation_per_day` — raised
+strictly in order (`FundingRoundCatalog.ORDER`), gated by
+`BoardManager.valuation()`. `equity_pct` reduces
+`GameState.board_control_pct`; `obligation_per_day` accrues into
+`GameState.investor_obligation_per_day`, which `EconomyManager` deducts
+daily and reports in `daily_ledger()`.
+
+## BoardDemand
+Config: `id, name, demand_threshold, demand_deadline_days, ask,
+yield_to_board, hold_the_line` (a single object — one board, like the
+regulator track). Active instance: `GameState.active_board_demand =
+{id, name, ask, triggered_day, deadline_day}`. Resolving one
+(`BoardManager.resolve_demand()`) always applies a data-driven effect —
+never an ending.
+
 ## Save compatibility
 Never serialize Node paths as authoritative domain identifiers. Use stable string/UUID IDs.
