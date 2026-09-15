@@ -1,7 +1,10 @@
 extends Node3D
 
+const AUTOSAVE_INTERVAL_SECONDS: float = 60.0
+
 var camera_controller: CameraController
 var hud: Hud
+var _autosave_timer: Timer
 
 func _ready() -> void:
     _ensure_input_actions()
@@ -9,6 +12,7 @@ func _ready() -> void:
     _build_office()
     _build_camera()
     _build_hud()
+    _build_autosave_timer()
 
 func _ensure_input_actions() -> void:
     var bindings: Dictionary = {
@@ -27,6 +31,9 @@ func _process(_delta: float) -> void:
     if Input.is_action_just_pressed("toggle_pause"):
         GameState.toggle_pause()
     if Input.is_action_just_pressed("return_to_menu") and not SceneRouter.is_busy():
+        var err: Error = SaveManager.autosave()
+        if err != OK:
+            push_warning("Campaign: autosave-on-exit failed (error %s)" % err)
         await SceneRouter.go_to("res://scenes/main_menu.tscn")
         return
 
@@ -91,3 +98,15 @@ func _build_hud() -> void:
     var packed: PackedScene = load("res://scenes/hud.tscn")
     hud = packed.instantiate()
     add_child(hud)
+
+func _build_autosave_timer() -> void:
+    _autosave_timer = Timer.new()
+    _autosave_timer.wait_time = AUTOSAVE_INTERVAL_SECONDS
+    _autosave_timer.autostart = true
+    _autosave_timer.timeout.connect(_on_autosave_timeout)
+    add_child(_autosave_timer)
+
+func _on_autosave_timeout() -> void:
+    var err: Error = SaveManager.autosave()
+    if err != OK:
+        push_warning("Campaign: periodic autosave failed (error %s)" % err)

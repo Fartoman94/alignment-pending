@@ -119,4 +119,48 @@ func _initialize() -> void:
     await process_frame
     print("SMOKE_OK: HUD strips are anchor-driven (responsive at 1280x720 and 1920x1080)")
 
+    var state: Node = get_root().get_node("GameState")
+    var save_mgr: Node = get_root().get_node("SaveManager")
+
+    if not (state.get("SAVE_VERSION") is int) or int(state.SAVE_VERSION) < 1:
+        push_error("GameState.SAVE_VERSION must be an explicit int >= 1 (got %s)" % state.get("SAVE_VERSION"))
+        quit(1)
+        return
+    print("SMOKE_OK: save schema version is explicit (v%d)" % state.SAVE_VERSION)
+
+    state.cash = 555555.0
+    state.public_trust = 12.0
+    var manual_err: Error = save_mgr.save_manual(0)
+    if manual_err != OK:
+        push_error("SaveManager failed to write manual slot 0 (error %s)" % manual_err)
+        quit(1)
+        return
+    state.cash = 0.0
+    state.public_trust = 0.0
+    var manual_load_err: Error = save_mgr.load_manual(0)
+    if manual_load_err != OK or not is_equal_approx(state.cash, 555555.0) or not is_equal_approx(state.public_trust, 12.0):
+        push_error("SaveManager manual save/load round-trip lost data (error %s)" % manual_load_err)
+        quit(1)
+        return
+    print("SMOKE_OK: manual save round-trip preserves campaign state")
+
+    state.cash = 111.0
+    save_mgr.autosave()
+    state.cash = 222.0
+    save_mgr.autosave()
+    state.cash = 333.0
+    save_mgr.autosave()
+    # Corrupt the newest autosave (slot 0) directly, bypassing SaveManager.
+    var corrupt_path: String = save_mgr._autosave_path(0)
+    var corrupt_file: FileAccess = FileAccess.open(corrupt_path, FileAccess.WRITE)
+    corrupt_file.store_string("{ not valid json or a mismatched checksum")
+    corrupt_file.close()
+    state.cash = -1.0
+    var fallback_err: Error = save_mgr.load_newest_autosave()
+    if fallback_err != OK or not is_equal_approx(state.cash, 222.0):
+        push_error("SaveManager did not fall back past a corrupted newest autosave (error %s, cash=%s)" % [fallback_err, state.cash])
+        quit(1)
+        return
+    print("SMOKE_OK: a corrupted newest autosave falls back to the next valid rotating slot")
+
     quit(0)

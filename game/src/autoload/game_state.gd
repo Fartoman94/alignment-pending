@@ -17,9 +17,10 @@ func toggle_pause() -> void:
     paused = not paused
     EventBus.simulation_pause_changed.emit(paused)
 
+## Campaign state payload only. The save format version lives one layer up,
+## in SaveManager's envelope, so it isn't duplicated here.
 func to_dict() -> Dictionary:
     return {
-        "save_version": SAVE_VERSION,
         "campaign_seed": campaign_seed,
         "cash": cash,
         "compute_capacity": compute_capacity,
@@ -27,7 +28,8 @@ func to_dict() -> Dictionary:
         "power_capacity": power_capacity,
         "power_used": power_used,
         "public_trust": public_trust,
-        "safety_debt": safety_debt
+        "safety_debt": safety_debt,
+        "simulation_speed": simulation_speed,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -39,3 +41,4 @@ func from_dict(data: Dictionary) -> void:
     power_used = float(data.get("power_used", power_used))
     public_trust = float(data.get("public_trust", public_trust))
     safety_debt = float(data.get("safety_debt", safety_debt))
+    simulation_speed = float(data.get("simulation_speed", simulation_speed))
