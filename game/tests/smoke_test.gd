@@ -18,6 +18,8 @@ func _init() -> void:
         "res://scenes/campaign.tscn",
         "res://scenes/settings.tscn",
         "res://scenes/hud.tscn",
+        "res://scenes/ending.tscn",
+        "res://scenes/credits.tscn",
     ]
     for scene_path: String in scene_paths:
         if not ResourceLoader.exists(scene_path, "PackedScene"):
@@ -84,6 +86,8 @@ func _initialize() -> void:
         "res://scenes/main_menu.tscn",
         "res://scenes/settings.tscn",
         "res://scenes/campaign.tscn",
+        "res://scenes/ending.tscn",
+        "res://scenes/credits.tscn",
     ]
     for scene_path: String in instantiable_scenes:
         var packed: PackedScene = load(scene_path)
@@ -1564,5 +1568,111 @@ func _initialize() -> void:
     state.incident_history = []
     state.incident_cooldowns = {}
     state.safety_debt = 17.0
+
+    # P22: vertical slice ending — milestones, deterministic epilogue
+    # selection, ending trigger, credits contain no assistant references.
+    var epilogue_ids: Array = EpilogueCatalog.load_all().keys()
+    if epilogue_ids.size() != 3:
+        push_error("EpilogueCatalog should seed exactly 3 prototype epilogues (got %d)" % epilogue_ids.size())
+        quit(1)
+        return
+    print("SMOKE_OK: EpilogueCatalog seeds 3 prototype epilogues")
+
+    var ending_mgr: Node = get_root().get_node("EndingManager")
+    state.buildings = []
+    state.staff = []
+    state.models = []
+    state.deployments = []
+    state.incident_history = []
+    state.next_building_id = 1
+    state.next_staff_id = 1
+    state.next_deployment_id = 1
+    var milestones_empty: Dictionary = ending_mgr.compute_milestones()
+    for key: String in milestones_empty:
+        if bool(milestones_empty[key]):
+            push_error("Milestone '%s' should start false with no history" % key)
+            quit(1)
+            return
+    state.next_building_id = 2
+    state.next_staff_id = 2
+    state.models = [{"id": "m"}]
+    state.next_deployment_id = 2
+    state.incident_history = [{"id": "i"}]
+    var milestones_full: Dictionary = ending_mgr.compute_milestones()
+    for key2: String in milestones_full:
+        if not bool(milestones_full[key2]):
+            push_error("Milestone '%s' should become true once its underlying state exists" % key2)
+            quit(1)
+            return
+    print("SMOKE_OK: milestones are correctly derived from existing campaign state")
+
+    state.ending_id = ""
+    state.paused = false
+    state.public_trust = 60.0
+    state.safety_debt = 10.0
+    state.cash = 0.0
+    state.models = []
+    state.calendar_day = int(ending_mgr.ENDING_DAY_TRIGGER)
+    bus2.day_advanced.emit(state.calendar_day)
+    if state.ending_id != "steady_hand" or not state.paused:
+        push_error("Expected the 'steady_hand' ending with high trust/low safety debt, got '%s' (paused=%s)" % [state.ending_id, state.paused])
+        quit(1)
+        return
+    print("SMOKE_OK: reaching the ending day triggers a deterministic epilogue and pauses the game")
+
+    state.ending_id = ""
+    state.public_trust = 10.0
+    state.safety_debt = 80.0
+    state.cash = 200000.0
+    bus2.day_advanced.emit(state.calendar_day)
+    if state.ending_id != "runaway_growth":
+        push_error("Expected the 'runaway_growth' ending for high cash/low trust, got '%s'" % state.ending_id)
+        quit(1)
+        return
+
+    state.ending_id = ""
+    state.public_trust = 10.0
+    state.safety_debt = 80.0
+    state.cash = 0.0
+    state.models = []
+    bus2.day_advanced.emit(state.calendar_day)
+    if state.ending_id != "grounded_struggle":
+        push_error("Expected the 'grounded_struggle' ending as the fallback, got '%s'" % state.ending_id)
+        quit(1)
+        return
+    print("SMOKE_OK: the three epilogues are chosen deterministically from final state")
+
+    var credits_packed: PackedScene = load("res://scenes/credits.tscn")
+    var credits_inst: Node = credits_packed.instantiate()
+    get_root().add_child(credits_inst)
+    await process_frame
+    var roles_text: String = String(credits_inst.get_node("Panel/Margin/VBox/RolesLabel").text).to_lower()
+    var forbidden_terms: Array[String] = ["claude", "anthropic", "chatgpt", "openai", "ai assistant", "language model", "copilot"]
+    var found_forbidden: String = ""
+    for term: String in forbidden_terms:
+        if roles_text.contains(term):
+            found_forbidden = term
+            break
+    credits_inst.queue_free()
+    await process_frame
+    if not found_forbidden.is_empty():
+        push_error("Credits must contain project team only, no assistant joke credits (found '%s')" % found_forbidden)
+        quit(1)
+        return
+    print("SMOKE_OK: credits contain project team only, no assistant/AI joke credits")
+
+    state.ending_id = ""
+    state.paused = false
+    state.public_trust = 43.0
+    state.safety_debt = 17.0
+    state.cash = 184200.0
+    state.buildings = []
+    state.staff = []
+    state.models = []
+    state.deployments = []
+    state.incident_history = []
+    state.next_building_id = 1
+    state.next_staff_id = 1
+    state.next_deployment_id = 1
 
     quit(0)

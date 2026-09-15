@@ -118,6 +118,9 @@ var active_audit: Dictionary = {}
 ## Each entry: {id, triggered_day, resolved_day, disclosure_choice,
 ## effects_applied}.
 var audit_history: Array = []
+## "" until the vertical-slice mini-campaign ends; then one of
+## EpilogueCatalog's ids. Kept in sync by EndingManager.
+var ending_id: String = ""
 
 func toggle_pause() -> void:
     paused = not paused
@@ -185,6 +188,7 @@ func reset_to_defaults() -> void:
     regulatory_pressure = 0.0
     active_audit = {}
     audit_history = []
+    ending_id = ""
 
 ## Campaign state payload only. The save format version lives one layer up,
 ## in SaveManager's envelope, so it isn't duplicated here.
@@ -235,6 +239,7 @@ func to_dict() -> Dictionary:
         "regulatory_pressure": regulatory_pressure,
         "active_audit": active_audit,
         "audit_history": audit_history,
+        "ending_id": ending_id,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -301,3 +306,4 @@ func from_dict(data: Dictionary) -> void:
     active_audit = loaded_active_audit if loaded_active_audit is Dictionary else {}
     var loaded_audit_history: Variant = data.get("audit_history", [])
     audit_history = loaded_audit_history if loaded_audit_history is Array else []
+    ending_id = String(data.get("ending_id", ending_id))

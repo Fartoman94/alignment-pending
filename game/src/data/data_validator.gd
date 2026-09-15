@@ -55,6 +55,8 @@ const RIVAL_DOCTRINE_REQUIRED_FIELDS: Array[String] = ["id", "name", "research_p
 
 const REGULATOR_REQUIRED_FIELDS: Array[String] = ["id", "name", "audit_threshold", "audit_deadline_days", "requirements", "full_disclosure", "minimal_disclosure"]
 
+const EPILOGUE_REQUIRED_FIELDS: Array[String] = ["id", "title", "body"]
+
 ## One validation problem: which file, which record, and why.
 class Issue:
     var source: String
@@ -85,6 +87,7 @@ static func validate_all() -> Array[Issue]:
     issues.append_array(validate_communication_action_file("res://data/communication_actions.json"))
     issues.append_array(validate_rival_doctrine_file("res://data/rival_doctrines.json"))
     issues.append_array(validate_regulator_file("res://data/regulator_track.json"))
+    issues.append_array(validate_epilogue_file("res://data/epilogues.json"))
     return issues
 
 static func validate_event_file(path: String) -> Array[Issue]:
@@ -913,6 +916,58 @@ static func validate_regulator_file(path: String) -> Array[Issue]:
                     var effect_value: Variant = (effects as Dictionary)[effect_key]
                     if not (effect_value is int or effect_value is float):
                         issues.append(Issue.new(path, "", "'%s' effect '%s' value must be numeric" % [disclosure_field, effect_key]))
+
+    return issues
+
+static func validate_epilogue_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of epilogue records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_epilogue_record(path, records[i], i, seen_ids))
+    return issues
+
+static func _validate_epilogue_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "epilogue record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in EPILOGUE_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+
+    if entry.has("title") and (not (entry["title"] is String) or String(entry["title"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'title' must be a non-empty string"))
+    if entry.has("body") and (not (entry["body"] is String) or String(entry["body"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'body' must be a non-empty string"))
 
     return issues
 

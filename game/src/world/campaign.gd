@@ -26,9 +26,12 @@ func _ready() -> void:
     EventBus.task_completed.connect(_on_task_completed)
     EventBus.task_unassigned.connect(_on_task_unassigned)
     EventBus.research_unlocked.connect(_on_research_unlocked)
+    EventBus.ending_triggered.connect(_on_ending_triggered)
     build_controller.load_from_state(GameState.buildings)
     _sync_staff_agents()
     SimClock.active = true
+    if EndingManager.has_ended():
+        await SceneRouter.go_to("res://scenes/ending.tscn")
 
 func _exit_tree() -> void:
     SimClock.active = false
@@ -84,6 +87,12 @@ func _on_research_unlocked(_node_id: String) -> void:
     # A "compute_bonus" unlock effect changes GameState.research_compute_bonus,
     # which only feeds into compute_capacity when infrastructure is recomputed.
     build_controller.recompute_infrastructure()
+
+func _on_ending_triggered(_ending_id: String) -> void:
+    var err: Error = SaveManager.autosave()
+    if err != OK:
+        push_warning("Campaign: autosave-on-ending failed (error %s)" % err)
+    await SceneRouter.go_to("res://scenes/ending.tscn")
 
 func _clear_staff_work(staff_id: String) -> void:
     if _staff_agents.has(staff_id):
