@@ -91,6 +91,9 @@ const WORKFORCE_CASH_PER_PRESSURE_MAX: float = 200.0
 const WORKFORCE_MORALE_TRUST_PER_PRESSURE_MAX: float = 10.0
 const WORKFORCE_SAFETY_DEBT_PER_PRESSURE_MAX: float = 5.0
 
+# P30: remote datacenter progression.
+const DATACENTER_TIER_REQUIRED_FIELDS: Array[String] = ["id", "name", "description", "cost", "compute_capacity_bonus", "operating_cost_per_day"]
+
 ## One validation problem: which file, which record, and why.
 class Issue:
     var source: String
@@ -127,6 +130,7 @@ static func validate_all() -> Array[Issue]:
     issues.append_array(validate_legal_case_type_file("res://data/legal_case_types.json"))
     issues.append_array(validate_agent_permission_file("res://data/agent_permissions.json"))
     issues.append_array(validate_workforce_policy_file("res://data/workforce_policies.json"))
+    issues.append_array(validate_datacenter_tier_file("res://data/datacenter_tiers.json"))
     issues.append_array(validate_epilogue_file("res://data/epilogues.json"))
     return issues
 
@@ -1415,6 +1419,71 @@ static func _validate_workforce_policy_record(path: String, record: Variant, ind
         var safety_val: Variant = entry.get("safety_debt_per_pressure")
         if not (safety_val is int or safety_val is float) or absf(float(safety_val)) > WORKFORCE_SAFETY_DEBT_PER_PRESSURE_MAX:
             issues.append(Issue.new(path, id_label, "'safety_debt_per_pressure' must be a number with |value| <= %s" % WORKFORCE_SAFETY_DEBT_PER_PRESSURE_MAX))
+
+    return issues
+
+static func validate_datacenter_tier_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of datacenter tier records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_datacenter_tier_record(path, records[i], i, seen_ids))
+    return issues
+
+static func _validate_datacenter_tier_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "datacenter tier record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in DATACENTER_TIER_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+
+    if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))
+    if entry.has("description") and (not (entry["description"] is String) or String(entry["description"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'description' must be a non-empty string"))
+
+    if entry.has("cost"):
+        var cost: Variant = entry.get("cost")
+        if not (cost is int or cost is float) or float(cost) <= 0.0:
+            issues.append(Issue.new(path, id_label, "'cost' must be a number > 0"))
+
+    if entry.has("compute_capacity_bonus"):
+        var bonus: Variant = entry.get("compute_capacity_bonus")
+        if not (bonus is int or bonus is float) or float(bonus) <= 0.0:
+            issues.append(Issue.new(path, id_label, "'compute_capacity_bonus' must be a number > 0"))
+
+    if entry.has("operating_cost_per_day") and not _is_whole_number_at_least(entry.get("operating_cost_per_day"), 0):
+        issues.append(Issue.new(path, id_label, "'operating_cost_per_day' must be a whole number >= 0"))
 
     return issues
 

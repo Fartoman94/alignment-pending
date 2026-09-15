@@ -756,39 +756,77 @@ func _show_world_panel() -> void:
     EventBus.build_tool_changed.emit("")
     _clear_dynamic_content()
     _inspector_title.text = "World"
+
     if GameState.rivals.is_empty():
         _inspector_body.text = "No rivals identified yet."
-        return
-
-    var shares: Dictionary = RivalManager.market_shares()
-    _inspector_body.text = "%d rivals racing. Market share — you: %d%%. Aggregate rival market pressure: %.1f" % [
-        GameState.rivals.size(), int(round(float(shares.get("player", 0.0)) * 100.0)), RivalManager.rival_pressure(),
-    ]
-
-    for r: Variant in GameState.rivals:
-        var rival: Dictionary = r
-        var rival_id: String = String(rival.get("id", ""))
-        var doctrine_def: Dictionary = RivalDoctrineCatalog.get_def(String(rival.get("doctrine", "")))
-        var label: Label = Label.new()
-        label.text = "%s — %s — gen %d (%d%% to next), market share %d%%" % [
-            String(rival.get("name", "?")), String(doctrine_def.get("name", "?")), int(rival.get("generation", 0)),
-            int(round(RivalManager.launch_progress_fraction(rival_id) * 100.0)), int(round(float(shares.get(rival_id, 0.0)) * 100.0)),
+    else:
+        var shares: Dictionary = RivalManager.market_shares()
+        _inspector_body.text = "%d rivals racing. Market share — you: %d%%. Aggregate rival market pressure: %.1f" % [
+            GameState.rivals.size(), int(round(float(shares.get("player", 0.0)) * 100.0)), RivalManager.rival_pressure(),
         ]
-        label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-        _dynamic_content.add_child(label)
 
-    if not GameState.rival_launch_history.is_empty():
-        var header: Label = Label.new()
-        header.text = "Launch history"
-        _dynamic_content.add_child(header)
-        var history: Array = GameState.rival_launch_history.duplicate()
-        history.reverse()
-        for h: Variant in history:
-            var entry: Dictionary = h
-            var rival_name: String = String(RivalManager.find_rival(String(entry.get("rival_id", ""))).get("name", entry.get("rival_id", "?")))
-            var hist_label: Label = Label.new()
-            hist_label.text = "Day %d — %s reached generation %d" % [int(entry.get("day", 0)), rival_name, int(entry.get("generation", 0))]
-            _dynamic_content.add_child(hist_label)
+        for r: Variant in GameState.rivals:
+            var rival: Dictionary = r
+            var rival_id: String = String(rival.get("id", ""))
+            var doctrine_def: Dictionary = RivalDoctrineCatalog.get_def(String(rival.get("doctrine", "")))
+            var label: Label = Label.new()
+            label.text = "%s — %s — gen %d (%d%% to next), market share %d%%" % [
+                String(rival.get("name", "?")), String(doctrine_def.get("name", "?")), int(rival.get("generation", 0)),
+                int(round(RivalManager.launch_progress_fraction(rival_id) * 100.0)), int(round(float(shares.get(rival_id, 0.0)) * 100.0)),
+            ]
+            label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+            _dynamic_content.add_child(label)
+
+        if not GameState.rival_launch_history.is_empty():
+            var header: Label = Label.new()
+            header.text = "Launch history"
+            _dynamic_content.add_child(header)
+            var history: Array = GameState.rival_launch_history.duplicate()
+            history.reverse()
+            for h: Variant in history:
+                var entry: Dictionary = h
+                var rival_name: String = String(RivalManager.find_rival(String(entry.get("rival_id", ""))).get("name", entry.get("rival_id", "?")))
+                var hist_label: Label = Label.new()
+                hist_label.text = "Day %d — %s reached generation %d" % [int(entry.get("day", 0)), rival_name, int(entry.get("generation", 0))]
+                _dynamic_content.add_child(hist_label)
+
+    var datacenter_header: Label = Label.new()
+    datacenter_header.text = "Remote datacenters — abstract compute capacity, no grid placement needed. +%d compute capacity, $%d/day upkeep." % [
+        int(GameState.datacenter_compute_bonus), int(GameState.datacenter_operating_cost),
+    ]
+    datacenter_header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    _dynamic_content.add_child(datacenter_header)
+    for tier_id: String in GameState.datacenter_tiers_purchased:
+        var owned_def: Dictionary = DatacenterTierCatalog.get_def(String(tier_id))
+        var owned_label: Label = Label.new()
+        owned_label.text = "  [Owned] %s — +%d compute, $%d/day" % [
+            String(owned_def.get("name", tier_id)), int(owned_def.get("compute_capacity_bonus", 0)), int(owned_def.get("operating_cost_per_day", 0)),
+        ]
+        owned_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+        _dynamic_content.add_child(owned_label)
+
+    var next_tier_id: String = DatacenterManager.next_tier_id()
+    if not next_tier_id.is_empty():
+        var next_def: Dictionary = DatacenterTierCatalog.get_def(next_tier_id)
+        var tier_row: HBoxContainer = HBoxContainer.new()
+        var tier_label: Label = Label.new()
+        tier_label.text = "  %s — $%d — +%d compute, $%d/day — %s" % [
+            String(next_def.get("name", next_tier_id)), int(next_def.get("cost", 0)),
+            int(next_def.get("compute_capacity_bonus", 0)), int(next_def.get("operating_cost_per_day", 0)),
+            String(next_def.get("description", "")),
+        ]
+        tier_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        tier_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+        tier_row.add_child(tier_label)
+        var purchase_btn: Button = Button.new()
+        purchase_btn.text = "Purchase"
+        purchase_btn.disabled = not DatacenterManager.can_purchase(next_tier_id)
+        purchase_btn.pressed.connect(func() -> void:
+            DatacenterManager.purchase(next_tier_id)
+            _show_world_panel()
+        )
+        tier_row.add_child(purchase_btn)
+        _dynamic_content.add_child(tier_row)
 
 func _show_staff_detail(staff_id: String) -> void:
     var member: Dictionary = StaffManager.find(staff_id)

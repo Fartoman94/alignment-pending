@@ -1,0 +1,34 @@
+[
+  {
+    "id": "regional_pod",
+    "name": "Regional Pod",
+    "description": "A small leased facility a few hours away — modest land, a standard power contract, off-the-shelf cooling.",
+    "cost": 60000,
+    "compute_capacity_bonus": 200,
+    "operating_cost_per_day": 300
+  },
+  {
+    "id": "continental_cluster",
+    "name": "Continental Cluster",
+    "description": "A multi-building site with its own substation and a dedicated cooling loop.",
+    "cost": 250000,
+    "compute_capacity_bonus": 900,
+    "operating_cost_per_day": 1100
+  },
+  {
+    "id": "flagship_campus",
+    "name": "Flagship Campus",
+    "description": "A purpose-built campus: long-term land lease, a private power plant, and industrial-scale cooling.",
+    "cost": 1200000,
+    "compute_capacity_bonus": 4000,
+    "operating_cost_per_day": 5000
+  },
+  {
+    "id": "orbital_relay",
+    "name": "Orbital Relay Array",
+    "description": "An absurd, budget-line-item-defying moonshot: compute racks in orbit, power beamed down, cooled by the vacuum of space.",
+    "cost": 8000000,
+    "compute_capacity_bonus": 20000,
+    "operating_cost_per_day": 25000
+  }
+]

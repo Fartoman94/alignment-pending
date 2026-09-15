@@ -70,6 +70,16 @@ rejects a policy set where one policy is at-least-as-good as every other
 on every axis and strictly better on at least one — no single policy may
 be the forced "correct" answer.
 
+## DatacenterTier
+Config (`data/datacenter_tiers.json` + `DatacenterTierCatalog`): `id,
+name, description, cost, compute_capacity_bonus, operating_cost_per_day`,
+purchased strictly in order (`DatacenterTierCatalog.ORDER`). Abstract —
+purchasing one adds a large `GameState.datacenter_compute_bonus` (read by
+`GameState.effective_compute_capacity()`, not throttled by the local
+office's heat simulation) and a recurring `datacenter_operating_cost`
+(read by `EconomyManager.daily_ledger()`), so late-game compute scales
+without placing individual racks.
+
 ## IncidentDefinition
 `id, category, severity, prerequisites, weight, cooldown_days, title_template, body_template, choices[], tags[]`
 

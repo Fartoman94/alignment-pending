@@ -169,6 +169,19 @@ var next_legal_case_instance_id: int = 1
 ## default — the player opts into a tradeoff, none is forced. Kept in sync
 ## by AutomationManager.
 var workforce_policy: String = "status_quo"
+## Ids of DatacenterTierCatalog tiers purchased, in order
+## (DatacenterTierCatalog gates the next available tier on this). Kept in
+## sync by DatacenterManager.
+var datacenter_tiers_purchased: Array = []
+## Sum of every purchased tier's compute_capacity_bonus — abstract remote
+## compute, not subject to the local office's heat throttling (see
+## effective_compute_capacity()). Lets late-game compute scale without
+## rendering thousands of racks. Kept in sync by DatacenterManager.
+var datacenter_compute_bonus: float = 0.0
+## Sum of every purchased tier's operating_cost_per_day (land/power/
+## cooling contracts). Read by EconomyManager.daily_ledger(). Kept in sync
+## by DatacenterManager.
+var datacenter_operating_cost: float = 0.0
 
 func toggle_pause() -> void:
     paused = not paused
@@ -176,12 +189,15 @@ func toggle_pause() -> void:
 
 ## Heat above capacity thermally throttles usable compute instead of
 ## letting anything go negative/invalid. Below capacity, full capacity
-## is usable.
+## is usable. Remote datacenter capacity (P30, datacenter_compute_bonus)
+## is deliberately abstract — it's not subject to the local office's heat
+## simulation, so it's added after throttling, not before.
 func effective_compute_capacity() -> float:
-    if heat_load <= heat_capacity or heat_load <= 0.0:
-        return compute_capacity
-    var cooling_efficiency: float = clampf(heat_capacity / heat_load, 0.3, 1.0)
-    return compute_capacity * cooling_efficiency
+    var office_capacity: float = compute_capacity
+    if heat_load > heat_capacity and heat_load > 0.0:
+        var cooling_efficiency: float = clampf(heat_capacity / heat_load, 0.3, 1.0)
+        office_capacity = compute_capacity * cooling_efficiency
+    return office_capacity + datacenter_compute_bonus
 
 func recompute_compute_used() -> void:
     compute_used = training_compute_reserved + inference_compute_used
@@ -250,6 +266,9 @@ func reset_to_defaults() -> void:
     legal_case_cooldowns = {}
     next_legal_case_instance_id = 1
     workforce_policy = "status_quo"
+    datacenter_tiers_purchased = []
+    datacenter_compute_bonus = 0.0
+    datacenter_operating_cost = 0.0
 
 ## Campaign state payload only. The save format version lives one layer up,
 ## in SaveManager's envelope, so it isn't duplicated here.
@@ -314,6 +333,9 @@ func to_dict() -> Dictionary:
         "legal_case_cooldowns": legal_case_cooldowns,
         "next_legal_case_instance_id": next_legal_case_instance_id,
         "workforce_policy": workforce_policy,
+        "datacenter_tiers_purchased": datacenter_tiers_purchased,
+        "datacenter_compute_bonus": datacenter_compute_bonus,
+        "datacenter_operating_cost": datacenter_operating_cost,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -400,3 +422,7 @@ func from_dict(data: Dictionary) -> void:
     legal_case_cooldowns = loaded_legal_case_cooldowns if loaded_legal_case_cooldowns is Dictionary else {}
     next_legal_case_instance_id = int(data.get("next_legal_case_instance_id", next_legal_case_instance_id))
     workforce_policy = String(data.get("workforce_policy", workforce_policy))
+    var loaded_datacenter_tiers: Variant = data.get("datacenter_tiers_purchased", [])
+    datacenter_tiers_purchased = loaded_datacenter_tiers if loaded_datacenter_tiers is Array else []
+    datacenter_compute_bonus = float(data.get("datacenter_compute_bonus", datacenter_compute_bonus))
+    datacenter_operating_cost = float(data.get("datacenter_operating_cost", datacenter_operating_cost))

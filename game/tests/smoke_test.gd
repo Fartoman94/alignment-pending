@@ -2485,4 +2485,93 @@ func _initialize() -> void:
     state.public_trust = 50.0
     state.cash = 184200.0
 
+    # P30: datacenter progression — abstract remote compute, purchased as
+    # whole tiers instead of placed as individual racks.
+    var datacenter_mgr: Node = get_root().get_node("DatacenterManager")
+    var datacenter_tier_ids: Array = DatacenterTierCatalog.ORDER
+    if datacenter_tier_ids.size() != 4:
+        push_error("DatacenterTierCatalog should define exactly 4 tiers (got %d)" % datacenter_tier_ids.size())
+        quit(1)
+        return
+    print("SMOKE_OK: DatacenterTierCatalog seeds 4 progressively larger tiers")
+
+    state.datacenter_tiers_purchased = []
+    state.datacenter_compute_bonus = 0.0
+    state.datacenter_operating_cost = 0.0
+    state.cash = 100000.0
+    state.compute_capacity = 20.0
+    state.heat_load = 0.0
+    state.heat_capacity = 60.0
+
+    if not is_equal_approx(state.effective_compute_capacity(), 20.0):
+        push_error("With no datacenters purchased, effective_compute_capacity() should just be the office's own capacity")
+        quit(1)
+        return
+
+    var out_of_order_err: Error = datacenter_mgr.purchase("continental_cluster")
+    if out_of_order_err == OK:
+        push_error("Tiers must be purchased strictly in order — continental_cluster shouldn't be purchasable before regional_pod")
+        quit(1)
+        return
+
+    state.cash = 100.0  # not enough for regional_pod
+    var poor_err: Error = datacenter_mgr.purchase("regional_pod")
+    if poor_err == OK:
+        push_error("purchase() should refuse a tier the player can't afford")
+        quit(1)
+        return
+
+    state.cash = 100000.0
+    var regional_def: Dictionary = DatacenterTierCatalog.get_def("regional_pod")
+    var cash_before_datacenter: float = state.cash
+    var purchase_err: Error = datacenter_mgr.purchase("regional_pod")
+    if purchase_err != OK:
+        push_error("Purchasing an affordable, in-order tier should succeed (error %s)" % purchase_err)
+        quit(1)
+        return
+    if not is_equal_approx(state.cash, cash_before_datacenter - float(regional_def.get("cost", 0.0))):
+        push_error("Purchasing a tier should deduct its one-time cost")
+        quit(1)
+        return
+    if not is_equal_approx(state.effective_compute_capacity(), 20.0 + float(regional_def.get("compute_capacity_bonus", 0.0))):
+        push_error("A purchased tier's compute_capacity_bonus should add directly to effective_compute_capacity(), unaffected by office heat throttling")
+        quit(1)
+        return
+    var ledger_p30: Dictionary = economy_mgr.daily_ledger()
+    if not is_equal_approx(float(ledger_p30.get("datacenters", -1.0)), float(regional_def.get("operating_cost_per_day", 0.0))):
+        push_error("The daily ledger should include the purchased tier's operating cost")
+        quit(1)
+        return
+    print("SMOKE_OK: purchasing a datacenter tier deducts its cost and adds a large, un-throttled compute bonus plus a ledger-visible operating cost")
+
+    if String(datacenter_mgr.next_tier_id()) != "continental_cluster":
+        push_error("After purchasing regional_pod, continental_cluster should be the next tier offered")
+        quit(1)
+        return
+
+    # Late-game compute scaling: buy out every remaining tier and confirm
+    # the bonus accumulates additively, with no per-unit placement needed.
+    state.cash = 20000000.0
+    var total_expected_bonus: float = float(regional_def.get("compute_capacity_bonus", 0.0))
+    for tier_id: String in ["continental_cluster", "flagship_campus", "orbital_relay"]:
+        datacenter_mgr.purchase(tier_id)
+        total_expected_bonus += float(DatacenterTierCatalog.get_def(tier_id).get("compute_capacity_bonus", 0.0))
+    if not String(datacenter_mgr.next_tier_id()).is_empty():
+        push_error("Once every tier is purchased, next_tier_id() should be empty")
+        quit(1)
+        return
+    if not is_equal_approx(state.effective_compute_capacity(), 20.0 + total_expected_bonus):
+        push_error("Every purchased tier's compute bonus should accumulate additively (expected %.1f)" % (20.0 + total_expected_bonus))
+        quit(1)
+        return
+    print("SMOKE_OK: every datacenter tier can be purchased in order, and their compute bonuses accumulate additively for late-game scale")
+
+    state.datacenter_tiers_purchased = []
+    state.datacenter_compute_bonus = 0.0
+    state.datacenter_operating_cost = 0.0
+    state.compute_capacity = state.BASE_COMPUTE_CAPACITY
+    state.heat_capacity = state.BASE_HEAT_CAPACITY
+    state.heat_load = 0.0
+    state.cash = 184200.0
+
     quit(0)
