@@ -34,6 +34,10 @@ var heat_load: float = 0.0
 var daily_infrastructure_cost: float = 0.0
 var public_trust: float = 43.0
 var safety_debt: float = 17.0
+## Overpromising via marketing accrues here; it decays daily by converting
+## into public_trust loss (see CommunicationManager). Never removed any
+## other way — hype has to be paid down, not hidden.
+var hype_debt: float = 0.0
 var paused: bool = false
 var simulation_speed: float = 1.0
 var calendar_day: int = 1
@@ -92,6 +96,12 @@ var incident_history: Array = []
 ## incident_id -> calendar_day it becomes eligible to trigger again.
 var incident_cooldowns: Dictionary = {}
 var next_incident_instance_id: int = 1
+## action_id -> calendar_day it becomes available again.
+var communication_cooldowns: Dictionary = {}
+## Log of performed communication actions: {action_id, day, trust_delta,
+## hype_debt_delta}. Kept in sync by CommunicationManager. This is
+## presentation history only, never a way to alter incident_history.
+var communication_history: Array = []
 
 func toggle_pause() -> void:
     paused = not paused
@@ -126,6 +136,7 @@ func reset_to_defaults() -> void:
     daily_infrastructure_cost = 0.0
     public_trust = 43.0
     safety_debt = 17.0
+    hype_debt = 0.0
     paused = false
     simulation_speed = 1.0
     calendar_day = 1
@@ -151,6 +162,8 @@ func reset_to_defaults() -> void:
     incident_history = []
     incident_cooldowns = {}
     next_incident_instance_id = 1
+    communication_cooldowns = {}
+    communication_history = []
 
 ## Campaign state payload only. The save format version lives one layer up,
 ## in SaveManager's envelope, so it isn't duplicated here.
@@ -169,6 +182,7 @@ func to_dict() -> Dictionary:
         "daily_infrastructure_cost": daily_infrastructure_cost,
         "public_trust": public_trust,
         "safety_debt": safety_debt,
+        "hype_debt": hype_debt,
         "simulation_speed": simulation_speed,
         "calendar_day": calendar_day,
         "calendar_hour": calendar_hour,
@@ -193,6 +207,8 @@ func to_dict() -> Dictionary:
         "incident_history": incident_history,
         "incident_cooldowns": incident_cooldowns,
         "next_incident_instance_id": next_incident_instance_id,
+        "communication_cooldowns": communication_cooldowns,
+        "communication_history": communication_history,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -209,6 +225,7 @@ func from_dict(data: Dictionary) -> void:
     daily_infrastructure_cost = float(data.get("daily_infrastructure_cost", daily_infrastructure_cost))
     public_trust = float(data.get("public_trust", public_trust))
     safety_debt = float(data.get("safety_debt", safety_debt))
+    hype_debt = float(data.get("hype_debt", hype_debt))
     simulation_speed = float(data.get("simulation_speed", simulation_speed))
     calendar_day = int(data.get("calendar_day", calendar_day))
     calendar_hour = int(data.get("calendar_hour", calendar_hour))
@@ -245,3 +262,7 @@ func from_dict(data: Dictionary) -> void:
     var loaded_incident_cooldowns: Variant = data.get("incident_cooldowns", {})
     incident_cooldowns = loaded_incident_cooldowns if loaded_incident_cooldowns is Dictionary else {}
     next_incident_instance_id = int(data.get("next_incident_instance_id", next_incident_instance_id))
+    var loaded_comm_cooldowns: Variant = data.get("communication_cooldowns", {})
+    communication_cooldowns = loaded_comm_cooldowns if loaded_comm_cooldowns is Dictionary else {}
+    var loaded_comm_history: Variant = data.get("communication_history", [])
+    communication_history = loaded_comm_history if loaded_comm_history is Array else []

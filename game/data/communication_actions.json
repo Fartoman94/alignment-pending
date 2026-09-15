@@ -1,0 +1,26 @@
+[
+  {
+    "id": "safety_report",
+    "name": "Publish Safety Report",
+    "cost": 3000,
+    "trust_delta": 4,
+    "hype_debt_delta": 0,
+    "cooldown_days": 10
+  },
+  {
+    "id": "marketing_campaign",
+    "name": "Run Marketing Campaign",
+    "cost": 5000,
+    "trust_delta": 6,
+    "hype_debt_delta": 8,
+    "cooldown_days": 7
+  },
+  {
+    "id": "clarification",
+    "name": "Issue Clarification",
+    "cost": 500,
+    "trust_delta": 2,
+    "hype_debt_delta": 0,
+    "cooldown_days": 3
+  }
+]

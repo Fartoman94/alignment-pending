@@ -67,6 +67,7 @@ func _refresh_resource_strip() -> void:
         GameState.power_used, GameState.power_capacity,
     ]
     _trust_label.text = "TRUST %d" % int(roundf(GameState.public_trust))
+    _trust_label.tooltip_text = _format_trust_causes_tooltip()
     _safety_label.text = "SAFETY DEBT %d" % int(roundf(GameState.safety_debt))
     var heat_pct: int = int(roundf(GameState.heat_load / GameState.heat_capacity * 100.0)) if GameState.heat_capacity > 0.0 else 0
     _heat_label.text = "HEAT %d%%" % heat_pct
@@ -78,6 +79,16 @@ func _refresh_resource_strip() -> void:
 
 func _format_money(v: float) -> String:
     return "%d" % int(v)
+
+func _format_trust_causes_tooltip() -> String:
+    var causes: Array = CommunicationManager.recent_trust_causes(4)
+    if causes.is_empty():
+        return "Trust: %d. No recorded causes yet." % int(round(GameState.public_trust))
+    var lines: PackedStringArray = ["Recent causes:"]
+    for c: Variant in causes:
+        var entry: Dictionary = c
+        lines.append("Day %d: %s (%+.0f)" % [int(entry.get("day", 0)), String(entry.get("label", "?")), float(entry.get("delta", 0.0))])
+    return "\n".join(lines)
 
 func _on_pause_pressed() -> void:
     GameState.toggle_pause()
@@ -105,6 +116,9 @@ func _on_section_pressed(section_name: String) -> void:
         return
     if section_name == "Models":
         _show_models_panel()
+        return
+    if section_name == "Company":
+        _show_company_panel()
         return
     EventBus.build_tool_changed.emit("")
     _clear_dynamic_content()
@@ -489,6 +503,64 @@ func _add_deployment_controls(model_id: String) -> void:
     ]
     revenue_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     _dynamic_content.add_child(revenue_label)
+
+## Trust/hype/communication actions plus the incident history log. PR
+## actions here can only ever nudge trust (see
+## CommunicationActionCatalog's data-validated cap) — the incident log
+## itself is read-only and never touched by any action on this panel, so
+## severe evidence stays visible no matter how much PR is bought.
+func _show_company_panel() -> void:
+    EventBus.build_tool_changed.emit("")
+    _clear_dynamic_content()
+    _inspector_title.text = "Company"
+    _inspector_body.text = "Trust %d   Hype debt %d — unresolved hype converts to trust loss over time." % [
+        int(round(GameState.public_trust)), int(round(GameState.hype_debt)),
+    ]
+
+    var actions_header: Label = Label.new()
+    actions_header.text = "Communication actions"
+    _dynamic_content.add_child(actions_header)
+    for action_id: String in CommunicationActionCatalog.ordered_ids():
+        var def: Dictionary = CommunicationActionCatalog.get_def(action_id)
+        var row: HBoxContainer = HBoxContainer.new()
+        var label: Label = Label.new()
+        label.text = "%s — $%d (trust %+.0f, hype %+.0f)" % [
+            String(def.get("name", action_id)), int(def.get("cost", 0)),
+            float(def.get("trust_delta", 0.0)), float(def.get("hype_debt_delta", 0.0)),
+        ]
+        label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+        row.add_child(label)
+        var btn: Button = Button.new()
+        btn.text = "Do"
+        btn.disabled = not CommunicationManager.can_perform(action_id)
+        btn.pressed.connect(func() -> void:
+            CommunicationManager.perform(action_id)
+            _show_company_panel()
+        )
+        row.add_child(btn)
+        _dynamic_content.add_child(row)
+
+    var history_header: Label = Label.new()
+    history_header.text = "Incident history (evidence — never erasable)"
+    _dynamic_content.add_child(history_header)
+    if GameState.incident_history.is_empty():
+        var none_label: Label = Label.new()
+        none_label.text = "No incidents yet."
+        _dynamic_content.add_child(none_label)
+    else:
+        var history: Array = GameState.incident_history.duplicate()
+        history.reverse()
+        for h: Variant in history:
+            var entry: Dictionary = h
+            var effects: Dictionary = entry.get("effects_applied", {})
+            var hist_label: Label = Label.new()
+            hist_label.text = "Day %d [P%d] %s — chose \"%s\" (trust %+.0f, safety debt %+.0f)" % [
+                int(entry.get("resolved_day", 0)), int(entry.get("severity", 2)), String(entry.get("title", "?")),
+                String(entry.get("choice_id", "?")), float(effects.get("public_trust", 0.0)), float(effects.get("safety_debt", 0.0)),
+            ]
+            hist_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+            _dynamic_content.add_child(hist_label)
 
 func _show_staff_detail(staff_id: String) -> void:
     var member: Dictionary = StaffManager.find(staff_id)

@@ -1270,4 +1270,116 @@ func _initialize() -> void:
     state.incident_cooldowns = {}
     state.paused = false
 
+    # P19: trust and communication — hype debt, causes-visible tooltips,
+    # PR cannot erase severe evidence.
+    var comm_mgr: Node = get_root().get_node("CommunicationManager")
+    var comm_action_ids: Array = CommunicationActionCatalog.ordered_ids()
+    if comm_action_ids.size() != 3:
+        push_error("CommunicationActionCatalog should seed exactly 3 actions (got %d)" % comm_action_ids.size())
+        quit(1)
+        return
+    print("SMOKE_OK: CommunicationActionCatalog seeds 3 communication actions")
+
+    state.cash = 100000.0
+    state.public_trust = 50.0
+    state.hype_debt = 0.0
+    state.communication_cooldowns = {}
+    state.communication_history = []
+    state.incident_history = []
+    state.calendar_day = 1
+
+    var cash_before_action: float = state.cash
+    var trust_before_action: float = state.public_trust
+    var action_def: Dictionary = CommunicationActionCatalog.get_def("marketing_campaign")
+    var perform_err: Error = comm_mgr.perform("marketing_campaign")
+    if perform_err != OK:
+        push_error("CommunicationManager.perform() failed for an affordable, off-cooldown action (error %s)" % perform_err)
+        quit(1)
+        return
+    if not is_equal_approx(state.cash, cash_before_action - float(action_def.get("cost", 0.0))):
+        push_error("Performing a communication action should deduct its cost")
+        quit(1)
+        return
+    if not is_equal_approx(state.public_trust, trust_before_action + float(action_def.get("trust_delta", 0.0))):
+        push_error("Performing a communication action should apply its trust_delta")
+        quit(1)
+        return
+    if not is_equal_approx(state.hype_debt, float(action_def.get("hype_debt_delta", 0.0))):
+        push_error("A marketing campaign should accrue hype debt")
+        quit(1)
+        return
+    if comm_mgr.can_perform("marketing_campaign"):
+        push_error("An action just performed should be on cooldown")
+        quit(1)
+        return
+    print("SMOKE_OK: performing a communication action costs cash, moves trust, accrues hype debt, and starts a cooldown")
+
+    var hype_before_tick: float = state.hype_debt
+    var trust_before_tick: float = state.public_trust
+    bus2.day_advanced.emit(state.calendar_day)
+    var expected_conversion: float = hype_before_tick * float(comm_mgr.HYPE_CONVERSION_RATE)
+    if not is_equal_approx(state.hype_debt, hype_before_tick - expected_conversion):
+        push_error("Hype debt should decay by converting into trust loss daily")
+        quit(1)
+        return
+    if not is_equal_approx(state.public_trust, trust_before_tick - expected_conversion):
+        push_error("Hype debt conversion should reduce public trust by the converted amount")
+        quit(1)
+        return
+    print("SMOKE_OK: unaddressed hype debt converts to trust loss over time")
+
+    state.incident_history = [{
+        "id": "inc_test", "incident_id": "data_leak_scare", "category": "privacy", "severity": 0,
+        "title": "Data Leak Scare", "body": "...", "choices": [], "triggered_day": 1,
+        "state_snapshot": {}, "choice_id": "stonewall", "resolved_day": 1,
+        "effects_applied": {"public_trust": -10.0, "safety_debt": 3.0},
+    }]
+    var history_before: Array = state.incident_history.duplicate(true)
+    state.communication_cooldowns = {}
+    for action_id2: String in comm_action_ids:
+        if comm_mgr.can_perform(action_id2):
+            comm_mgr.perform(action_id2)
+    if state.incident_history != history_before:
+        push_error("A communication action mutated incident_history — PR must never erase evidence")
+        quit(1)
+        return
+    if float((state.incident_history[0] as Dictionary).get("effects_applied", {}).get("public_trust", 0.0)) != -10.0:
+        push_error("The recorded incident's effect must remain exactly as it happened")
+        quit(1)
+        return
+    print("SMOKE_OK: PR actions never mutate incident_history — severe evidence cannot be erased")
+
+    var causes: Array = comm_mgr.recent_trust_causes(10)
+    var has_incident_cause: bool = false
+    var has_comm_cause: bool = false
+    for c: Variant in causes:
+        var cause: Dictionary = c
+        if String(cause.get("label", "")) == "Data Leak Scare":
+            has_incident_cause = true
+        if float(cause.get("delta", 0.0)) > 0.0:
+            has_comm_cause = true
+    if not has_incident_cause or not has_comm_cause:
+        push_error("recent_trust_causes() should surface both incident and communication contributions")
+        quit(1)
+        return
+    print("SMOKE_OK: recent trust causes are visible and traceable to their source (incident or PR action)")
+
+    var save_err_comm: Error = save_mgr.save_manual(0)
+    var hype_before_reload: float = state.hype_debt
+    state.hype_debt = 0.0
+    state.communication_history = []
+    state.communication_cooldowns = {}
+    var load_err_comm: Error = save_mgr.load_manual(0)
+    if save_err_comm != OK or load_err_comm != OK or not is_equal_approx(state.hype_debt, hype_before_reload) or state.communication_history.is_empty():
+        push_error("Hype debt and communication history did not survive save/load (save error %s, load error %s)" % [save_err_comm, load_err_comm])
+        quit(1)
+        return
+    print("SMOKE_OK: hype debt and communication history persist across save/load")
+
+    state.public_trust = 43.0
+    state.hype_debt = 0.0
+    state.communication_history = []
+    state.communication_cooldowns = {}
+    state.incident_history = []
+
     quit(0)

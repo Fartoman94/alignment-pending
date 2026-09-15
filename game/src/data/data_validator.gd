@@ -45,6 +45,11 @@ const DEPLOYMENT_MODE_REQUIRED_FIELDS: Array[String] = ["id", "name", "base_user
 const USER_SEGMENT_REQUIRED_FIELDS: Array[String] = ["id", "name", "share_of_market", "max_price", "elasticity", "capability_weight", "reliability_weight", "safety_weight"]
 const USER_SEGMENT_WEIGHT_FIELDS: Array[String] = ["capability_weight", "reliability_weight", "safety_weight"]
 
+const COMMUNICATION_ACTION_REQUIRED_FIELDS: Array[String] = ["id", "name", "cost", "trust_delta", "hype_debt_delta", "cooldown_days"]
+# A single action nudging trust by more than this would let PR erase severe
+# evidence in one click; keep it small (see docs P19 acceptance criteria).
+const COMMUNICATION_MAX_TRUST_DELTA: float = 10.0
+
 ## One validation problem: which file, which record, and why.
 class Issue:
     var source: String
@@ -72,6 +77,7 @@ static func validate_all() -> Array[Issue]:
     issues.append_array(validate_model_tier_file("res://data/model_tiers.json"))
     issues.append_array(validate_deployment_mode_file("res://data/deployment_modes.json"))
     issues.append_array(validate_user_segment_file("res://data/user_segments.json"))
+    issues.append_array(validate_communication_action_file("res://data/communication_actions.json"))
     return issues
 
 static func validate_event_file(path: String) -> Array[Issue]:
@@ -709,6 +715,76 @@ static func _validate_user_segment_record(path: String, record: Variant, index: 
             var weight: Variant = entry.get(weight_field)
             if not (weight is int or weight is float) or float(weight) < 0.0:
                 issues.append(Issue.new(path, id_label, "'%s' must be a number >= 0" % weight_field))
+
+    if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))
+
+    return issues
+
+static func validate_communication_action_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of communication action records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_communication_action_record(path, records[i], i, seen_ids))
+    return issues
+
+static func _validate_communication_action_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "communication action record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in COMMUNICATION_ACTION_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+
+    if entry.has("cost"):
+        var cost: Variant = entry.get("cost")
+        if not (cost is int or cost is float) or float(cost) < 0.0:
+            issues.append(Issue.new(path, id_label, "'cost' must be a number >= 0"))
+
+    if entry.has("trust_delta"):
+        var trust_delta: Variant = entry.get("trust_delta")
+        if not (trust_delta is int or trust_delta is float):
+            issues.append(Issue.new(path, id_label, "'trust_delta' must be numeric"))
+        elif absf(float(trust_delta)) > COMMUNICATION_MAX_TRUST_DELTA:
+            issues.append(Issue.new(path, id_label, "'trust_delta' magnitude %s exceeds the single-action cap of %s (PR must not be able to erase severe evidence in one action)" % [trust_delta, COMMUNICATION_MAX_TRUST_DELTA]))
+
+    if entry.has("hype_debt_delta"):
+        var hype_delta: Variant = entry.get("hype_debt_delta")
+        if not (hype_delta is int or hype_delta is float) or float(hype_delta) < 0.0:
+            issues.append(Issue.new(path, id_label, "'hype_debt_delta' must be a number >= 0"))
+
+    if entry.has("cooldown_days") and not _is_whole_number_at_least(entry.get("cooldown_days"), 0):
+        issues.append(Issue.new(path, id_label, "'cooldown_days' must be a whole number >= 0"))
 
     if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
         issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))
