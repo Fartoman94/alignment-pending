@@ -516,9 +516,36 @@ func _show_company_panel() -> void:
     EventBus.build_tool_changed.emit("")
     _clear_dynamic_content()
     _inspector_title.text = "Company"
-    _inspector_body.text = "Trust %d   Hype debt %d — unresolved hype converts to trust loss over time." % [
+    _inspector_body.text = "Trust %d   Hype debt %d — unresolved hype converts to trust loss over time.\n%s regulatory pressure: %d/100" % [
         int(round(GameState.public_trust)), int(round(GameState.hype_debt)),
+        RegulatorManager.regulator_name(), int(round(GameState.regulatory_pressure)),
     ]
+
+    if RegulatorManager.has_active_audit():
+        var audit_header: Label = Label.new()
+        audit_header.text = "Audit in progress — due day %d" % int(GameState.active_audit.get("deadline_day", 0))
+        _dynamic_content.add_child(audit_header)
+        for req: Variant in (GameState.active_audit.get("requirements", []) as Array):
+            var req_label: Label = Label.new()
+            req_label.text = "- %s" % String(req)
+            req_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+            _dynamic_content.add_child(req_label)
+        var audit_row: HBoxContainer = HBoxContainer.new()
+        var full_btn: Button = Button.new()
+        full_btn.text = "Full disclosure"
+        full_btn.pressed.connect(func() -> void:
+            RegulatorManager.resolve_audit("full_disclosure")
+            _show_company_panel()
+        )
+        audit_row.add_child(full_btn)
+        var minimal_btn: Button = Button.new()
+        minimal_btn.text = "Minimal disclosure"
+        minimal_btn.pressed.connect(func() -> void:
+            RegulatorManager.resolve_audit("minimal_disclosure")
+            _show_company_panel()
+        )
+        audit_row.add_child(minimal_btn)
+        _dynamic_content.add_child(audit_row)
 
     var actions_header: Label = Label.new()
     actions_header.text = "Communication actions"

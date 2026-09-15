@@ -70,7 +70,7 @@
     "body": "A pre-release safety warning that existed before launch has reached a reporter.",
     "choices": [
       { "id": "get_ahead", "label": "Get ahead of the story", "effects": { "cash": -1000, "public_trust": 2, "safety_debt": -2 } },
-      { "id": "no_comment", "label": "No comment", "effects": { "public_trust": -6 } },
+      { "id": "no_comment", "label": "No comment", "effects": { "public_trust": -6, "regulatory_pressure": 5 } },
       { "id": "internal_review", "label": "Announce an internal review", "effects": { "cash": -500, "public_trust": -1, "safety_debt": -1 } }
     ]
   },
@@ -170,9 +170,9 @@
     "title": "Data Leak Scare",
     "body": "A researcher claims deployed logs briefly exposed user prompts. Newsrooms are calling.",
     "choices": [
-      { "id": "full_disclosure", "label": "Full public disclosure and remediation", "effects": { "cash": -5000, "public_trust": 4, "safety_debt": -4 } },
-      { "id": "targeted_fix", "label": "Fix quietly, notify affected users only", "effects": { "cash": -1500, "public_trust": -3 } },
-      { "id": "stonewall", "label": "Say nothing until forced to", "effects": { "public_trust": -10, "safety_debt": 3 } }
+      { "id": "full_disclosure", "label": "Full public disclosure and remediation", "effects": { "cash": -5000, "public_trust": 4, "safety_debt": -4, "regulatory_pressure": -5 } },
+      { "id": "targeted_fix", "label": "Fix quietly, notify affected users only", "effects": { "cash": -1500, "public_trust": -3, "regulatory_pressure": 5 } },
+      { "id": "stonewall", "label": "Say nothing until forced to", "effects": { "public_trust": -10, "safety_debt": 3, "regulatory_pressure": 15 } }
     ]
   },
   {
@@ -229,9 +229,9 @@
     "title": "Regulator Inquiry",
     "body": "A regulator has sent an informal inquiry about your safety documentation practices.",
     "choices": [
-      { "id": "cooperate_fully", "label": "Cooperate fully, over-share", "effects": { "cash": -1000, "safety_debt": -3, "public_trust": 1 } },
-      { "id": "minimal_response", "label": "Provide the minimum required", "effects": { "cash": -200 } },
-      { "id": "hire_counsel", "label": "Hire outside counsel", "effects": { "cash": -2500, "safety_debt": -1 } }
+      { "id": "cooperate_fully", "label": "Cooperate fully, over-share", "effects": { "cash": -1000, "safety_debt": -3, "public_trust": 1, "regulatory_pressure": -8 } },
+      { "id": "minimal_response", "label": "Provide the minimum required", "effects": { "cash": -200, "regulatory_pressure": 3 } },
+      { "id": "hire_counsel", "label": "Hire outside counsel", "effects": { "cash": -2500, "safety_debt": -1, "regulatory_pressure": -4 } }
     ]
   },
   {
@@ -244,9 +244,9 @@
     "title": "Media Exposé",
     "body": "A long-form investigative piece questioning your safety culture is about to publish.",
     "choices": [
-      { "id": "preempt", "label": "Publish a preemptive safety report", "effects": { "cash": -3000, "public_trust": 5, "safety_debt": -3 } },
-      { "id": "no_response", "label": "Decline to comment", "effects": { "public_trust": -8 } },
-      { "id": "counter_pr", "label": "Run a counter-PR campaign", "effects": { "cash": -2000, "public_trust": -2 } }
+      { "id": "preempt", "label": "Publish a preemptive safety report", "effects": { "cash": -3000, "public_trust": 5, "safety_debt": -3, "regulatory_pressure": -5 } },
+      { "id": "no_response", "label": "Decline to comment", "effects": { "public_trust": -8, "regulatory_pressure": 6 } },
+      { "id": "counter_pr", "label": "Run a counter-PR campaign", "effects": { "cash": -2000, "public_trust": -2, "regulatory_pressure": 3 } }
     ]
   },
   {

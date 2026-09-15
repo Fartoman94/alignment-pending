@@ -1466,4 +1466,103 @@ func _initialize() -> void:
     state.pending_incidents = []
     state.incident_history = []
 
+    # P21: regulator track MVP — pressure meter, audit event, disclosure
+    # choice; pressure responds to scale/incidents; audit has clear
+    # requirements.
+    var regulator_mgr: Node = get_root().get_node("RegulatorManager")
+    var reqs: Array = regulator_mgr.requirements()
+    if reqs.is_empty():
+        push_error("The regulator's audit must have clear (non-empty) requirements")
+        quit(1)
+        return
+    print("SMOKE_OK: the regulator has a name and a clear, non-empty requirements checklist")
+
+    state.regulatory_pressure = 0.0
+    state.active_audit = {}
+    state.audit_history = []
+    state.safety_debt = 20.0
+    state.deployments = []
+    state.models = [{
+        "id": "reg_model_1", "name": "Reg Model", "generation": 1, "architecture_tier": "medium",
+        "capability": 70.0, "reliability": 70.0, "safety_confidence": 70.0, "cost_efficiency": 70.0,
+        "latency_efficiency": 70.0, "autonomy": 30.0, "interpretability": 60.0, "latent_risk": 30.0,
+        "evals_completed": 0, "training_cost": 20000.0, "created_at": 1,
+    }]
+    var release_mgr4: Node = get_root().get_node("ReleaseManager")
+    release_mgr4.deploy("reg_model_1")
+    for i in 3:
+        bus2.day_advanced.emit(state.calendar_day)
+    if state.regulatory_pressure <= 0.0:
+        push_error("Regulatory pressure should respond to deployed scale and safety debt")
+        quit(1)
+        return
+    print("SMOKE_OK: regulatory pressure responds to deployed scale and safety debt")
+
+    var pressure_before_incident: float = state.regulatory_pressure
+    incident_mgr._trigger("data_leak_scare")
+    var pending: Dictionary = state.pending_incidents[state.pending_incidents.size() - 1]
+    incident_mgr.resolve(String(pending.get("id", "")), "stonewall")
+    if not (state.regulatory_pressure > pressure_before_incident):
+        push_error("An incident choice with a regulatory_pressure effect should move the pressure meter")
+        quit(1)
+        return
+    print("SMOKE_OK: regulatory pressure responds to incident choices")
+
+    state.regulatory_pressure = 49.0
+    state.active_audit = {}
+    state.safety_debt = 100.0  # guarantees this tick's debt_pressure alone crosses the threshold
+    bus2.day_advanced.emit(state.calendar_day)
+    if state.active_audit.is_empty():
+        push_error("Crossing the audit threshold should trigger an audit")
+        quit(1)
+        return
+    var audit_reqs: Array = state.active_audit.get("requirements", [])
+    if audit_reqs.is_empty() or audit_reqs != reqs:
+        push_error("The triggered audit should carry the regulator's clear requirements checklist")
+        quit(1)
+        return
+    print("SMOKE_OK: crossing the pressure threshold triggers an audit with clear requirements")
+
+    var pressure_before_resolve: float = state.regulatory_pressure
+    var cash_before_resolve2: float = state.cash
+    var resolve_audit_err: Error = regulator_mgr.resolve_audit("full_disclosure")
+    if resolve_audit_err != OK or not state.active_audit.is_empty():
+        push_error("resolve_audit() should clear the active audit (error %s)" % resolve_audit_err)
+        quit(1)
+        return
+    if not (state.regulatory_pressure < pressure_before_resolve):
+        push_error("Full disclosure should meaningfully reduce regulatory pressure")
+        quit(1)
+        return
+    if not (state.cash < cash_before_resolve2):
+        push_error("Full disclosure should cost cash")
+        quit(1)
+        return
+    if state.audit_history.is_empty() or String((state.audit_history[state.audit_history.size() - 1] as Dictionary).get("disclosure_choice", "")) != "full_disclosure":
+        push_error("Resolving an audit should record the disclosure choice in history")
+        quit(1)
+        return
+    print("SMOKE_OK: resolving an audit applies the disclosure choice's effects and records history")
+
+    var save_err_reg: Error = save_mgr.save_manual(0)
+    var pressure_before_reload: float = state.regulatory_pressure
+    state.regulatory_pressure = 0.0
+    state.audit_history = []
+    var load_err_reg: Error = save_mgr.load_manual(0)
+    if save_err_reg != OK or load_err_reg != OK or not is_equal_approx(state.regulatory_pressure, pressure_before_reload) or state.audit_history.is_empty():
+        push_error("Regulatory pressure and audit history did not survive save/load (save error %s, load error %s)" % [save_err_reg, load_err_reg])
+        quit(1)
+        return
+    print("SMOKE_OK: regulatory pressure and audit history persist across save/load")
+
+    state.models = []
+    state.deployments = []
+    state.regulatory_pressure = 0.0
+    state.active_audit = {}
+    state.audit_history = []
+    state.pending_incidents = []
+    state.incident_history = []
+    state.incident_cooldowns = {}
+    state.safety_debt = 17.0
+
     quit(0)

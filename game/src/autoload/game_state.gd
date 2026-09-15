@@ -108,6 +108,16 @@ var communication_history: Array = []
 var rival: Dictionary = {}
 ## Each entry: {generation, day, doctrine}. Kept in sync by RivalManager.
 var rival_launch_history: Array = []
+## 0-100 meter, responds to deployed scale and safety_debt (and incident
+## choices that carry a "regulatory_pressure" effect). Kept in sync by
+## RegulatorManager.
+var regulatory_pressure: float = 0.0
+## {id, triggered_day, deadline_day, requirements: Array[String]}, or {}
+## when no audit is active. Kept in sync by RegulatorManager.
+var active_audit: Dictionary = {}
+## Each entry: {id, triggered_day, resolved_day, disclosure_choice,
+## effects_applied}.
+var audit_history: Array = []
 
 func toggle_pause() -> void:
     paused = not paused
@@ -172,6 +182,9 @@ func reset_to_defaults() -> void:
     communication_history = []
     rival = {}
     rival_launch_history = []
+    regulatory_pressure = 0.0
+    active_audit = {}
+    audit_history = []
 
 ## Campaign state payload only. The save format version lives one layer up,
 ## in SaveManager's envelope, so it isn't duplicated here.
@@ -219,6 +232,9 @@ func to_dict() -> Dictionary:
         "communication_history": communication_history,
         "rival": rival,
         "rival_launch_history": rival_launch_history,
+        "regulatory_pressure": regulatory_pressure,
+        "active_audit": active_audit,
+        "audit_history": audit_history,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -280,3 +296,8 @@ func from_dict(data: Dictionary) -> void:
     rival = loaded_rival if loaded_rival is Dictionary else {}
     var loaded_rival_history: Variant = data.get("rival_launch_history", [])
     rival_launch_history = loaded_rival_history if loaded_rival_history is Array else []
+    regulatory_pressure = float(data.get("regulatory_pressure", regulatory_pressure))
+    var loaded_active_audit: Variant = data.get("active_audit", {})
+    active_audit = loaded_active_audit if loaded_active_audit is Dictionary else {}
+    var loaded_audit_history: Variant = data.get("audit_history", [])
+    audit_history = loaded_audit_history if loaded_audit_history is Array else []

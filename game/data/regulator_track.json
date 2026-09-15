@@ -1,0 +1,13 @@
+{
+  "id": "central_ai_authority",
+  "name": "Central AI Compliance Authority",
+  "audit_threshold": 50,
+  "audit_deadline_days": 14,
+  "requirements": [
+    "Submit safety evaluation records",
+    "Disclose all incidents from the past 90 days",
+    "Provide staffing and compute documentation"
+  ],
+  "full_disclosure": { "cash": -4000, "regulatory_pressure": -30, "safety_debt": -5, "public_trust": 2 },
+  "minimal_disclosure": { "cash": -500, "regulatory_pressure": -10, "public_trust": -3 }
+}

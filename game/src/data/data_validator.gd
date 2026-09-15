@@ -18,13 +18,13 @@ const EVENT_MIN_CHOICES: int = 2
 const EVENT_MAX_CHOICES: int = 4
 const EVENT_REQUIRED_FIELDS: Array[String] = ["id", "category", "severity", "weight", "cooldown_days", "prerequisites", "title", "body", "choices"]
 const EVENT_CHOICE_REQUIRED_FIELDS: Array[String] = ["id", "label", "effects"]
-const EVENT_EFFECT_KEYS: Array[String] = ["cash", "public_trust", "safety_debt"]
+const EVENT_EFFECT_KEYS: Array[String] = ["cash", "public_trust", "safety_debt", "regulatory_pressure"]
 # IncidentManager's generic min_<metric>/max_<metric> prerequisite vocabulary.
 const EVENT_CONDITION_METRICS: Array[String] = [
     "safety_debt", "public_trust", "cash", "deployed_models_count",
     "staff_count", "models_count", "calendar_day", "compute_used_ratio",
     "total_user_scale", "total_incident_exposure",
-    "rival_generation", "rival_pressure",
+    "rival_generation", "rival_pressure", "regulatory_pressure",
 ]
 
 const BUILDABLE_REQUIRED_FIELDS: Array[String] = ["id", "name", "category", "footprint", "cost", "refund_ratio"]
@@ -52,6 +52,8 @@ const COMMUNICATION_ACTION_REQUIRED_FIELDS: Array[String] = ["id", "name", "cost
 const COMMUNICATION_MAX_TRUST_DELTA: float = 10.0
 
 const RIVAL_DOCTRINE_REQUIRED_FIELDS: Array[String] = ["id", "name", "research_pace_multiplier", "market_pressure_multiplier"]
+
+const REGULATOR_REQUIRED_FIELDS: Array[String] = ["id", "name", "audit_threshold", "audit_deadline_days", "requirements", "full_disclosure", "minimal_disclosure"]
 
 ## One validation problem: which file, which record, and why.
 class Issue:
@@ -82,6 +84,7 @@ static func validate_all() -> Array[Issue]:
     issues.append_array(validate_user_segment_file("res://data/user_segments.json"))
     issues.append_array(validate_communication_action_file("res://data/communication_actions.json"))
     issues.append_array(validate_rival_doctrine_file("res://data/rival_doctrines.json"))
+    issues.append_array(validate_regulator_file("res://data/regulator_track.json"))
     return issues
 
 static func validate_event_file(path: String) -> Array[Issue]:
@@ -848,6 +851,68 @@ static func _validate_rival_doctrine_record(path: String, record: Variant, index
 
     if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
         issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))
+
+    return issues
+
+## The regulator config is a single object (one fictional regulator for
+## the MVP), not an array of records like the other catalogs.
+static func validate_regulator_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Dictionary):
+        issues.append(Issue.new(path, "", "root must be a JSON object (a single regulator)"))
+        return issues
+
+    var entry: Dictionary = parsed
+    for field: String in REGULATOR_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, "", "missing required field '%s'" % field))
+
+    if entry.has("id") and (not (entry["id"] is String) or String(entry["id"]).is_empty()):
+        issues.append(Issue.new(path, "", "'id' must be a non-empty string"))
+    if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
+        issues.append(Issue.new(path, "", "'name' must be a non-empty string"))
+
+    if entry.has("audit_threshold"):
+        var threshold: Variant = entry.get("audit_threshold")
+        if not (threshold is int or threshold is float) or float(threshold) < 0.0 or float(threshold) > 100.0:
+            issues.append(Issue.new(path, "", "'audit_threshold' must be a number in [0, 100]"))
+
+    if entry.has("audit_deadline_days") and not _is_whole_number_at_least(entry.get("audit_deadline_days"), 1):
+        issues.append(Issue.new(path, "", "'audit_deadline_days' must be a whole number >= 1"))
+
+    if entry.has("requirements"):
+        var requirements: Variant = entry.get("requirements")
+        if not (requirements is Array) or (requirements as Array).is_empty():
+            issues.append(Issue.new(path, "", "'requirements' must be a non-empty array — an audit needs clear requirements"))
+        else:
+            for req: Variant in (requirements as Array):
+                if not (req is String) or String(req).is_empty():
+                    issues.append(Issue.new(path, "", "each requirement must be a non-empty string"))
+                    break
+
+    for disclosure_field: String in ["full_disclosure", "minimal_disclosure"]:
+        if entry.has(disclosure_field):
+            var effects: Variant = entry.get(disclosure_field)
+            if not (effects is Dictionary):
+                issues.append(Issue.new(path, "", "'%s' must be an object of effects" % disclosure_field))
+            else:
+                for effect_key: String in (effects as Dictionary):
+                    if not EVENT_EFFECT_KEYS.has(effect_key):
+                        issues.append(Issue.new(path, "", "'%s' has unknown effect key '%s' (expected one of %s)" % [disclosure_field, effect_key, EVENT_EFFECT_KEYS]))
+                    var effect_value: Variant = (effects as Dictionary)[effect_key]
+                    if not (effect_value is int or effect_value is float):
+                        issues.append(Issue.new(path, "", "'%s' effect '%s' value must be numeric" % [disclosure_field, effect_key]))
 
     return issues
 

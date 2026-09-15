@@ -159,3 +159,5 @@ func _apply_effects(effects: Dictionary) -> void:
         GameState.public_trust = clampf(GameState.public_trust + float(effects["public_trust"]), 0.0, 100.0)
     if effects.has("safety_debt"):
         GameState.safety_debt = maxf(0.0, GameState.safety_debt + float(effects["safety_debt"]))
+    if effects.has("regulatory_pressure"):
+        GameState.regulatory_pressure = clampf(GameState.regulatory_pressure + float(effects["regulatory_pressure"]), 0.0, 100.0)
