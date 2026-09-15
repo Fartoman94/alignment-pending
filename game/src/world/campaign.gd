@@ -22,7 +22,8 @@ func _ensure_input_actions() -> void:
         "pan_down": KEY_S,
         "rotate_left": KEY_Q,
         "rotate_right": KEY_E,
-        "toggle_pause": KEY_SPACE
+        "toggle_pause": KEY_SPACE,
+        "return_to_menu": KEY_ESCAPE
     }
     for action: String in bindings:
         if not InputMap.has_action(action):
@@ -35,6 +36,9 @@ func _ensure_input_actions() -> void:
 func _process(delta: float) -> void:
     if Input.is_action_just_pressed("toggle_pause"):
         GameState.toggle_pause()
+    if Input.is_action_just_pressed("return_to_menu") and not SceneRouter.is_busy():
+        await SceneRouter.go_to("res://scenes/main_menu.tscn")
+        return
     if Input.is_action_just_pressed("rotate_left"):
         yaw_target += deg_to_rad(90.0)
     if Input.is_action_just_pressed("rotate_right"):
@@ -117,7 +121,7 @@ func _build_hud() -> void:
     var layer := CanvasLayer.new(); add_child(layer)
     var panel := ColorRect.new(); panel.color=Color(0.04,0.055,0.075,.92); panel.set_anchors_preset(Control.PRESET_TOP_WIDE); panel.offset_bottom=68; layer.add_child(panel)
     hud_label=Label.new(); hud_label.position=Vector2(22,20); hud_label.add_theme_font_size_override("font_size",20); panel.add_child(hud_label)
-    var help:=Label.new(); help.text="WASD pan   Q/E rotate   wheel zoom   Space pause"; help.position=Vector2(22,680); help.add_theme_font_size_override("font_size",16); layer.add_child(help)
+    var help:=Label.new(); help.text="WASD pan   Q/E rotate   wheel zoom   Space pause   Esc menu"; help.position=Vector2(22,680); help.add_theme_font_size_override("font_size",16); layer.add_child(help)
 
 func _refresh_hud() -> void:
     if hud_label == null: return
