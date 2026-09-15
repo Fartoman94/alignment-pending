@@ -1,0 +1,41 @@
+[
+  {
+    "id": "confidently_incorrect",
+    "category": "reliability",
+    "severity": 2,
+    "min_scale": 20,
+    "title": "Confidently Incorrect",
+    "body": "Support reports a burst of highly confident wrong answers.",
+    "choices": [
+      "hotfix",
+      "limit_rollout",
+      "public_note"
+    ]
+  },
+  {
+    "id": "board_says_ship",
+    "category": "governance",
+    "severity": 1,
+    "min_scale": 0,
+    "title": "The Board Says Ship",
+    "body": "A rival launch moves your board meeting forward by three days.",
+    "choices": [
+      "ship",
+      "delay",
+      "limited_beta"
+    ]
+  },
+  {
+    "id": "cooling_optimization",
+    "category": "infrastructure",
+    "severity": 2,
+    "min_scale": 30,
+    "title": "Cooling, Optimized",
+    "body": "A cost-cutting cooling configuration is technically inside the vendor envelope. Barely.",
+    "choices": [
+      "restore_margin",
+      "accept_risk",
+      "audit"
+    ]
+  }
+]

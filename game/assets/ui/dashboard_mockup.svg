@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+<rect width="1920" height="1080" fill="#171b22"/>
+<rect x="0" y="0" width="1920" height="82" fill="#0f1319"/>
+<text x="28" y="52" font-family="sans-serif" font-size="28" fill="#f3f4f6">ALIGNMENT PENDING // OFFICE</text>
+<g font-family="sans-serif" font-size="22" fill="#d5d9df">
+<text x="520" y="50">$ 184,200</text><text x="720" y="50">COMPUTE 68%</text><text x="960" y="50">POWER 51%</text><text x="1170" y="50">TRUST 43</text><text x="1370" y="50">SAFETY DEBT 17</text>
+</g>
+<rect x="24" y="108" width="1420" height="820" rx="14" fill="#222833"/>
+<polygon points="260,720 760,480 1260,720 760,960" fill="#343d4a"/>
+<polygon points="540,690 720,600 900,690 720,780" fill="#566171"/>
+<rect x="560" y="620" width="90" height="50" fill="#7b61ff"/><rect x="790" y="620" width="90" height="50" fill="#2ed3c6"/>
+<circle cx="610" cy="580" r="24" fill="#f6c85f"/><circle cx="840" cy="580" r="24" fill="#ef8354"/>
+<rect x="1470" y="108" width="426" height="820" rx="14" fill="#20262f"/>
+<text x="1500" y="160" font-family="sans-serif" font-size="28" fill="#f3f4f6">MODEL // AP-03</text>
+<text x="1500" y="215" font-family="sans-serif" font-size="20" fill="#a9b0ba">Capability</text><rect x="1500" y="235" width="330" height="16" fill="#39414c"/><rect x="1500" y="235" width="274" height="16" fill="#7b61ff"/>
+<text x="1500" y="300" font-family="sans-serif" font-size="20" fill="#a9b0ba">Safety confidence</text><rect x="1500" y="320" width="330" height="16" fill="#39414c"/><rect x="1500" y="320" width="201" height="16" fill="#2ed3c6"/>
+<rect x="1500" y="390" width="160" height="54" rx="8" fill="#303946"/><text x="1540" y="425" font-family="sans-serif" font-size="19" fill="#f3f4f6">DELAY</text>
+<rect x="1680" y="390" width="160" height="54" rx="8" fill="#ef8354"/><text x="1723" y="425" font-family="sans-serif" font-size="19" fill="#11151b">SHIP</text>
+<rect x="0" y="954" width="1920" height="126" fill="#0f1319"/>
+<g font-family="sans-serif" font-size="21" fill="#d5d9df"><text x="80" y="1025">BUILD</text><text x="270" y="1025">STAFF</text><text x="455" y="1025">RESEARCH</text><text x="690" y="1025">MODELS</text><text x="900" y="1025">DEPLOY</text><text x="1100" y="1025">COMPANY</text><text x="1330" y="1025">WORLD</text></g>
+</svg>

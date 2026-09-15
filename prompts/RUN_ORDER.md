@@ -1,0 +1,52 @@
+# Prompt run order
+
+Run exactly one prompt at a time. Do not skip quality gates.
+
+- [ ] `phase_00_foundation/P00_repository_audit_and_baseline.md` — Repository audit and baseline
+- [ ] `phase_00_foundation/P01_scene_router_and_boot_flow.md` — Scene router and boot flow
+- [ ] `phase_00_foundation/P02_settings_and_accessibility_shell.md` — Settings and accessibility shell
+- [ ] `phase_00_foundation/P03_camera_production_pass.md` — Camera production pass
+- [ ] `phase_00_foundation/P04_hud_shell_and_inspector.md` — HUD shell and inspector
+- [ ] `phase_00_foundation/P05_save_system_v1.md` — Save system v1
+- [ ] `phase_00_foundation/P06_data_validation_framework.md` — Data validation framework
+- [ ] `phase_01_vertical_slice/P07_simulation_clock_and_seeded_rng.md` — Simulation clock and seeded RNG
+- [ ] `phase_01_vertical_slice/P08_build_grid_and_placement.md` — Build grid and placement
+- [ ] `phase_01_vertical_slice/P09_navigation_and_staff_movement.md` — Navigation and staff movement
+- [ ] `phase_01_vertical_slice/P10_staff_model_and_hiring.md` — Staff model and hiring
+- [ ] `phase_01_vertical_slice/P11_task_assignment_and_workstations.md` — Task assignment and workstations
+- [ ] `phase_01_vertical_slice/P12_compute,_power_and_heat.md` — Compute, power and heat
+- [ ] `phase_01_vertical_slice/P13_research_tree_mvp.md` — Research tree MVP
+- [ ] `phase_01_vertical_slice/P14_model_training_pipeline.md` — Model training pipeline
+- [ ] `phase_01_vertical_slice/P15_evaluation_system.md` — Evaluation system
+- [ ] `phase_01_vertical_slice/P16_release_and_rollout.md` — Release and rollout
+- [ ] `phase_01_vertical_slice/P17_users,_pricing_and_revenue.md` — Users, pricing and revenue
+- [ ] `phase_01_vertical_slice/P18_incident_engine_mvp.md` — Incident engine MVP
+- [ ] `phase_01_vertical_slice/P19_trust_and_communication.md` — Trust and communication
+- [ ] `phase_01_vertical_slice/P20_first_rival_company.md` — First rival company
+- [ ] `phase_01_vertical_slice/P21_regulator_track_mvp.md` — Regulator track MVP
+- [ ] `phase_01_vertical_slice/P22_vertical_slice_ending.md` — Vertical slice ending
+- [ ] `phase_02_core_sim/P23_economy_production_balance.md` — Economy production balance
+- [ ] `phase_02_core_sim/P24_staff_depth.md` — Staff depth
+- [ ] `phase_02_core_sim/P25_board_and_funding_rounds.md` — Board and funding rounds
+- [ ] `phase_02_core_sim/P26_full_competitor_simulation.md` — Full competitor simulation
+- [ ] `phase_02_core_sim/P27_legal_exposure_system.md` — Legal exposure system
+- [ ] `phase_02_core_sim/P28_autonomous_agents.md` — Autonomous agents
+- [ ] `phase_02_core_sim/P29_automation_and_workforce.md` — Automation and workforce
+- [ ] `phase_02_core_sim/P30_datacenter_progression.md` — Datacenter progression
+- [ ] `phase_02_core_sim/P31_world_state_simulation.md` — World-state simulation
+- [ ] `phase_02_core_sim/P32_deployment_plans_and_subscriptions.md` — Deployment plans and subscriptions
+- [ ] `phase_03_content/P33_news_and_social_feed.md` — News and social feed
+- [ ] `phase_03_content/P34_incident_content_expansion.md` — Incident content expansion
+- [ ] `phase_03_content/P35_research_tree_expansion.md` — Research tree expansion
+- [ ] `phase_03_content/P36_campaign_acts_and_pacing.md` — Campaign acts and pacing
+- [ ] `phase_03_content/P37_endings_and_epilogues.md` — Endings and epilogues
+- [ ] `phase_03_content/P38_tutorial_and_onboarding.md` — Tutorial and onboarding
+- [ ] `phase_04_polish/P39_art_production_tools.md` — Art production tools
+- [ ] `phase_04_polish/P40_character_visuals_and_animation.md` — Character visuals and animation
+- [ ] `phase_04_polish/P41_audio_system_and_adaptive_music.md` — Audio system and adaptive music
+- [ ] `phase_04_polish/P42_accessibility_completion.md` — Accessibility completion
+- [ ] `phase_04_polish/P43_controller_support.md` — Controller support
+- [ ] `phase_04_polish/P44_performance_and_stress_pass.md` — Performance and stress pass
+- [ ] `phase_05_shipping/P45_localization_architecture.md` — Localization architecture
+- [ ] `phase_05_shipping/P46_steam_integration_adapter.md` — Steam integration adapter
+- [ ] `phase_05_shipping/P47_release_candidate_quality_gate.md` — Release candidate quality gate

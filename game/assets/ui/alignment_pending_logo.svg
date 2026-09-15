@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="600" viewBox="0 0 1600 600">
+<rect width="1600" height="600" fill="#11151b"/>
+<path d="M145 150 L300 150 L260 230 L185 230 Z" fill="#7b61ff"/>
+<path d="M185 260 L260 260 L300 340 L145 340 Z" fill="#2ed3c6"/>
+<circle cx="225" cy="245" r="26" fill="#f6c85f"/>
+<text x="360" y="260" font-family="sans-serif" font-weight="700" font-size="120" fill="#f3f4f6" letter-spacing="5">ALIGNMENT</text>
+<text x="360" y="390" font-family="sans-serif" font-weight="300" font-size="104" fill="#a9b0ba" letter-spacing="16">PENDING</text>
+<rect x="360" y="430" width="840" height="8" fill="#2ed3c6"/>
+<text x="360" y="500" font-family="monospace" font-size="30" fill="#6e7783">BUILD // TRAIN // SHIP // EXPLAIN</text>
+</svg>
