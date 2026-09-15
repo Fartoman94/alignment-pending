@@ -34,7 +34,8 @@ func deploy(model_id: String) -> Error:
     GameState.next_deployment_id += 1
     GameState.deployments.append({
         "id": deployment_id, "model_id": model_id, "mode_id": "internal",
-        "rollout_stage": 0.0, "rate_limit": 1.0, "started_day": GameState.calendar_day,
+        "rollout_stage": 0.0, "rate_limit": 1.0, "price": RevenueManager.DEFAULT_PRICE,
+        "started_day": GameState.calendar_day,
     })
     _recompute_inference()
     EventBus.deployment_changed.emit(deployment_id)

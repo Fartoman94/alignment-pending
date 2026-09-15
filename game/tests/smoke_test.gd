@@ -1099,4 +1099,69 @@ func _initialize() -> void:
     state.deployments = []
     state.work_orders = []
 
+    # P17: users, pricing, revenue — cohort demand, price elasticity,
+    # inference cost. Revenue/cost traceable; no per-user simulation.
+    var revenue_mgr: Node = get_root().get_node("RevenueManager")
+    var segment_ids: Array = UserSegmentCatalog.ordered_ids()
+    if segment_ids.size() != 3:
+        push_error("UserSegmentCatalog should seed exactly 3 segments (hobbyist/developer/business), got %d" % segment_ids.size())
+        quit(1)
+        return
+    var share_sum: float = 0.0
+    for sid: String in segment_ids:
+        share_sum += float(UserSegmentCatalog.get_def(sid).get("share_of_market", 0.0))
+    if not is_equal_approx(share_sum, 1.0):
+        push_error("Segment share_of_market should sum to 1.0 (got %.3f)" % share_sum)
+        quit(1)
+        return
+    print("SMOKE_OK: 3 user segments seeded with shares summing to 1.0")
+
+    state.models = [{
+        "id": "revenue_model_1", "name": "Revenue Test Model", "generation": 1, "architecture_tier": "medium",
+        "capability": 70.0, "reliability": 70.0, "safety_confidence": 70.0, "cost_efficiency": 70.0,
+        "latency_efficiency": 70.0, "autonomy": 30.0, "interpretability": 60.0, "latent_risk": 30.0,
+        "evals_completed": 0, "training_cost": 20000.0, "created_at": 1,
+    }]
+    state.deployments = []
+    release_mgr.deploy("revenue_model_1")
+    var revenue_deployment_id: String = String(state.deployments[0].get("id", ""))
+    for i in 3:
+        bus2.day_advanced.emit(state.calendar_day)
+
+    revenue_mgr.set_price(revenue_deployment_id, 1.0)
+    var breakdown_cheap: Dictionary = revenue_mgr.compute_breakdown(state.deployments[0])
+    revenue_mgr.set_price(revenue_deployment_id, 7.5)
+    var breakdown_expensive: Dictionary = revenue_mgr.compute_breakdown(state.deployments[0])
+    if not (float(breakdown_cheap.get("total_users", 0.0)) > float(breakdown_expensive.get("total_users", 0.0))):
+        push_error("Raising price should reduce demand (price elasticity)")
+        quit(1)
+        return
+    print("SMOKE_OK: price elasticity — a higher price reduces cohort demand")
+
+    var revenue: float = float(breakdown_expensive.get("total_revenue", 0.0))
+    var cost: float = float(breakdown_expensive.get("total_cost", 0.0))
+    var net: float = float(breakdown_expensive.get("net", 0.0))
+    if not is_equal_approx(net, revenue - cost):
+        push_error("net should always equal total_revenue - total_cost (traceability)")
+        quit(1)
+        return
+    if not breakdown_expensive.has("segments") or (breakdown_expensive["segments"] as Dictionary).size() != 3:
+        push_error("compute_breakdown() should report a per-segment breakdown for all 3 segments")
+        quit(1)
+        return
+    print("SMOKE_OK: revenue and cost are individually traceable (net = revenue - cost, per-segment breakdown)")
+
+    revenue_mgr.set_price(revenue_deployment_id, 3.0)
+    var cash_before_tick: float = state.cash
+    var expected_net: float = revenue_mgr.total_daily_net()
+    bus2.day_advanced.emit(state.calendar_day)
+    if not is_equal_approx(state.cash, cash_before_tick + expected_net):
+        push_error("Daily revenue/cost net should be applied to cash on day_advanced")
+        quit(1)
+        return
+    print("SMOKE_OK: daily net revenue is applied to cash")
+
+    state.models = []
+    state.deployments = []
+
     quit(0)

@@ -405,6 +405,36 @@ func _add_deployment_controls(model_id: String) -> void:
     slider_row.add_child(slider)
     _dynamic_content.add_child(slider_row)
 
+    var price: float = float(deployment.get("price", RevenueManager.DEFAULT_PRICE))
+    var breakdown: Dictionary = RevenueManager.compute_breakdown(deployment)
+    var price_row: HBoxContainer = HBoxContainer.new()
+    var price_label: Label = Label.new()
+    price_label.text = "  Price $%.2f" % price
+    price_label.custom_minimum_size = Vector2(90, 0)
+    price_row.add_child(price_label)
+    var price_slider: HSlider = HSlider.new()
+    price_slider.min_value = 0.0
+    price_slider.max_value = 50.0
+    price_slider.step = 0.5
+    price_slider.value = price
+    price_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    price_slider.value_changed.connect(func(value: float) -> void:
+        RevenueManager.set_price(deployment_id, value)
+        _show_models_panel()
+    )
+    price_row.add_child(price_slider)
+    _dynamic_content.add_child(price_row)
+
+    var revenue_label: Label = Label.new()
+    revenue_label.text = "  ~%d users/day — revenue $%.0f, inference cost $%.0f, net $%.0f/day" % [
+        int(round(float(breakdown.get("total_users", 0.0)))),
+        float(breakdown.get("total_revenue", 0.0)),
+        float(breakdown.get("total_cost", 0.0)),
+        float(breakdown.get("net", 0.0)),
+    ]
+    revenue_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    _dynamic_content.add_child(revenue_label)
+
 func _show_staff_detail(staff_id: String) -> void:
     var member: Dictionary = StaffManager.find(staff_id)
     if member.is_empty():

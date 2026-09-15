@@ -1,0 +1,32 @@
+[
+  {
+    "id": "hobbyist",
+    "name": "Hobbyist",
+    "share_of_market": 0.5,
+    "max_price": 8.0,
+    "elasticity": 1.5,
+    "capability_weight": 0.3,
+    "reliability_weight": 0.3,
+    "safety_weight": 0.1
+  },
+  {
+    "id": "developer",
+    "name": "Developer",
+    "share_of_market": 0.35,
+    "max_price": 25.0,
+    "elasticity": 1.0,
+    "capability_weight": 0.6,
+    "reliability_weight": 0.5,
+    "safety_weight": 0.2
+  },
+  {
+    "id": "business",
+    "name": "Business",
+    "share_of_market": 0.15,
+    "max_price": 80.0,
+    "elasticity": 0.6,
+    "capability_weight": 0.5,
+    "reliability_weight": 0.7,
+    "safety_weight": 0.6
+  }
+]

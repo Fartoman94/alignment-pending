@@ -36,6 +36,9 @@ const MODEL_TIER_STAT_FIELDS: Array[String] = ["capability_base", "safety_base",
 
 const DEPLOYMENT_MODE_REQUIRED_FIELDS: Array[String] = ["id", "name", "base_user_scale", "exposure_multiplier", "rollout_days", "inference_compute_per_1k_users"]
 
+const USER_SEGMENT_REQUIRED_FIELDS: Array[String] = ["id", "name", "share_of_market", "max_price", "elasticity", "capability_weight", "reliability_weight", "safety_weight"]
+const USER_SEGMENT_WEIGHT_FIELDS: Array[String] = ["capability_weight", "reliability_weight", "safety_weight"]
+
 ## One validation problem: which file, which record, and why.
 class Issue:
     var source: String
@@ -62,6 +65,7 @@ static func validate_all() -> Array[Issue]:
     issues.append_array(validate_research_node_file("res://data/research_nodes.json"))
     issues.append_array(validate_model_tier_file("res://data/model_tiers.json"))
     issues.append_array(validate_deployment_mode_file("res://data/deployment_modes.json"))
+    issues.append_array(validate_user_segment_file("res://data/user_segments.json"))
     return issues
 
 static func validate_event_file(path: String) -> Array[Issue]:
@@ -570,6 +574,87 @@ static func _validate_deployment_mode_record(path: String, record: Variant, inde
         var inference: Variant = entry.get("inference_compute_per_1k_users")
         if not (inference is int or inference is float) or float(inference) < 0.0:
             issues.append(Issue.new(path, id_label, "'inference_compute_per_1k_users' must be a number >= 0"))
+
+    if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))
+
+    return issues
+
+static func validate_user_segment_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of user segment records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    var share_total: float = 0.0
+    for i in records.size():
+        issues.append_array(_validate_user_segment_record(path, records[i], i, seen_ids))
+        var record: Variant = records[i]
+        if record is Dictionary and (record as Dictionary).get("share_of_market") is float:
+            share_total += float((record as Dictionary)["share_of_market"])
+        elif record is Dictionary and (record as Dictionary).get("share_of_market") is int:
+            share_total += float((record as Dictionary)["share_of_market"])
+
+    if not records.is_empty() and not is_equal_approx(share_total, 1.0):
+        issues.append(Issue.new(path, "", "share_of_market across all segments should sum to 1.0 (got %.3f)" % share_total))
+
+    return issues
+
+static func _validate_user_segment_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "user segment record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in USER_SEGMENT_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+
+    if entry.has("share_of_market"):
+        var share: Variant = entry.get("share_of_market")
+        if not (share is int or share is float) or float(share) <= 0.0 or float(share) > 1.0:
+            issues.append(Issue.new(path, id_label, "'share_of_market' must be a number in (0, 1]"))
+
+    if entry.has("max_price"):
+        var max_price: Variant = entry.get("max_price")
+        if not (max_price is int or max_price is float) or float(max_price) <= 0.0:
+            issues.append(Issue.new(path, id_label, "'max_price' must be a number > 0"))
+
+    if entry.has("elasticity"):
+        var elasticity: Variant = entry.get("elasticity")
+        if not (elasticity is int or elasticity is float) or float(elasticity) <= 0.0:
+            issues.append(Issue.new(path, id_label, "'elasticity' must be a number > 0"))
+
+    for weight_field: String in USER_SEGMENT_WEIGHT_FIELDS:
+        if entry.has(weight_field):
+            var weight: Variant = entry.get(weight_field)
+            if not (weight is int or weight is float) or float(weight) < 0.0:
+                issues.append(Issue.new(path, id_label, "'%s' must be a number >= 0" % weight_field))
 
     if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
         issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))
