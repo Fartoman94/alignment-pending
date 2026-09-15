@@ -13,6 +13,8 @@ func _ready() -> void:
     _quit_button.pressed.connect(_on_quit_pressed)
 
 func _on_new_campaign_pressed() -> void:
+    GameState.reset_to_defaults()
+    SimClock.reset_rng_streams()
     await SceneRouter.go_to("res://scenes/campaign.tscn")
 
 func _on_continue_pressed() -> void:

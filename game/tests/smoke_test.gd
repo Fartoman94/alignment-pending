@@ -27,7 +27,7 @@ func _init() -> void:
     print("SMOKE_OK: boot/main_menu/campaign scenes resolve")
 
 func _initialize() -> void:
-    var expected_autoloads: Array[String] = ["EventBus", "GameState", "SaveManager", "SceneRouter", "SettingsManager"]
+    var expected_autoloads: Array[String] = ["EventBus", "GameState", "SaveManager", "SceneRouter", "SettingsManager", "SimClock"]
     for autoload_name: String in expected_autoloads:
         if not get_root().has_node(autoload_name):
             push_error("Missing expected autoload singleton: %s" % autoload_name)
@@ -197,5 +197,59 @@ func _initialize() -> void:
         quit(1)
         return
     print("SMOKE_OK: DataValidator catches duplicate ids, unknown categories, out-of-range severity, bad choices, and missing fields")
+
+    var sim: Node = get_root().get_node("SimClock")
+    var pool: Array = ["a", "b", "c", "d", "e"]
+
+    state.campaign_seed = 4242
+    sim.reset_rng_streams()
+    var sequence_a: Array = []
+    for i in 5:
+        sequence_a.append(sim.pick_from("events", pool))
+
+    state.campaign_seed = 4242
+    sim.reset_rng_streams()
+    var sequence_b: Array = []
+    for i in 5:
+        sequence_b.append(sim.pick_from("events", pool))
+
+    if sequence_a != sequence_b:
+        push_error("SimClock RNG stream is not deterministic for the same seed: %s vs %s" % [sequence_a, sequence_b])
+        quit(1)
+        return
+    print("SMOKE_OK: same seed + actions produces the same event-selection sequence")
+
+    # Fixed-tick calendar advance must be frame-rate independent: the same
+    # total elapsed time should land on the same calendar regardless of how
+    # many frames it was split across. Deliberately not a whole number of
+    # ticks, so float summation error across 370 tiny steps can't flip
+    # which side of an exact tick boundary the total lands on.
+    var total_seconds: float = 37.3
+    state.calendar_day = 1
+    state.calendar_hour = 9
+    state.calendar_minute = 0
+    state.simulation_speed = 1.0
+    state.paused = false
+    sim.active = true
+    sim._accumulator = 0.0
+    sim._process(total_seconds)
+    var day_a: int = state.calendar_day
+    var hour_a: int = state.calendar_hour
+    var minute_a: int = state.calendar_minute
+
+    state.calendar_day = 1
+    state.calendar_hour = 9
+    state.calendar_minute = 0
+    sim._accumulator = 0.0
+    var steps: int = 370
+    for i in steps:
+        sim._process(total_seconds / steps)
+
+    sim.active = false
+    if state.calendar_day != day_a or state.calendar_hour != hour_a or state.calendar_minute != minute_a:
+        push_error("SimClock tick advancement is not frame-rate independent (%d %02d:%02d vs %d %02d:%02d)" % [day_a, hour_a, minute_a, state.calendar_day, state.calendar_hour, state.calendar_minute])
+        quit(1)
+        return
+    print("SMOKE_OK: SimClock fixed-tick calendar advance is frame-rate independent")
 
     quit(0)

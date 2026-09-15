@@ -20,6 +20,8 @@ extends CanvasLayer
     $TopBar/Margin/HBox/TimeControls/Speed2Button,
     $TopBar/Margin/HBox/TimeControls/Speed3Button,
 ]
+# docs/technical/INPUT_CAMERA.md / P07 spec: pause/1x/2x/4x, not 1x/2x/3x.
+const SPEED_TIER_VALUES: Array[float] = [1.0, 2.0, 4.0]
 @onready var _inspector_title: Label = $RightPanel/Margin/VBox/Title
 @onready var _inspector_body: Label = $RightPanel/Margin/VBox/Body
 @onready var _section_buttons: Array[Button] = [
@@ -35,7 +37,7 @@ extends CanvasLayer
 func _ready() -> void:
     _pause_button.pressed.connect(_on_pause_pressed)
     for i in _speed_buttons.size():
-        _speed_buttons[i].pressed.connect(_on_speed_pressed.bind(i + 1))
+        _speed_buttons[i].pressed.connect(_on_speed_pressed.bind(i))
     for btn: Button in _section_buttons:
         btn.pressed.connect(_on_section_pressed.bind(btn.text))
     EventBus.selection_changed.connect(_on_selection_changed)
@@ -53,7 +55,7 @@ func _refresh_resource_strip() -> void:
     _power_label.text = "POWER %d%%" % int(roundf(GameState.power_used / GameState.power_capacity * 100.0))
     _trust_label.text = "TRUST %d" % int(roundf(GameState.public_trust))
     _safety_label.text = "SAFETY DEBT %d" % int(roundf(GameState.safety_debt))
-    _date_label.text = "DAY 1"  # TODO(P07): replace with the simulation clock's campaign date.
+    _date_label.text = SimClock.format_calendar()
     _pause_button.text = "Resume" if GameState.paused else "Pause"
 
 func _format_money(v: float) -> String:
@@ -65,14 +67,13 @@ func _on_pause_pressed() -> void:
 func _on_pause_changed(_paused: bool) -> void:
     _refresh_resource_strip()
 
-func _on_speed_pressed(tier: int) -> void:
-    GameState.simulation_speed = float(tier)
+func _on_speed_pressed(tier_index: int) -> void:
+    GameState.simulation_speed = SPEED_TIER_VALUES[tier_index]
     _sync_speed_buttons()
 
 func _sync_speed_buttons() -> void:
-    var active_tier: int = int(round(GameState.simulation_speed))
     for i in _speed_buttons.size():
-        _speed_buttons[i].button_pressed = (i + 1 == active_tier)
+        _speed_buttons[i].button_pressed = is_equal_approx(SPEED_TIER_VALUES[i], GameState.simulation_speed)
 
 func _on_section_pressed(section_name: String) -> void:
     _inspector_title.text = section_name

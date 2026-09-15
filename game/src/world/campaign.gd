@@ -13,6 +13,10 @@ func _ready() -> void:
     _build_camera()
     _build_hud()
     _build_autosave_timer()
+    SimClock.active = true
+
+func _exit_tree() -> void:
+    SimClock.active = false
 
 func _ensure_input_actions() -> void:
     var bindings: Dictionary = {

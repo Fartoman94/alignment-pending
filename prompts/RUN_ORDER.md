@@ -9,7 +9,7 @@ Run exactly one prompt at a time. Do not skip quality gates.
 - [x] `phase_00_foundation/P04_hud_shell_and_inspector.md` — HUD shell and inspector
 - [x] `phase_00_foundation/P05_save_system_v1.md` — Save system v1
 - [x] `phase_00_foundation/P06_data_validation_framework.md` — Data validation framework
-- [ ] `phase_01_vertical_slice/P07_simulation_clock_and_seeded_rng.md` — Simulation clock and seeded RNG
+- [x] `phase_01_vertical_slice/P07_simulation_clock_and_seeded_rng.md` — Simulation clock and seeded RNG
 - [ ] `phase_01_vertical_slice/P08_build_grid_and_placement.md` — Build grid and placement
 - [ ] `phase_01_vertical_slice/P09_navigation_and_staff_movement.md` — Navigation and staff movement
 - [ ] `phase_01_vertical_slice/P10_staff_model_and_hiring.md` — Staff model and hiring

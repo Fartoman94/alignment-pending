@@ -97,7 +97,7 @@ text = "2x"
 layout_mode = 2
 toggle_mode = true
 button_group = SubResource("SpeedGroup")
-text = "3x"
+text = "4x"
 
 [node name="BottomBar" type="Control" parent="."]
 layout_mode = 3
