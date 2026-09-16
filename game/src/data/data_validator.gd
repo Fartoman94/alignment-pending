@@ -5,6 +5,17 @@ extends RefCounted
 ## fields, invalid numeric ranges. Only validates fields the current data
 ## actually uses (see docs/technical/DATA_SCHEMA.md).
 
+## P47 release-candidate quality gate: a project-wide sweep for real
+## AI-company/product names across every data/*.json file (not just the
+## rival-name and credits checks earlier prompts already had), matched on
+## whole words so it doesn't false-positive on ordinary English words
+## that happen to contain one as a substring (e.g. "metadata" vs "meta").
+const REAL_WORLD_MARKS: Array[String] = [
+    "openai", "anthropic", "google", "deepmind", "meta", "microsoft", "xai",
+    "mistral", "cohere", "claude", "chatgpt", "gpt", "gemini", "llama",
+    "copilot", "grok", "bard", "palm", "nvidia", "amazon", "apple",
+]
+
 const EVENT_CATEGORIES: Array[String] = [
     "reliability", "security", "misuse", "hallucination", "privacy",
     "employee", "infrastructure", "legal", "media", "market",
@@ -2128,6 +2139,45 @@ static func _is_whole_number_at_least(value: Variant, minimum: int) -> bool:
 ## Returns true if the data is clean.
 static func run_startup_validation() -> bool:
     var issues: Array[Issue] = validate_all()
+    issues.append_array(scan_for_real_world_marks())
     for issue: Issue in issues:
         push_error("DataValidator: %s" % issue.format())
     return issues.is_empty()
+
+## Recursively scans every data/*.json file's string values (not just one
+## record type at a time, unlike the schema validators above) for a real
+## AI-company/product name. Whole-word matching only.
+static func scan_for_real_world_marks() -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var dir: DirAccess = DirAccess.open("res://data")
+    if dir == null:
+        issues.append(Issue.new("res://data", "", "could not open the data directory to scan for real-world marks"))
+        return issues
+    dir.list_dir_begin()
+    var file_name: String = dir.get_next()
+    while file_name != "":
+        if file_name.ends_with(".json"):
+            var path: String = "res://data/%s" % file_name
+            var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+            if file != null:
+                var parsed: Variant = JSON.parse_string(file.get_as_text())
+                file.close()
+                _scan_value_for_marks(path, "", parsed, issues)
+        file_name = dir.get_next()
+    dir.list_dir_end()
+    return issues
+
+static func _scan_value_for_marks(path: String, location: String, value: Variant, issues: Array[Issue]) -> void:
+    if value is String:
+        var lowered: String = String(value).to_lower()
+        for mark: String in REAL_WORLD_MARKS:
+            var re: RegEx = RegEx.new()
+            re.compile("\\b%s\\b" % mark)
+            if re.search(lowered) != null:
+                issues.append(Issue.new(path, location, "contains the real-world mark '%s' in player-facing content: \"%s\"" % [mark, value]))
+    elif value is Dictionary:
+        for key: Variant in value.keys():
+            _scan_value_for_marks(path, "%s.%s" % [location, String(key)] if not location.is_empty() else String(key), value[key], issues)
+    elif value is Array:
+        for i in value.size():
+            _scan_value_for_marks(path, "%s[%d]" % [location, i], value[i], issues)

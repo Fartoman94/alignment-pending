@@ -1,0 +1,23 @@
+# Known issues (release-candidate quality gate, P47)
+
+Compiled from the whole P00-P47 implementation pass. None of these are open P0/P1 defects (things that crash, corrupt saves, or block the core loop) — `tools/bootstrap.sh` runs the full automated suite (hundreds of assertions, one block per prompt) clean with zero failures as of this writing. These are scope boundaries and environment limitations, each already called out honestly in `docs/production/IMPLEMENTATION_STATUS.md`'s per-prompt row when it was first hit.
+
+## Scope boundaries (by design, not bugs)
+- **Content localization** (P45): the pseudo-locale architecture and its guaranteed +30% expansion are real and tested, but only code-authored UI strings (HUD, menus) route through it. The hundreds of JSON-authored content strings (incident titles/bodies, buildable/role names, tutorial text, etc. across ~40 prompts) are not yet wired — a separate, large content-translation task.
+- **4 of 10 draft achievements deferred** (P46): "Known Unknowns", "Read the Memo", "Five Nines-ish", "Capacity Planning" each need a tracking system this project doesn't have yet (an eval-warning ledger, causal incident-to-launch-decision linking, sustained-metric-over-time tracking). `docs/design/ACHIEVEMENTS_AND_META.md` itself notes the list is draft pending playtesting.
+- **Steam integration is entirely local-mock** (P46): `PlatformService`/`PlatformBackend` is a real, working adapter architecture, but the only backend shipped is `LocalMockPlatformBackend` (achievements/cloud saves as local files). No real Steamworks SDK is integrated — none is an approved third-party dependency for this project. A real backend implements the same interface later without touching any caller.
+- **150-agent stress scene has 16x CPU headroom, but "500 props" is unverified** (P44): no decorative prop-instancing system has been built by any prompt yet, so that specific `PERFORMANCE_BUDGET.md` stress target has no content to profile against.
+- **"Complete vertical slice without mouse" verified on representative flows, not exhaustively** (P43): camera control, build placement, and menu/HUD focus navigation are directly tested end-to-end. Every other panel (staff hire, research start, model deploy/evaluate, incident response, settings) is built from the same focus-navigable Button/Slider primitives Godot drives via `ui_accept`/`ui_up`/`ui_down`/etc., which should generalize, but each one was not individually walked end-to-end without a mouse.
+
+## Environment limitations hit during this pass
+- **A custom Godot `Translation` resource crashes this project's Godot 4.7.2 headless build at shutdown** (P47/45): reproduced down to a *plain*, un-subclassed `Translation.new()` alone, no project code involved. Localization was built without `TranslationServer` as a result (see `LocalizationManager`). Worth re-testing against a future Godot patch release.
+- **Binary export was never produced or tested** (P47): this development environment has no Godot export templates installed (`~/.local/share/godot/export_templates/4.7.2.stable/` is empty) and none were downloaded, per the project's own "no unapproved downloads" discipline for anything beyond the pinned engine itself. `docs/production/BUILD_INSTRUCTIONS.md` documents the steps a machine with templates installed would run; `export_presets.cfg` does not exist yet (never created in-editor).
+- **Only Linux (headless) has been tested** — "Crash-on-boot tested on clean Windows/Linux environments" in `docs/production/RELEASE_CHECKLIST.md` is only half-verified. Windows needs a real Windows environment.
+- **Real-hardware performance (GPU frame time, not just CPU logic cost) was never measured** (P44): the profiling in that pass measured simulation/UI CPU cost headlessly (no GPU rendering at all in `--headless`). "60 FPS at 1080p" from `PERFORMANCE_BUDGET.md` needs a real windowed run on representative hardware.
+
+## Human/business actions this pass could not do (not technical work)
+- Final title trademark clearance.
+- Steam content survey / AI-assisted-content disclosure filing (Steamworks admin panel — this project's own git history is transparent that it was built with AI assistance, which the human owner should disclose accurately per current platform rules).
+- Store capsules/icons, trailer, and screenshots — `docs/production/STEAM_STORE_AND_DEMO.md` has the plan; none of the actual creative assets have been produced.
+- System requirements measured on real hardware.
+- The final release checklist's sign-off itself (`docs/production/RELEASE_CHECKLIST.md`) — by design, that's a human owner decision, not something an automated gate can certify on its own.

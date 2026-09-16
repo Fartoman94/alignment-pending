@@ -4023,6 +4023,10 @@ func _initialize() -> void:
     # P46: Steam integration adapter — a local-mock-first platform-service
     # interface (never a real SDK; none is an approved dependency).
     var platform_svc: Node = get_root().get_node("PlatformService")
+    # The mock backend persists to a real user:// file across separate
+    # runs of this whole test — clear it first so "starts locked" isn't
+    # contaminated by achievements a PREVIOUS run already unlocked.
+    platform_svc._backend.clear_all()
 
     if not platform_svc.is_available():
         push_error("The mock backend should report itself as available")
@@ -4143,5 +4147,48 @@ func _initialize() -> void:
             quit(1)
             return
     print("SMOKE_OK: AchievementManager unlocks real achievements from real EventBus signals and tracked state")
+
+    # P47: release-candidate quality gate — content/provenance audit,
+    # zero-third-party-dependency check, and the final full-suite gate.
+    var p47_real_scan_issues: Array = DataValidator.scan_for_real_world_marks()
+    if not p47_real_scan_issues.is_empty():
+        push_error("Real content scan found %d real-world mark(s) — see stdout for details" % p47_real_scan_issues.size())
+        for p47_issue in p47_real_scan_issues:
+            push_error("  %s" % p47_issue.format())
+        quit(1)
+        return
+    print("SMOKE_OK: every data/*.json file is free of real-world AI-company/product marks")
+
+    # Prove the scanner itself actually detects a violation (not just
+    # that today's content happens to be clean) without touching any
+    # real data file.
+    var p47_synthetic_issues: Array[DataValidator.Issue] = []
+    DataValidator._scan_value_for_marks("res://data/fake.json", "", {"body": "Powered by ChatGPT and OpenAI."}, p47_synthetic_issues)
+    if p47_synthetic_issues.size() < 2:
+        push_error("The real-world-mark scanner should have flagged both 'ChatGPT' and 'OpenAI' in a synthetic sample")
+        quit(1)
+        return
+    DataValidator._scan_value_for_marks("res://data/fake.json", "", {"body": "This uses metadata and a metaphor."}, p47_synthetic_issues)
+    if p47_synthetic_issues.size() != 2:
+        push_error("The real-world-mark scanner should whole-word match, not flag 'meta' inside 'metadata'/'metaphor'")
+        quit(1)
+        return
+    print("SMOKE_OK: the real-world-mark scanner genuinely detects violations and avoids common-word false positives")
+
+    if DirAccess.dir_exists_absolute("res://addons"):
+        push_error("No third-party addons should be present (see CLAUDE.md's no-unapproved-dependency rule)")
+        quit(1)
+        return
+    if DirAccess.dir_exists_absolute("res://assets/audio") and DirAccess.open("res://assets/audio").get_files().size() > 0:
+        push_error("The orphaned placeholder .wav scaffold files should stay removed — P41's real audio system is fully procedural")
+        quit(1)
+        return
+    print("SMOKE_OK: no third-party addons and no orphaned placeholder audio files ship with the project")
+
+    if not DataValidator.run_startup_validation():
+        push_error("The full startup content/provenance validation gate should pass with zero issues")
+        quit(1)
+        return
+    print("SMOKE_OK: the full release-candidate content validation gate (schema + provenance) passes clean")
 
     quit(0)

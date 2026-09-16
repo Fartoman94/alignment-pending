@@ -11,7 +11,10 @@ else
   exit 2
 fi
 "$GODOT" --version
-python3 tools/generate_audio.py
+# P47: tools/generate_audio.py (offline placeholder .wav generation) is
+# superseded by the real, in-engine procedural audio system (P41's
+# AudioSynth) — nothing loads its output, so no longer run it here; see
+# docs/legal/ASSET_PROVENANCE.md.
 # Re-import + rescan global class_name scripts first: running the smoke
 # test script directly does not reliably refresh the class cache, so a
 # newly added `class_name` (e.g. CameraController, Hud) can resolve as
