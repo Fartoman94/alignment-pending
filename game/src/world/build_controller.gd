@@ -107,8 +107,35 @@ func _clear_ghost() -> void:
         _ghost = null
         _ghost_label = null
 
+## The actual placed building's visual (ghost preview always stays the
+## simple translucent procedural box below — a plain tinted silhouette is
+## clearer valid/invalid placement feedback than a detailed model would
+## be, so this is a deliberate scope boundary, not a shortcut). Loads the
+## buildable's real authored model (finalization-pack 3D asset pack) if
+## its data has one; otherwise falls back to the same procedural box
+## every buildable used before (e.g. safety_lab, which the pack has no
+## matching asset for).
+func _make_real_mesh(def: Dictionary) -> Node3D:
+    var model_path: String = String(def.get("model", ""))
+    if model_path.is_empty():
+        return _make_mesh(def, Color(1.0, 1.0, 1.0, 1.0))
+    var packed: PackedScene = load(model_path)
+    if packed == null:
+        push_error("BuildController: could not load buildable model '%s'" % model_path)
+        return _make_mesh(def, Color(1.0, 1.0, 1.0, 1.0))
+    var model: Node3D = packed.instantiate()
+    # Same Z-up-authored-in-local-space correction as StaffAgent's
+    # character models (see that script's docstring) — confirmed the
+    # same fix applies here by rendering and looking at the pixels
+    # again, not assumed just because it's the same asset pack.
+    model.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+    model.name = String(def.get("id", "Buildable")).capitalize()
+    return model
+
 ## Buildable geometry (P39: routed through ProceduralMeshFactory instead of
-## building BoxMesh/StandardMaterial3D inline).
+## building BoxMesh/StandardMaterial3D inline). Still used for the ghost
+## preview always, and as the fallback for any buildable with no real
+## model in _make_real_mesh().
 func _make_mesh(def: Dictionary, tint: Color) -> MeshInstance3D:
     var footprint: Dictionary = def.get("footprint", {"w": 1, "d": 1})
     var w: int = int(footprint.get("w", 1))
@@ -126,7 +153,7 @@ func _make_mesh(def: Dictionary, tint: Color) -> MeshInstance3D:
 
 ## Adds a dynamic navigation obstacle so staff path around a placed
 ## building without needing the static navmesh re-baked on every build/sell.
-func _add_obstacle(mesh: MeshInstance3D, def: Dictionary) -> void:
+func _add_obstacle(mesh: Node3D, def: Dictionary) -> void:
     var footprint: Dictionary = def.get("footprint", {"w": 1, "d": 1})
     var w: int = int(footprint.get("w", 1))
     var d: int = int(footprint.get("d", 1))
@@ -245,7 +272,7 @@ func try_place() -> Error:
     var building_id: String = "bldg_%d" % GameState.next_building_id
     GameState.next_building_id += 1
     grid.occupy(cells, building_id)
-    var mesh: MeshInstance3D = _make_mesh(def, Color(1.0, 1.0, 1.0, 1.0))
+    var mesh: Node3D = _make_real_mesh(def)
     mesh.position = grid.cell_to_world(cell)
     mesh.rotation.y = deg_to_rad(90.0) if rotated else 0.0
     add_child(mesh)
@@ -267,7 +294,7 @@ func try_sell(target_cell: Vector2i) -> Error:
     var refund: float = float(def.get("cost", 0.0)) * float(def.get("refund_ratio", 0.0))
     GameState.cash += refund
     grid.free_cells(entry["cells"])
-    (entry["mesh"] as MeshInstance3D).queue_free()
+    (entry["mesh"] as Node3D).queue_free()
     _placed.erase(building_id)
     _sync_game_state()
     return OK
@@ -335,7 +362,7 @@ func load_from_state(data: Array) -> void:
             continue
 
         grid.occupy(cells, building_id)
-        var mesh: MeshInstance3D = _make_mesh(def, Color(1.0, 1.0, 1.0, 1.0))
+        var mesh: Node3D = _make_real_mesh(def)
         mesh.position = grid.cell_to_world(cell)
         mesh.rotation.y = deg_to_rad(90.0) if was_rotated else 0.0
         add_child(mesh)

@@ -424,6 +424,13 @@ static func _validate_buildable_record(path: String, record: Variant, index: int
     if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
         issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))
 
+    if entry.has("model"):
+        var model_path: String = str(entry.get("model", ""))
+        if model_path.is_empty() or not model_path.ends_with(".glb"):
+            issues.append(Issue.new(path, id_label, "'model' must be a non-empty path to a .glb file"))
+        elif not FileAccess.file_exists(model_path):
+            issues.append(Issue.new(path, id_label, "'model' points to a file that doesn't exist: %s" % model_path))
+
     return issues
 
 static func validate_staff_role_file(path: String) -> Array[Issue]:
