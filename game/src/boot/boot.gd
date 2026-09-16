@@ -18,6 +18,6 @@ func _ready() -> void:
         return
 
     await get_tree().process_frame
-    var err: Error = await SceneRouter.go_to("res://scenes/main_menu.tscn")
+    var err: Error = await SceneRouter.go_to("res://scenes/intro.tscn")
     if err != OK:
-        push_error("Boot: failed to route to main menu (error %s)" % err)
+        push_error("Boot: failed to route to the intro sequence (error %s)" % err)

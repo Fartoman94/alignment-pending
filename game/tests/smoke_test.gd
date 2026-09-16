@@ -14,6 +14,7 @@ func _init() -> void:
 
     var scene_paths: Array[String] = [
         "res://scenes/boot.tscn",
+        "res://scenes/intro.tscn",
         "res://scenes/main_menu.tscn",
         "res://scenes/campaign.tscn",
         "res://scenes/settings.tscn",
@@ -83,6 +84,7 @@ func _initialize() -> void:
     # boot.tscn is excluded: its _ready() actively calls SceneRouter.go_to(),
     # which would swap this test's tree root out from under it.
     var instantiable_scenes: Array[String] = [
+        "res://scenes/intro.tscn",
         "res://scenes/main_menu.tscn",
         "res://scenes/settings.tscn",
         "res://scenes/campaign.tscn",
@@ -587,6 +589,30 @@ func _initialize() -> void:
     confirm_hud.queue_free()
     await process_frame
     print("SMOKE_OK: the Fire button's confirmation dialog is real — opens on click, does nothing until confirmed, actually fires on confirm, and cleans itself up")
+
+    # Real-visual-target pass: the staff detail "employee card" (avatar,
+    # skill bars, morale bar, flavor quote) built above the existing
+    # full-detail text block. Nothing else exercised this UI path before —
+    # a real ternary-typed-array bug here was only caught by an actual
+    # render, not this test suite; this closes that coverage gap.
+    state.staff = []
+    staff_mgr.refresh_candidates()
+    staff_mgr.hire(0)
+    var card_staff_id: String = String(state.staff[0].get("id", ""))
+    var card_hud_packed: PackedScene = load("res://scenes/hud.tscn")
+    var card_hud: Node = card_hud_packed.instantiate()
+    get_root().add_child(card_hud)
+    await process_frame
+    card_hud.call("_show_staff_detail", card_staff_id)
+    await process_frame
+    var card_dynamic_content: Node = card_hud.get_node("RightPanel/Margin/VBox/Scroll/DynamicContent")
+    if card_dynamic_content.get_child_count() < 4:
+        push_error("The staff detail card should build an avatar/skill-bars/morale-bar/quote block, found %d dynamic children" % card_dynamic_content.get_child_count())
+        quit(1)
+        return
+    card_hud.queue_free()
+    await process_frame
+    print("SMOKE_OK: the staff detail 'employee card' (avatar, skill bars, morale bar, flavor quote) builds without error over a real hired staff member")
 
     # P11: task assignment and workstations.
     var task_catalog: Dictionary = WorkTaskCatalog.load_all()
@@ -4122,7 +4148,7 @@ func _initialize() -> void:
     var p45_menu: Control = p45_menu_scene.instantiate()
     get_root().add_child(p45_menu)
     await process_frame
-    var p45_new_campaign_btn: Button = p45_menu.get_node("VBox/NewCampaignButton")
+    var p45_new_campaign_btn: Button = p45_menu.get_node("MenuBox/NewCampaignButton")
     var p45_original_text: String = "New Campaign"
     if p45_new_campaign_btn.text == p45_original_text:
         push_error("A real menu button's text should change under the pseudo-locale")

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 240">
+  <g transform="translate(20,20)">
+    <rect width="180" height="180" rx="28" fill="#0B1220"/>
+    <path d="M90 14 L24 86 L56 86 L90 49 L124 86 L156 86 Z" fill="#F3F6FA"/>
+    <path d="M24 86 L66 154 L90 116 L56 86 Z" fill="#1B3550"/>
+    <path d="M156 86 L124 86 L90 116 L114 154 Z" fill="#FFB545"/>
+    <path d="M66 154 L114 154 L90 116 Z" fill="#08111D"/>
+  </g>
+  <text x="230" y="98" font-family="Arial, Helvetica, sans-serif" font-size="68" font-weight="900" fill="#F3F6FA">ALIGNMENT</text>
+  <text x="230" y="175" font-family="Arial, Helvetica, sans-serif" font-size="68" font-weight="900" fill="#F3F6FA">PENDING</text>
+</svg>

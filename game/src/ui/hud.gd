@@ -17,6 +17,24 @@ extends CanvasLayer
 ## this interval instead of running unconditionally in _process().
 const RESOURCE_STRIP_REFRESH_INTERVAL_SEC: float = 0.15
 
+## Reference-visual brief's "employee card" (portrait + quote, not just a
+## stat block) — flavor only, deterministically picked per staff id (never
+## re-rolls on refresh), no gameplay effect. One or two lines per role
+## keeps this a small, maintainable pool rather than a new content system.
+const STAFF_QUOTES: Dictionary = {
+    "researcher": ["Someone has to ask the uncomfortable questions.", "The benchmark says 94%. I don't fully trust the benchmark."],
+    "engineer": ["It works on my machine. That's a start.", "Uptime is a feature, not an accident."],
+    "safety_analyst": ["Just because it's fast doesn't mean it's ready.", "I read the eval logs so you don't have nightmares."],
+    "legal_specialist": ["Everything is a liability until proven otherwise.", "Please stop calling it 'basically legal.'"],
+    "support_specialist": ["The users are always right, except when they're not.", "I've seen things in these support tickets."],
+    "data_ops": ["Garbage in, garbage out — so let's not do that.", "The pipeline is fine. Probably."],
+    "hr_partner": ["A happy team ships better models.", "Morale is a metric too, you know."],
+    "product_manager": ["Let's align on priorities before the next sprint.", "I turned three arguments into one roadmap today."],
+    "ceo": ["Small beginnings, big consequences.", "The board asked. I answered. Barely."],
+    "cfo": ["Revenue is a story. Cash flow is the truth.", "We can afford it. Once."],
+}
+const STAFF_QUOTE_FALLBACK: Array[String] = ["Just here to build something that works."]
+
 @onready var _cash_label: Label = $TopBar/Margin/VBox/ResourceRow/CashChip/CashLabel
 @onready var _compute_label: Label = $TopBar/Margin/VBox/ResourceRow/ComputeChip/ComputeLabel
 @onready var _power_label: Label = $TopBar/Margin/VBox/ResourceRow/PowerChip/PowerLabel
@@ -87,6 +105,7 @@ func _ready() -> void:
     ]
     for i in _resource_chips.size():
         _style_chip(_resource_chips[i], chip_colors[i])
+        _add_chip_icon(_resource_chips[i], chip_colors[i])
     _pause_button.pressed.connect(_on_pause_pressed)
     for i in _speed_buttons.size():
         _speed_buttons[i].pressed.connect(_on_speed_pressed.bind(i))
@@ -135,6 +154,34 @@ func _style_chip(chip: PanelContainer, accent: Color) -> void:
     style.content_margin_top = 4
     style.content_margin_bottom = 4
     chip.add_theme_stylebox_override("panel", style)
+
+## Reference-visual brief ("icon-based, not text-only" resource bar): a
+## small solid-color dot in the chip's own semantic color, inserted before
+## its Label. Built programmatically (wraps the chip's existing Label in a
+## new HBoxContainer) rather than hand-edited into hud.tscn's 6 near-
+## identical chip blocks — one function, no risk of the 6 copies drifting
+## out of sync. No external icon image/font glyph (avoids both an asset
+## dependency and Unicode-coverage risk in the default theme font) —
+## just a StyleBoxFlat circle, same "procedurally generated, not
+## imported" discipline as ProceduralMeshFactory's 3D geometry.
+func _add_chip_icon(chip: PanelContainer, accent: Color) -> void:
+    var label: Label = chip.get_child(0)
+    chip.remove_child(label)
+    var row: HBoxContainer = HBoxContainer.new()
+    row.add_theme_constant_override("separation", 6)
+    var dot: PanelContainer = PanelContainer.new()
+    dot.custom_minimum_size = Vector2(10, 10)
+    dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+    var dot_style: StyleBoxFlat = StyleBoxFlat.new()
+    dot_style.bg_color = accent
+    dot_style.corner_radius_top_left = 5
+    dot_style.corner_radius_top_right = 5
+    dot_style.corner_radius_bottom_left = 5
+    dot_style.corner_radius_bottom_right = 5
+    dot.add_theme_stylebox_override("panel", dot_style)
+    row.add_child(dot)
+    row.add_child(label)
+    chip.add_child(row)
 
 func _process(delta: float) -> void:
     _refresh_accumulator += delta
@@ -1193,6 +1240,122 @@ func _show_glossary_panel() -> void:
         term_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
         _dynamic_content.add_child(term_label)
 
+## Reference-visual brief's "employee card": a colored avatar, star-style
+## skill bars instead of raw numbers, a morale bar, and a flavor quote —
+## laid out above the existing full-detail text block (kept as-is; this is
+## additive presentation, not a replacement for the actual data).
+func _build_staff_card(member: Dictionary, staff_id: String) -> void:
+    var role_id: String = String(member.get("role", ""))
+    var role_def: Dictionary = StaffRoleCatalog.get_def(role_id)
+    var accent: Color = Color(String(role_def.get("visual_color", "888888")))
+    var name: String = String(member.get("generated_name", "?"))
+
+    var header: HBoxContainer = HBoxContainer.new()
+    header.add_theme_constant_override("separation", 12)
+    var avatar: PanelContainer = PanelContainer.new()
+    avatar.custom_minimum_size = Vector2(48, 48)
+    var avatar_style: StyleBoxFlat = StyleBoxFlat.new()
+    avatar_style.bg_color = accent
+    avatar_style.corner_radius_top_left = 24
+    avatar_style.corner_radius_top_right = 24
+    avatar_style.corner_radius_bottom_left = 24
+    avatar_style.corner_radius_bottom_right = 24
+    avatar.add_theme_stylebox_override("panel", avatar_style)
+    var initial: Label = Label.new()
+    initial.text = name.substr(0, 1).to_upper()
+    initial.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    initial.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+    initial.add_theme_font_size_override("font_size", 22)
+    initial.add_theme_color_override("font_color", Color(0.06, 0.07, 0.09))
+    avatar.add_child(initial)
+    header.add_child(avatar)
+    var name_box: VBoxContainer = VBoxContainer.new()
+    var name_label: Label = Label.new()
+    name_label.text = name
+    name_label.add_theme_font_size_override("font_size", 18)
+    name_box.add_child(name_label)
+    var role_label: Label = Label.new()
+    role_label.text = LocalizationManager.tr_text(String(role_def.get("name", role_id)))
+    role_label.add_theme_color_override("font_color", accent)
+    name_box.add_child(role_label)
+    header.add_child(name_box)
+    _dynamic_content.add_child(header)
+
+    var skills: Dictionary = member.get("skills", {})
+    var primary_skill: String = String(role_def.get("primary_skill", ""))
+    var shown_skills: Array[String] = []
+    if not primary_skill.is_empty():
+        shown_skills.append(primary_skill)
+    for key: String in skills:
+        if shown_skills.size() >= 3:
+            break
+        if not shown_skills.has(key):
+            shown_skills.append(key)
+    for key: String in shown_skills:
+        var row: HBoxContainer = HBoxContainer.new()
+        row.add_theme_constant_override("separation", 8)
+        var skill_label: Label = Label.new()
+        skill_label.text = LocalizationManager.tr_text(key.capitalize())
+        skill_label.custom_minimum_size = Vector2(90, 0)
+        row.add_child(skill_label)
+        var bar: ProgressBar = ProgressBar.new()
+        bar.min_value = 0
+        bar.max_value = 100
+        bar.value = float(skills.get(key, 0))
+        bar.show_percentage = false
+        bar.custom_minimum_size = Vector2(140, 14)
+        bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        var bar_fg: StyleBoxFlat = StyleBoxFlat.new()
+        bar_fg.bg_color = accent
+        bar_fg.corner_radius_top_left = 4
+        bar_fg.corner_radius_top_right = 4
+        bar_fg.corner_radius_bottom_left = 4
+        bar_fg.corner_radius_bottom_right = 4
+        bar.add_theme_stylebox_override("fill", bar_fg)
+        row.add_child(bar)
+        _dynamic_content.add_child(row)
+
+    var morale_row: HBoxContainer = HBoxContainer.new()
+    morale_row.add_theme_constant_override("separation", 8)
+    var morale_label: Label = Label.new()
+    morale_label.text = LocalizationManager.tr_text("Morale")
+    morale_label.custom_minimum_size = Vector2(90, 0)
+    morale_row.add_child(morale_label)
+    var morale_bar: ProgressBar = ProgressBar.new()
+    morale_bar.min_value = 0
+    morale_bar.max_value = 100
+    morale_bar.value = float(member.get("morale", 0))
+    morale_bar.show_percentage = false
+    morale_bar.custom_minimum_size = Vector2(140, 14)
+    morale_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    var morale_fg: StyleBoxFlat = StyleBoxFlat.new()
+    morale_fg.bg_color = CHIP_COLOR_TRUST
+    morale_fg.corner_radius_top_left = 4
+    morale_fg.corner_radius_top_right = 4
+    morale_fg.corner_radius_bottom_left = 4
+    morale_fg.corner_radius_bottom_right = 4
+    morale_bar.add_theme_stylebox_override("fill", morale_fg)
+    morale_row.add_child(morale_bar)
+    _dynamic_content.add_child(morale_row)
+
+    var quotes: Array = STAFF_QUOTES.get(role_id, STAFF_QUOTE_FALLBACK)
+    var quote: String = String(quotes[hash(staff_id) % quotes.size()])
+    var quote_panel: PanelContainer = PanelContainer.new()
+    var quote_style: StyleBoxFlat = StyleBoxFlat.new()
+    quote_style.bg_color = Color(accent.r, accent.g, accent.b, 0.12)
+    quote_style.border_width_left = 3
+    quote_style.border_color = accent
+    quote_style.content_margin_left = 10
+    quote_style.content_margin_right = 10
+    quote_style.content_margin_top = 6
+    quote_style.content_margin_bottom = 6
+    quote_panel.add_theme_stylebox_override("panel", quote_style)
+    var quote_label: Label = Label.new()
+    quote_label.text = "“%s”" % LocalizationManager.tr_text(quote)
+    quote_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    quote_panel.add_child(quote_label)
+    _dynamic_content.add_child(quote_panel)
+
 func _show_staff_detail(staff_id: String) -> void:
     var member: Dictionary = StaffManager.find(staff_id)
     if member.is_empty():
@@ -1200,6 +1363,7 @@ func _show_staff_detail(staff_id: String) -> void:
         return
     _clear_dynamic_content()
     _inspector_title.text = String(member.get("generated_name", "Staff"))
+    _build_staff_card(member, staff_id)
     var skills: Dictionary = member.get("skills", {})
     var skill_parts: PackedStringArray = []
     for key: String in skills:
