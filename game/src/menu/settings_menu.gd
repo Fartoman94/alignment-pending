@@ -10,6 +10,7 @@ const TABS_PATH: String = "Panel/Margin/VBox/Tabs"
 @onready var _ui_scale_value: Label = get_node(TABS_PATH + "/Display & Audio/UiScaleRow/UiScaleValue")
 @onready var _fullscreen_check: CheckButton = get_node(TABS_PATH + "/Display & Audio/FullscreenRow/FullscreenCheck")
 @onready var _resolution_option: OptionButton = get_node(TABS_PATH + "/Display & Audio/ResolutionRow/ResolutionOption")
+@onready var _locale_option: OptionButton = get_node(TABS_PATH + "/Display & Audio/LocaleRow/LocaleOption")
 @onready var _reduced_motion_check: CheckButton = get_node(TABS_PATH + "/Accessibility/ReducedMotionRow/ReducedMotionCheck")
 @onready var _camera_shake_check: CheckButton = get_node(TABS_PATH + "/Accessibility/CameraShakeRow/CameraShakeCheck")
 @onready var _high_contrast_check: CheckButton = get_node(TABS_PATH + "/Accessibility/HighContrastRow/HighContrastCheck")
@@ -28,7 +29,9 @@ var _capturing_action: String = ""
 var _keybind_buttons: Dictionary = {}
 
 func _ready() -> void:
+    LocalizationManager.localize_control_tree(self)
     _populate_resolution_options()
+    _populate_locale_options()
     _build_keybind_rows()
     _load_from_settings()
     _apply_button.pressed.connect(_on_apply_pressed)
@@ -42,6 +45,11 @@ func _populate_resolution_options() -> void:
     _resolution_option.clear()
     for res: Vector2i in SettingsManager.RESOLUTIONS:
         _resolution_option.add_item("%dx%d" % [res.x, res.y])
+
+func _populate_locale_options() -> void:
+    _locale_option.clear()
+    for locale_id: String in LocalizationManager.AVAILABLE_LOCALES:
+        _locale_option.add_item(LocalizationManager.locale_display_name(locale_id))
 
 ## One row per SettingsManager.REMAPPABLE_ACTIONS entry: a label, the
 ## current key's name, and a Rebind button that starts capture.
@@ -90,6 +98,7 @@ func _load_from_settings() -> void:
     _ui_scale_value.text = "%d%%" % int(round(SettingsManager.ui_scale * 100.0))
     _fullscreen_check.button_pressed = SettingsManager.fullscreen
     _resolution_option.selected = SettingsManager.resolution_index
+    _locale_option.selected = LocalizationManager.AVAILABLE_LOCALES.find(SettingsManager.locale)
     _reduced_motion_check.button_pressed = SettingsManager.reduced_motion
     _camera_shake_check.button_pressed = SettingsManager.camera_shake_enabled
     _high_contrast_check.button_pressed = SettingsManager.high_contrast
@@ -114,6 +123,7 @@ func _on_apply_pressed() -> void:
     SettingsManager.ui_scale = _ui_scale_slider.value
     SettingsManager.fullscreen = _fullscreen_check.button_pressed
     SettingsManager.resolution_index = _resolution_option.selected
+    SettingsManager.locale = LocalizationManager.AVAILABLE_LOCALES[_locale_option.selected]
     SettingsManager.reduced_motion = _reduced_motion_check.button_pressed
     SettingsManager.camera_shake_enabled = _camera_shake_check.button_pressed
     SettingsManager.high_contrast = _high_contrast_check.button_pressed
@@ -124,6 +134,7 @@ func _on_apply_pressed() -> void:
     var err: Error = SettingsManager.save_settings()
     if err != OK:
         push_warning("SettingsMenu: failed to save settings (error %s)" % err)
+    LocalizationManager.localize_control_tree(self)
 
 func _on_reset_pressed() -> void:
     SettingsManager.reset_to_defaults()

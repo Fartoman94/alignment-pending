@@ -6,6 +6,7 @@ extends Control
 @onready var _quit_button: Button = $VBox/QuitButton
 
 func _ready() -> void:
+    LocalizationManager.localize_control_tree(self)
     _continue_button.disabled = not SaveManager.has_any_save()
     _new_button.pressed.connect(_on_new_campaign_pressed)
     _continue_button.pressed.connect(_on_continue_pressed)

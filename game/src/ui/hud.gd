@@ -61,12 +61,22 @@ func _ready() -> void:
     for i in _speed_buttons.size():
         _speed_buttons[i].pressed.connect(_on_speed_pressed.bind(i))
     for btn: Button in _section_buttons:
+        # Captures the real English section id before localize_control_
+        # tree() below can change btn.text's display value — _on_section_
+        # pressed() branches on this string, so it must stay the source
+        # id, never the pseudo-localized display text.
         btn.pressed.connect(_on_section_pressed.bind(btn.text))
     EventBus.selection_changed.connect(_on_selection_changed)
     EventBus.simulation_pause_changed.connect(_on_pause_changed)
     EventBus.incident_raised.connect(_on_incident_raised)
     _tutorial_skip_step_button.pressed.connect(_on_tutorial_skip_step_pressed)
     _tutorial_skip_all_button.pressed.connect(_on_tutorial_skip_all_pressed)
+    # Localizes every still-static label (Title, section buttons, tutorial
+    # banner buttons) before any of the dynamic refreshes below run — those
+    # route their own text through tr_text() on every call instead, so
+    # running this first avoids double-localizing an already-translated
+    # dynamic string.
+    LocalizationManager.localize_control_tree(self)
     _sync_speed_buttons()
     _refresh_resource_strip()
     _refresh_inspector_empty()
@@ -102,30 +112,34 @@ func _on_tutorial_skip_all_pressed() -> void:
     TutorialManager.skip_all()
     _refresh_tutorial_banner()
 
+## P45: unlike the mostly-static Labels/Buttons LocalizationManager.
+## localize_control_tree() handles once in _ready(), these are rebuilt
+## from scratch every refresh, so each one routes through tr_text()
+## directly instead of being cacheable via metadata.
 func _refresh_resource_strip() -> void:
-    _cash_label.text = "$%s" % _format_money(GameState.cash)
+    _cash_label.text = LocalizationManager.tr_text("$%s" % _format_money(GameState.cash))
     var effective_compute: float = GameState.effective_compute_capacity()
-    _compute_label.text = "COMPUTE %d%%" % int(roundf(GameState.compute_used / GameState.compute_capacity * 100.0))
-    _compute_label.tooltip_text = "%.0f / %.0f used (%.0f effective after heat throttling). Training jobs need free headroom." % [
+    _compute_label.text = LocalizationManager.tr_text("COMPUTE %d%%" % int(roundf(GameState.compute_used / GameState.compute_capacity * 100.0)))
+    _compute_label.tooltip_text = LocalizationManager.tr_text("%.0f / %.0f used (%.0f effective after heat throttling). Training jobs need free headroom." % [
         GameState.compute_used, GameState.compute_capacity, effective_compute,
-    ]
-    _power_label.text = "POWER %d%%" % int(roundf(GameState.power_used / GameState.power_capacity * 100.0))
-    _power_label.tooltip_text = "%.0f / %.0f drawn. Building a rack that would exceed capacity is blocked." % [
+    ])
+    _power_label.text = LocalizationManager.tr_text("POWER %d%%" % int(roundf(GameState.power_used / GameState.power_capacity * 100.0)))
+    _power_label.tooltip_text = LocalizationManager.tr_text("%.0f / %.0f drawn. Building a rack that would exceed capacity is blocked." % [
         GameState.power_used, GameState.power_capacity,
-    ]
-    _trust_label.text = "TRUST %d" % int(roundf(GameState.public_trust))
-    _trust_label.tooltip_text = _format_trust_causes_tooltip()
-    _safety_label.text = "SAFETY DEBT %d" % int(roundf(GameState.safety_debt))
+    ])
+    _trust_label.text = LocalizationManager.tr_text("TRUST %d" % int(roundf(GameState.public_trust)))
+    _trust_label.tooltip_text = LocalizationManager.tr_text(_format_trust_causes_tooltip())
+    _safety_label.text = LocalizationManager.tr_text("SAFETY DEBT %d" % int(roundf(GameState.safety_debt)))
     var heat_pct: int = int(roundf(GameState.heat_load / GameState.heat_capacity * 100.0)) if GameState.heat_capacity > 0.0 else 0
-    _heat_label.text = "HEAT %d%%" % heat_pct
-    _heat_label.tooltip_text = "%.0f / %.0f. Over capacity throttles effective compute instead of corrupting state." % [
+    _heat_label.text = LocalizationManager.tr_text("HEAT %d%%" % heat_pct)
+    _heat_label.tooltip_text = LocalizationManager.tr_text("%.0f / %.0f. Over capacity throttles effective compute instead of corrupting state." % [
         GameState.heat_load, GameState.heat_capacity,
-    ]
-    _date_label.text = SimClock.format_calendar()
+    ])
+    _date_label.text = LocalizationManager.tr_text(SimClock.format_calendar())
     var act_def: Dictionary = CampaignActManager.act_def(GameState.current_act)
-    _act_label.text = "ACT %s: %s" % [_roman_numeral(GameState.current_act), String(act_def.get("name", "?")).to_upper()]
-    _act_label.tooltip_text = "%s\nNext: %s" % [String(act_def.get("tagline", "")), String(act_def.get("milestone_description", ""))]
-    _pause_button.text = "Resume" if GameState.paused else "Pause"
+    _act_label.text = LocalizationManager.tr_text("ACT %s: %s" % [_roman_numeral(GameState.current_act), String(act_def.get("name", "?")).to_upper()])
+    _act_label.tooltip_text = LocalizationManager.tr_text("%s\nNext: %s" % [String(act_def.get("tagline", "")), String(act_def.get("milestone_description", ""))])
+    _pause_button.text = LocalizationManager.tr_text("Resume" if GameState.paused else "Pause")
 
 func _roman_numeral(n: int) -> String:
     const NUMERALS: Array[String] = ["I", "II", "III", "IV", "V"]

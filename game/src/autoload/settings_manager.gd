@@ -70,6 +70,9 @@ var tooltip_delay_sec: float = DEFAULT_TOOLTIP_DELAY_SEC
 ## action -> Key (int). Only holds entries the player has actually
 ## rebound away from REMAPPABLE_ACTIONS' default.
 var keybinds: Dictionary = {}
+## P45: "en" (real game text) or "es" (generated pseudo-locale, QA only —
+## see LocalizationManager). Never derived from the OS locale.
+var locale: String = "en"
 
 var _high_contrast_theme: Theme
 
@@ -93,6 +96,7 @@ func reset_to_defaults() -> void:
     pause_on_incident = false
     tooltip_delay_sec = DEFAULT_TOOLTIP_DELAY_SEC
     keybinds = {}
+    locale = "en"
 
 func get_resolution() -> Vector2i:
     resolution_index = clampi(resolution_index, 0, RESOLUTIONS.size() - 1)
@@ -104,6 +108,18 @@ func apply_all() -> void:
     _apply_window_mode()
     _apply_accessibility()
     _apply_keybinds()
+    _apply_locale()
+
+## LocalizationManager owns TranslationServer directly; SettingsManager
+## only owns the persisted preference. Guarded because SettingsManager's
+## own _ready() (which calls apply_all()) can run before LocalizationManager
+## registers the pseudo-locale — LocalizationManager reads this same
+## `locale` value itself on its own _ready(), so that first boot call is
+## redundant, not missing.
+func _apply_locale() -> void:
+    var loc_mgr: Node = get_node_or_null("/root/LocalizationManager")
+    if loc_mgr != null:
+        loc_mgr.set_locale(locale)
 
 func _apply_audio() -> void:
     _set_bus_linear("Master", master_volume)
@@ -251,6 +267,7 @@ func save_settings() -> Error:
     cfg.set_value("accessibility", "colorblind_mode", colorblind_mode)
     cfg.set_value("accessibility", "pause_on_incident", pause_on_incident)
     cfg.set_value("accessibility", "tooltip_delay_sec", tooltip_delay_sec)
+    cfg.set_value("display", "locale", locale)
     for action: String in keybinds:
         cfg.set_value("keybinds", action, int(keybinds[action]))
     return cfg.save(SETTINGS_PATH)
@@ -283,6 +300,7 @@ func load_settings() -> Error:
     colorblind_mode = bool(cfg.get_value("accessibility", "colorblind_mode", colorblind_mode))
     pause_on_incident = bool(cfg.get_value("accessibility", "pause_on_incident", pause_on_incident))
     tooltip_delay_sec = clampf(float(cfg.get_value("accessibility", "tooltip_delay_sec", tooltip_delay_sec)), MIN_TOOLTIP_DELAY_SEC, MAX_TOOLTIP_DELAY_SEC)
+    locale = String(cfg.get_value("display", "locale", locale))
     keybinds = {}
     if cfg.has_section("keybinds"):
         for action: String in cfg.get_section_keys("keybinds"):

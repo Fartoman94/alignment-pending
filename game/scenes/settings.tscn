@@ -165,6 +165,18 @@ text = "Resolution"
 layout_mode = 2
 size_flags_horizontal = 3
 
+[node name="LocaleRow" type="HBoxContainer" parent="Panel/Margin/VBox/Tabs/Display & Audio"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Panel/Margin/VBox/Tabs/Display & Audio/LocaleRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Language"
+
+[node name="LocaleOption" type="OptionButton" parent="Panel/Margin/VBox/Tabs/Display & Audio/LocaleRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
 [node name="Accessibility" type="VBoxContainer" parent="Panel/Margin/VBox/Tabs"]
 layout_mode = 2
 theme_override_constants/separation = 8

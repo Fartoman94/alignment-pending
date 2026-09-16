@@ -3932,4 +3932,92 @@ func _initialize() -> void:
     await process_frame
     print("SMOKE_OK: Hud's resource strip refresh is throttled instead of rebuilding every frame")
 
+    # P45: localization architecture. A custom Translation subclass (the
+    # idiomatic Godot approach for a generated pseudo-locale) reproducibly
+    # crashes this project's Godot 4.7.2 headless build at engine
+    # shutdown — reproduced with a *plain*, un-subclassed Translation.new()
+    # alone, no project code involved. Built a self-contained tr_text()/
+    # localize_control_tree() layer instead of TranslationServer.
+    var loc_mgr: Node = get_root().get_node("LocalizationManager")
+
+    if not is_equal_approx(PseudoLocale.pseudo_localize("").length(), 0):
+        push_error("PseudoLocale.pseudo_localize('') should pass through empty strings unchanged")
+        quit(1)
+        return
+    var p45_source: String = "New Campaign"
+    var p45_pseudo: String = PseudoLocale.pseudo_localize(p45_source)
+    if float(p45_pseudo.length()) < float(p45_source.length()) * 1.3:
+        push_error("PseudoLocale.pseudo_localize() must expand the source by at least 30%% (got %d -> %d chars)" % [p45_source.length(), p45_pseudo.length()])
+        quit(1)
+        return
+    if PseudoLocale.pseudo_localize(p45_source) != p45_pseudo:
+        push_error("PseudoLocale.pseudo_localize() should be a deterministic pure function")
+        quit(1)
+        return
+    if not PseudoLocale.pseudo_localize("Cash: $500").contains("500"):
+        push_error("PseudoLocale.pseudo_localize() should leave digits (e.g. currency amounts) untouched")
+        quit(1)
+        return
+    print("SMOKE_OK: PseudoLocale.pseudo_localize() is a deterministic, >=30%%-expanding, digit-preserving transform")
+
+    if loc_mgr.tr_text("Settings") != "Settings":
+        push_error("tr_text() should be the identity function for the 'en' locale")
+        quit(1)
+        return
+    loc_mgr.set_locale("es")
+    if loc_mgr.tr_text("Settings") == "Settings":
+        push_error("tr_text() should pseudo-localize under the 'es' test locale")
+        quit(1)
+        return
+    loc_mgr.set_locale("not_a_real_locale")
+    if loc_mgr.current_locale() != "en":
+        push_error("set_locale() should fall back to the default locale for an unknown locale id")
+        quit(1)
+        return
+    print("SMOKE_OK: LocalizationManager.tr_text() switches locales and rejects unknown ones")
+
+    # Real, static UI text: instantiate the real main menu, switch to the
+    # pseudo-locale, localize its control tree, and confirm a real button
+    # both changes AND survives the +30% expansion, then confirm
+    # re-localizing back to 'en' exactly restores the authored source
+    # (proving the source-caching doesn't compound/lose the original).
+    loc_mgr.set_locale("es")
+    var p45_menu_scene: PackedScene = load("res://scenes/main_menu.tscn")
+    var p45_menu: Control = p45_menu_scene.instantiate()
+    get_root().add_child(p45_menu)
+    await process_frame
+    var p45_new_campaign_btn: Button = p45_menu.get_node("VBox/NewCampaignButton")
+    var p45_original_text: String = "New Campaign"
+    if p45_new_campaign_btn.text == p45_original_text:
+        push_error("A real menu button's text should change under the pseudo-locale")
+        quit(1)
+        return
+    if float(p45_new_campaign_btn.text.length()) < float(p45_original_text.length()) * 1.3:
+        push_error("A real menu button's localized text should survive/demonstrate the +30%% expansion budget")
+        quit(1)
+        return
+    loc_mgr.set_locale("en")
+    loc_mgr.localize_control_tree(p45_menu)
+    if p45_new_campaign_btn.text != p45_original_text:
+        push_error("Re-localizing back to 'en' should restore the exact authored source text (got '%s')" % p45_new_campaign_btn.text)
+        quit(1)
+        return
+    p45_menu.queue_free()
+    await process_frame
+    print("SMOKE_OK: a real menu's static UI text survives +30%% pseudo-locale expansion and round-trips back to 'en' exactly")
+
+    # Persistence: the chosen locale survives a real settings.cfg save/load.
+    settings_mgr.locale = "es"
+    settings_mgr.save_settings()
+    settings_mgr.load_settings()
+    if settings_mgr.locale != "es":
+        push_error("The chosen locale should persist across a settings.cfg save/load round trip")
+        quit(1)
+        return
+    settings_mgr.reset_to_defaults()
+    settings_mgr.apply_all()
+    settings_mgr.save_settings()
+    loc_mgr.set_locale("en")
+    print("SMOKE_OK: the chosen locale persists across a settings.cfg save/load round trip")
+
     quit(0)
