@@ -469,9 +469,17 @@ func _show_staff_panel() -> void:
         label2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
         label2.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
         row2.add_child(label2)
+        var candidate_index: int = i
+        var negotiate_btn: Button = Button.new()
+        negotiate_btn.text = LocalizationManager.tr_text("Negotiate")
+        negotiate_btn.disabled = bool(candidate.get("negotiated", false))
+        negotiate_btn.pressed.connect(func() -> void:
+            StaffManager.negotiate(candidate_index)
+            _show_staff_panel()
+        )
+        row2.add_child(negotiate_btn)
         var hire_btn: Button = Button.new()
         hire_btn.text = LocalizationManager.tr_text("Hire")
-        var candidate_index: int = i
         hire_btn.pressed.connect(func() -> void:
             StaffManager.hire(candidate_index)
             _show_staff_panel()

@@ -46,11 +46,24 @@ func _process(delta: float) -> void:
 func _on_credits_pressed() -> void:
     await SceneRouter.go_to("res://scenes/credits.tscn")
 
+## Visual-target pass ("Start in a garage with three employees and a
+## model called PotatoLM" — landing page contract): a fresh campaign now
+## really does start with 3 hired staff and a real, weak starting model,
+## not an empty roster. This seeding lives here, not in GameState.reset_
+## to_defaults() itself — that function stays a true blank slate, since
+## most of tools/bootstrap.sh's smoke tests call it directly and build
+## their own scenario on top of an empty staff/models array.
+const STARTING_STAFF_COUNT: int = 3
+
 func _on_new_campaign_pressed() -> void:
     GameState.reset_to_defaults()
     SimClock.reset_rng_streams()
     RivalManager.generate_rival()
     WorldStateManager.generate()
+    StaffManager.refresh_candidates()
+    for i in STARTING_STAFF_COUNT:
+        StaffManager.hire(0)
+    ModelManager.seed_starting_model()
     await SceneRouter.go_to("res://scenes/campaign.tscn")
 
 func _on_continue_pressed() -> void:

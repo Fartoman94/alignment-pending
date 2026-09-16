@@ -4598,6 +4598,93 @@ func _initialize() -> void:
     state.staff = []
     print("SMOKE_OK: legal_specialist/hr_partner/ceo all apply a real, bounded, mechanical effect — not just flavor text")
 
+    # Landing-page contract ("Manage compute, data, and safety debt"):
+    # data_ops is this project's real "data" role — headcount should
+    # measurably raise a newly finished model's capability.
+    state.staff = []
+    if not is_equal_approx(model_mgr.data_ops_capability_bonus(), 0.0):
+        push_error("data_ops_capability_bonus() should be 0 with no data_ops staff")
+        quit(1)
+        return
+    state.staff = [{"id": "data_ops_test", "role": "data_ops"}, {"id": "data_ops_test2", "role": "data_ops"}]
+    if model_mgr.data_ops_capability_bonus() <= 0.0:
+        push_error("A hired data_ops team should measurably raise data_ops_capability_bonus() above 0")
+        quit(1)
+        return
+    state.staff = []
+    print("SMOKE_OK: data_ops headcount is a real, bounded mechanical bonus to newly trained models' capability")
+
+    # Landing-page contract ("a salary you negotiate"): negotiate() either
+    # cuts the offered salary by a real, bounded amount and marks the
+    # candidate as negotiated (a second call is then a no-op, not a
+    # further cut), or the candidate walks and is backfilled — the pool
+    # size never changes either way.
+    staff_mgr.refresh_candidates()
+    var negotiate_pool_size_before: int = staff_mgr.candidates.size()
+    var negotiate_salary_before: float = float(staff_mgr.candidates[0].get("salary", 0.0))
+    var negotiate_id_before: String = String(staff_mgr.candidates[0].get("generated_name", ""))
+    var negotiate_result: bool = staff_mgr.negotiate(0)
+    if staff_mgr.candidates.size() != negotiate_pool_size_before:
+        push_error("negotiate() should never change the candidate pool's size (walked-away candidates are backfilled)")
+        quit(1)
+        return
+    if negotiate_result:
+        if String(staff_mgr.candidates[0].get("generated_name", "")) != negotiate_id_before:
+            push_error("A successful negotiate() should keep the same candidate in place, only adjust their salary")
+            quit(1)
+            return
+        if float(staff_mgr.candidates[0].get("salary", 0.0)) >= negotiate_salary_before:
+            push_error("A successful negotiate() should reduce the candidate's offered salary")
+            quit(1)
+            return
+        if not bool(staff_mgr.candidates[0].get("negotiated", false)):
+            push_error("A successfully negotiated candidate should be marked negotiated")
+            quit(1)
+            return
+        var salary_after_first: float = float(staff_mgr.candidates[0].get("salary", 0.0))
+        staff_mgr.negotiate(0)
+        if not is_equal_approx(float(staff_mgr.candidates[0].get("salary", 0.0)), salary_after_first):
+            push_error("Negotiating an already-negotiated candidate a second time should be a no-op, not a further cut")
+            quit(1)
+            return
+    elif String(staff_mgr.candidates[0].get("generated_name", "")) == negotiate_id_before:
+        push_error("A failed negotiate() should mean the candidate walked away, replaced by someone new")
+        quit(1)
+        return
+    print("SMOKE_OK: negotiate() either cuts a candidate's salary by a real bounded amount (once) or the candidate walks and is backfilled")
+
+    # Landing-page contract ("Start in a garage with three employees and a
+    # model called PotatoLM"). Not driven through the real main menu
+    # button here: MainMenu._on_new_campaign_pressed() awaits SceneRouter.
+    # go_to(), which calls change_scene_to_packed() — inside this
+    # SceneTree-script test harness that would swap out this very test's
+    # tree root out from under it (the same reason boot.tscn itself is
+    # excluded from direct instantiation above). Replicating the same
+    # sequence _on_new_campaign_pressed() runs (verified by reading it)
+    # up to but not including the scene transition.
+    state.reset_to_defaults()
+    sim.reset_rng_streams()
+    rival_mgr.generate_rival()
+    world_mgr.generate()
+    staff_mgr.refresh_candidates()
+    for i in 3:
+        staff_mgr.hire(0)
+    model_mgr.seed_starting_model()
+    if state.staff.size() != 3:
+        push_error("A new campaign should start with 3 real hired employees (got %d)" % state.staff.size())
+        quit(1)
+        return
+    var starting_model_found: bool = false
+    for m: Variant in state.models:
+        if String((m as Dictionary).get("name", "")) == "PotatoLM 0.01":
+            starting_model_found = true
+            break
+    if not starting_model_found:
+        push_error("A new campaign should start with a real model named 'PotatoLM 0.01' in GameState.models")
+        quit(1)
+        return
+    print("SMOKE_OK: starting a new campaign seeds 3 real hired employees and a real starting model, not an empty roster")
+
     if DirAccess.dir_exists_absolute("res://addons"):
         push_error("No third-party addons should be present (see CLAUDE.md's no-unapproved-dependency rule)")
         quit(1)

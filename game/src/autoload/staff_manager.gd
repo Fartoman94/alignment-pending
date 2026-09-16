@@ -12,6 +12,13 @@ const HR_PARTNER_POOL_BONUS_PER_HEAD: int = 1
 const HR_PARTNER_POOL_BONUS_MAX: int = 4
 const SKILL_KEYS: Array[String] = ["capability", "engineering", "operations", "safety", "communication"]
 
+## Visual-target pass ("a salary you negotiate" — landing page contract):
+## a real, one-shot, bounded negotiation per candidate before hiring. Most
+## of the time it works and trims the offer; sometimes the candidate walks.
+const NEGOTIATE_SUCCESS_CHANCE: float = 0.65
+const NEGOTIATE_SALARY_CUT_MIN: float = 0.05
+const NEGOTIATE_SALARY_CUT_MAX: float = 0.15
+
 # P24: staff depth (traits, relationships, promotion, burnout, resignation,
 # leadership/department bonuses). Every daily effect below is clamped, so no
 # single trait/relationship/leadership bonus can push a stat out of bounds
@@ -90,6 +97,28 @@ func refresh_candidates() -> void:
     candidates.clear()
     for i in effective_candidate_pool_size():
         candidates.append(_generate_candidate())
+
+## Attempts to talk candidates[candidate_index] down before hiring —
+## one shot per candidate (the "negotiated" flag stops it being re-rolled
+## down to nothing). On success, cuts the offered salary by a real,
+## visible amount. On failure, the candidate walks: removed from the
+## pool and immediately backfilled, same as a hire would. Returns true
+## if the candidate is still there afterward (success or already-
+## negotiated), false if they just walked (candidate_index is now stale).
+func negotiate(candidate_index: int) -> bool:
+    if candidate_index < 0 or candidate_index >= candidates.size():
+        return false
+    var candidate: Dictionary = candidates[candidate_index]
+    if bool(candidate.get("negotiated", false)):
+        return true
+    if SimClock.rng("staff_negotiate").randf() < NEGOTIATE_SUCCESS_CHANCE:
+        var cut: float = SimClock.rng("staff_negotiate").randf_range(NEGOTIATE_SALARY_CUT_MIN, NEGOTIATE_SALARY_CUT_MAX)
+        candidate["salary"] = snappedf(float(candidate.get("salary", 0.0)) * (1.0 - cut), 1.0)
+        candidate["negotiated"] = true
+        return true
+    candidates.remove_at(candidate_index)
+    candidates.append(_generate_candidate())
+    return false
 
 func _generate_candidate() -> Dictionary:
     var role_ids: Array = StaffRoleCatalog.load_all().keys()

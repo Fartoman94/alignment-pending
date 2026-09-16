@@ -8,8 +8,56 @@ extends Node
 
 const TRAINING_TASK_ID: String = "training_run"
 
+## Landing-page contract ("Manage compute, data, and safety debt at
+## once"): data_ops headcount is this project's real "data" role — a
+## stronger pipeline team measurably improves a newly finished model's
+## capability/reliability, the same bounded "role headcount -> modifier"
+## pattern already used for legal_specialist/hr_partner/ceo/cfo.
+const DATA_OPS_CAPABILITY_BONUS_PER_HEAD: float = 1.5
+const DATA_OPS_BONUS_MAX_HEADS: int = 5
+
 func _ready() -> void:
     EventBus.task_completed.connect(_on_task_completed)
+
+## Visual-target pass ("a model called PotatoLM" — landing page contract):
+## a real, weak starting model, present from day one — not a training
+## project the player has to finish first, a joke-tier placeholder they
+## already shipped before the game begins. Called once by MainMenu._on_
+## new_campaign_pressed(), never by GameState.reset_to_defaults() itself
+## (which stays a true blank slate — most tests build their own scenario
+## on top of it and never call this).
+const STARTING_MODEL_TIER_ID: String = "small"
+const STARTING_MODEL_STRENGTH_FRACTION: float = 0.4
+
+func seed_starting_model() -> void:
+    var tier: Dictionary = ModelTierCatalog.get_def(STARTING_MODEL_TIER_ID)
+    if tier.is_empty():
+        return
+    var model_id: String = "model_%d" % GameState.next_model_id
+    GameState.next_model_id += 1
+    var rng: RandomNumberGenerator = SimClock.rng("model_stats")
+    var capability_base: float = float(tier.get("capability_base", 50.0)) * STARTING_MODEL_STRENGTH_FRACTION + data_ops_capability_bonus()
+    var safety_base: float = float(tier.get("safety_base", 50.0))
+    var cost_efficiency_base: float = float(tier.get("cost_efficiency_base", 50.0)) * STARTING_MODEL_STRENGTH_FRACTION
+    var autonomy_base: float = float(tier.get("autonomy_base", 20.0)) * STARTING_MODEL_STRENGTH_FRACTION
+    GameState.models.append({
+        "id": model_id,
+        "name": "PotatoLM 0.01",
+        "generation": 1,
+        "architecture_tier": STARTING_MODEL_TIER_ID,
+        "capability": clampf(capability_base + rng.randf_range(-5.0, 5.0), 0.0, 100.0),
+        "reliability": clampf(capability_base * 0.85 + rng.randf_range(-5.0, 5.0), 0.0, 100.0),
+        "safety_confidence": clampf(safety_base + rng.randf_range(-10.0, 10.0), 0.0, 100.0),
+        "cost_efficiency": clampf(cost_efficiency_base + rng.randf_range(-5.0, 5.0), 0.0, 100.0),
+        "latency_efficiency": clampf(cost_efficiency_base * 0.9 + rng.randf_range(-5.0, 5.0), 0.0, 100.0),
+        "autonomy": clampf(autonomy_base + rng.randf_range(-5.0, 5.0), 0.0, 100.0),
+        "interpretability": clampf(safety_base * 0.75 + rng.randf_range(-8.0, 8.0), 0.0, 100.0),
+        "latent_risk": clampf(100.0 - safety_base + rng.randf_range(-10.0, 10.0), 0.0, 100.0),
+        "evals_completed": 0,
+        "training_cost": 0.0,
+        "created_at": GameState.calendar_day,
+    })
+    EventBus.model_created.emit(model_id)
 
 func can_start(tier_id: String) -> bool:
     var tier: Dictionary = ModelTierCatalog.get_def(tier_id)
@@ -97,6 +145,13 @@ func _on_task_completed(_staff_id: String, task_id: String, target_id: String) -
     if project_progress_fraction(target_id) >= 1.0:
         _finish_project(project)
 
+func data_ops_capability_bonus() -> float:
+    var head_count: int = 0
+    for member: Variant in GameState.staff:
+        if String((member as Dictionary).get("role", "")) == "data_ops":
+            head_count += 1
+    return float(mini(head_count, DATA_OPS_BONUS_MAX_HEADS)) * DATA_OPS_CAPABILITY_BONUS_PER_HEAD
+
 func _finish_project(project: Dictionary) -> void:
     var tier_id: String = String(project.get("tier_id", ""))
     var tier: Dictionary = ModelTierCatalog.get_def(tier_id)
@@ -105,7 +160,7 @@ func _finish_project(project: Dictionary) -> void:
     var model_id: String = "model_%d" % GameState.next_model_id
     GameState.next_model_id += 1
     var rng: RandomNumberGenerator = SimClock.rng("model_stats")
-    var capability_base: float = float(tier.get("capability_base", 50.0))
+    var capability_base: float = float(tier.get("capability_base", 50.0)) + data_ops_capability_bonus()
     var safety_base: float = float(tier.get("safety_base", 50.0))
     var cost_efficiency_base: float = float(tier.get("cost_efficiency_base", 50.0))
     var autonomy_base: float = float(tier.get("autonomy_base", 20.0))
