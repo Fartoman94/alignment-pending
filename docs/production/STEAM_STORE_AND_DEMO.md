@@ -55,6 +55,17 @@ Concrete, capturable *from the real running game* (no mockups) once export/QA al
 
 `tools/gpu_profile.gd`'s three scenarios (empty office / 20 staff / 150-staff stress) already prove 1, 3, and 9 are reachable and render correctly — a human capture session just needs to run the exported binary windowed and screenshot these moments instead of scripting them.
 
+### Real captures (finalization pass, after the 3D asset pack integration)
+
+4 of the 9 shots above now exist as real, rendered-in-engine screenshots — `docs/marketing/screenshots/`:
+
+- `office_overview.png` — a busy mid-game office: 24 real staff (real character models, not capsules), 6 desks, 6 server racks, ambient decoration.
+- `incident_crisis.png` — the incident detail panel open over that same office, real incident text and choice buttons.
+- `staff_roster.png` — the Staff panel's full roster list.
+- `research_tree.png` — the Research panel showing multiple branches and lock states.
+
+These are genuine screenshots from a real running campaign (scripted setup — placed buildings/staff/an incident via the manager APIs directly, then rendered — not hand-played, but 100% real engine rendering, not mockups), captured windowed against this environment's real GPU. They're **not final marketing crops**: HUD panel text runs past the 1280x720 capture's right edge, the tutorial banner overlaps the top bar, and the synthetic test staff have $0/day salaries (no `salary` field set in the scripted setup). Good enough to prove the visuals genuinely work end-to-end and to use as an honest starting reference; a human capture session at a higher resolution with a real playthrough (not scripted state) should still produce the final store-ready versions of these and the remaining 5 (evaluation/release decision, expanded campus/datacenter, endgame office at night, deployment panel, world/company panel).
+
 ## Trailer script (prompt 28), 60 seconds
 
 Footage-only rule (already in this doc, restated): every beat below must be real captured gameplay, nothing staged/faked, no feature shown that doesn't exist in the build.

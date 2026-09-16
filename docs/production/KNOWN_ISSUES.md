@@ -23,6 +23,6 @@ Compiled from the whole P00-P47 implementation pass. None of these are open P0/P
 ## Human/business actions this pass could not do (not technical work)
 - Final title trademark clearance.
 - Steam content survey / AI-assisted-content disclosure filing (Steamworks admin panel — this project's own git history is transparent that it was built with AI assistance, which the human owner should disclose accurately per current platform rules).
-- Store capsules/icons, trailer, and screenshots — `docs/production/STEAM_STORE_AND_DEMO.md` has the plan; none of the actual creative assets have been produced.
+- Store capsules/icons and trailer footage — `docs/production/STEAM_STORE_AND_DEMO.md` has the plan; none of the actual creative assets have been produced (no image-generation/video-editing tool in this environment). Screenshots are partially done: 4 of 9 are now real in-engine captures, see `docs/marketing/screenshots/` and that doc's "Real captures" section — not final marketing crops, but genuine renders of the real visuals.
 - System requirements measured on real hardware.
 - The final release checklist's sign-off itself (`docs/production/RELEASE_CHECKLIST.md`) — by design, that's a human owner decision, not something an automated gate can certify on its own.
