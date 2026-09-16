@@ -145,6 +145,43 @@ func _build_visual() -> void:
             world_node.remove_child(mesh_inst)
             _bob_group.add_child(mesh_inst)
     model.queue_free()
+    _apply_variation()
+
+## Finalization pack visual-rework brief: "que 10-20 NPCs en pantalla no
+## se sientan idénticos." The pack ships one fixed material per part per
+## character file — load()'d role-for-role, so (Godot caches resources by
+## path) every agent of the same role would otherwise share the exact
+## same Material *resource*, and mutating it would restyle every other
+## agent of that role too, not just this one. Duplicating onto a surface
+## override, never touching the shared Mesh resource, is what makes this
+## safe per-instance. Only skin tone and hair color vary — every other
+## part (torso/vest/labcoat and so on) keeps the role's own baked color
+## untouched, since that's the actual role-legibility signal the same
+## brief asks to preserve.
+const HAIR_COLORS: Array[Color] = [
+    Color("2b2320"), Color("4a3427"), Color("6b4a2f"), Color("b89968"),
+    Color("d9c9a3"), Color("8a8580"), Color("1c1c1e"), Color("7a3b2e"),
+]
+func _apply_variation() -> void:
+    var head: MeshInstance3D = _bob_group.get_node_or_null("head")
+    if head != null and head.mesh != null:
+        var skin_mat: StandardMaterial3D = head.mesh.surface_get_material(0)
+        if skin_mat != null:
+            var skin_variant: StandardMaterial3D = skin_mat.duplicate()
+            var skin_shift: float = rng.randf_range(-0.08, 0.08)
+            skin_variant.albedo_color = Color(
+                clampf(skin_variant.albedo_color.r + skin_shift, 0.0, 1.0),
+                clampf(skin_variant.albedo_color.g + skin_shift * 0.85, 0.0, 1.0),
+                clampf(skin_variant.albedo_color.b + skin_shift * 0.7, 0.0, 1.0),
+            )
+            head.set_surface_override_material(0, skin_variant)
+    var hair: MeshInstance3D = _bob_group.get_node_or_null("hair")
+    if hair != null and hair.mesh != null:
+        var hair_mat: StandardMaterial3D = hair.mesh.surface_get_material(0)
+        if hair_mat != null:
+            var hair_variant: StandardMaterial3D = hair_mat.duplicate()
+            hair_variant.albedo_color = HAIR_COLORS[rng.randi() % HAIR_COLORS.size()]
+            hair.set_surface_override_material(0, hair_variant)
 
 ## The joint a limb hangs/pivots from — the top of its local Z-range
 ## (hip for a leg, shoulder for an arm) — read directly from the mesh's
@@ -192,20 +229,34 @@ func _animate_visual(delta: float) -> void:
             _arm_l_pivot.rotation.x = -swing * 0.6
             _arm_r_pivot.rotation.x = swing * 0.6
             _bob_group.position.z = absf(sin(t)) * 0.03
+            _bob_group.rotation.y = 0.0
         State.WORKING:
+            # A seated-at-the-desk approximation (finalization pack's
+            # NPC-rework brief asks for a "sit" pose): the legs are a
+            # single rigid segment each (no knee joint to bend at), so a
+            # full anatomical sit isn't reachable without adding one —
+            # documented as such rather than faked. Rotating the whole
+            # leg forward from the hip plus lowering the torso reads as
+            # "seated" at isometric distance without claiming more
+            # fidelity than the geometry actually has.
             var focus_t: float = _visual_time * 10.0 + _visual_phase
             _arm_r_pivot.rotation.x = -0.9 + sin(focus_t) * 0.15
             _arm_l_pivot.rotation.x = -0.1
-            _leg_l_pivot.rotation.x = 0.0
-            _leg_r_pivot.rotation.x = 0.0
-            _bob_group.position.z = sin(focus_t * 0.5) * 0.01
+            _leg_l_pivot.rotation.x = 1.15
+            _leg_r_pivot.rotation.x = 1.15
+            _bob_group.position.z = -0.22 + sin(focus_t * 0.5) * 0.01
+            _bob_group.rotation.y = 0.0
         State.IDLE:
             var idle_t: float = _visual_time * 1.5 + _visual_phase
             _leg_l_pivot.rotation.x = 0.0
             _leg_r_pivot.rotation.x = 0.0
-            _arm_l_pivot.rotation.x = 0.0
-            _arm_r_pivot.rotation.x = 0.0
+            _arm_l_pivot.rotation.x = sin(idle_t * 0.7) * 0.04
+            _arm_r_pivot.rotation.x = sin(idle_t * 0.7 + 0.6) * 0.04
             _bob_group.position.z = sin(idle_t) * 0.015
+            # A slow head-turn/weight-shift ("mirar alrededor" from the
+            # brief) — a full body yaw is a much cheaper, still-readable
+            # stand-in for a separate neck joint the geometry doesn't have.
+            _bob_group.rotation.y = sin(idle_t * 0.35) * 0.12
 
 func _try_start_moving() -> void:
     for attempt in MAX_RESERVE_ATTEMPTS:
