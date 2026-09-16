@@ -34,10 +34,10 @@ jobs:
           set -euo pipefail
           mkdir -p ~/godot-editor
           cd ~/godot-editor
-          curl -fL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          curl -fL -O "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
           curl -fsSL -o SHA512-SUMS.txt "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/SHA512-SUMS.txt"
           grep "Godot_v${GODOT_VERSION}_linux.x86_64.zip" SHA512-SUMS.txt | sha512sum -c -
-          unzip -q godot.zip
+          unzip -q "Godot_v${GODOT_VERSION}_linux.x86_64.zip"
           mv "Godot_v${GODOT_VERSION}_linux.x86_64" godot4
           chmod +x godot4
 
@@ -67,10 +67,10 @@ jobs:
           set -euo pipefail
           mkdir -p ~/godot-editor
           cd ~/godot-editor
-          curl -fL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          curl -fL -O "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
           curl -fsSL -o SHA512-SUMS.txt "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/SHA512-SUMS.txt"
           grep "Godot_v${GODOT_VERSION}_linux.x86_64.zip" SHA512-SUMS.txt | sha512sum -c -
-          unzip -q godot.zip
+          unzip -q "Godot_v${GODOT_VERSION}_linux.x86_64.zip"
           mv "Godot_v${GODOT_VERSION}_linux.x86_64" godot4
           chmod +x godot4
 
@@ -87,10 +87,10 @@ jobs:
           set -euo pipefail
           mkdir -p ~/.local/share/godot/export_templates/${GODOT_VERSION}
           cd /tmp
-          curl -fL -o templates.tpz "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz"
+          curl -fL -O "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz"
           curl -fsSL -o SHA512-SUMS.txt "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/SHA512-SUMS.txt"
           grep "Godot_v${GODOT_VERSION}_export_templates.tpz" SHA512-SUMS.txt | sha512sum -c -
-          unzip -q templates.tpz
+          unzip -q "Godot_v${GODOT_VERSION}_export_templates.tpz"
           mv templates/* ~/.local/share/godot/export_templates/${GODOT_VERSION}/
 
       - name: Export, package, checksum
