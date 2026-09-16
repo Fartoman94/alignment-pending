@@ -428,7 +428,20 @@ static func _validate_buildable_record(path: String, record: Variant, index: int
         var model_path: String = str(entry.get("model", ""))
         if model_path.is_empty() or not model_path.ends_with(".glb"):
             issues.append(Issue.new(path, id_label, "'model' must be a non-empty path to a .glb file"))
-        elif not FileAccess.file_exists(model_path):
+        # ResourceLoader.exists(), not FileAccess.file_exists(): the latter
+        # is a raw filesystem check and reliably returns false for an
+        # imported binary resource (a .glb) inside a packaged export,
+        # where only the *imported* representation is packed, not the
+        # literal source file — caught by actually running the real
+        # exported binary and reading its boot log, not by
+        # tools/bootstrap.sh (headless-against-source, where the literal
+        # .glb genuinely exists on disk) or --qa-exported-smoke (which
+        # doesn't invoke DataValidator's full startup validation).
+        # FileAccess.file_exists() remains correct everywhere else in
+        # this file, which all check plain data/*.json files — those
+        # ship as raw, unimported files, so the same failure mode doesn't
+        # apply to them.
+        elif not ResourceLoader.exists(model_path):
             issues.append(Issue.new(path, id_label, "'model' points to a file that doesn't exist: %s" % model_path))
 
     return issues
@@ -503,7 +516,7 @@ static func _validate_staff_role_record(path: String, record: Variant, index: in
         var character_model: String = str(entry.get("character_model", ""))
         if character_model.is_empty() or not character_model.ends_with(".glb"):
             issues.append(Issue.new(path, id_label, "'character_model' must be a non-empty path to a .glb file"))
-        elif not FileAccess.file_exists(character_model):
+        elif not ResourceLoader.exists(character_model):
             issues.append(Issue.new(path, id_label, "'character_model' points to a file that doesn't exist: %s" % character_model))
 
     return issues

@@ -106,5 +106,22 @@ static func run(tree: SceneTree) -> bool:
         return false
     print("QA_EXPORTED_SMOKE_OK: manual save/load round-trips to the real user:// path in a packaged build")
 
+    # The exact gate a real bug slipped through before this check existed:
+    # DataValidator's character_model/model existence checks used
+    # FileAccess.file_exists() (a raw filesystem check, correct for the
+    # plain data/*.json files every other check here validates) against
+    # an *imported* binary resource path (a .glb) — reliably false in a
+    # packaged export, where only the imported representation is packed,
+    # not the literal source file (fixed: ResourceLoader.exists()
+    # instead). Neither tools/bootstrap.sh (runs against source, where
+    # the literal .glb genuinely exists) nor this file's own earlier
+    # checks above caught it — only actually running the real exported
+    # binary and reading its boot log did. This assertion is what would
+    # have caught it automatically.
+    if not DataValidator.run_startup_validation():
+        push_error("QA_EXPORTED_SMOKE: DataValidator.run_startup_validation() failed inside the packaged build")
+        return false
+    print("QA_EXPORTED_SMOKE_OK: DataValidator's full startup content validation passes inside the packaged build")
+
     print("QA_EXPORTED_SMOKE: all checks passed")
     return true
