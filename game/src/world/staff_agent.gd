@@ -13,6 +13,11 @@ const IDLE_MIN_SECONDS: float = 1.0
 const IDLE_MAX_SECONDS: float = 4.0
 const ARRIVE_DISTANCE: float = 0.3
 const MAX_RESERVE_ATTEMPTS: int = 6
+## How fast the character turns to face its movement direction, in
+## radians/second-equivalent lerp weight. Fast enough to feel responsive
+## over the office's short walk legs, slow enough not to snap instantly on
+## every avoidance-driven micro-adjustment.
+const TURN_SPEED: float = 10.0
 
 var bounds_min: Vector2 = Vector2(-7.0, -5.0)
 var bounds_max: Vector2 = Vector2(7.0, 5.0)
@@ -317,6 +322,16 @@ func _process_moving(delta: float) -> void:
     desired.y = 0.0
     if desired.length() > 0.001:
         desired = desired.normalized() * SPEED
+        # The character model's authored front faces local +Z at rotation.y
+        # == 0 (verified by rendering: the necktie is visible from +Z, the
+        # bare back from -Z) — nothing turned this to face the walk
+        # direction before, so every agent kept its spawn-time orientation
+        # while wandering in every direction, reading as walking sideways
+        # or backwards. Faced toward the path's next waypoint (the intent),
+        # not the post-avoidance velocity, so a momentary avoidance swerve
+        # doesn't snap the body to face sideways.
+        var target_yaw: float = atan2(desired.x, desired.z)
+        rotation.y = lerp_angle(rotation.y, target_yaw, clampf(TURN_SPEED * delta, 0.0, 1.0))
     if _nav_agent.avoidance_enabled:
         _nav_agent.set_velocity(desired)
     else:
