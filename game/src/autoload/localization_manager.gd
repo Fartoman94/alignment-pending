@@ -1,52 +1,103 @@
 extends Node
 
-## Localization architecture (P45): a self-contained tr()/pseudo-locale
-## layer, deliberately NOT built on Godot's TranslationServer/Translation
-## classes — a custom Translation subclass (the idiomatic Godot approach
-## for a generated pseudo-locale) reproducibly crashes this project's
-## Godot 4.7.2 headless build at shutdown, confirmed with a minimal
-## reproduction (a *plain*, un-subclassed `Translation.new()` alone
-## crashes on quit() in this environment, before any of this project's
-## code runs). See docs/production/IMPLEMENTATION_STATUS.md for the
-## reproduction and the decision to avoid the engine class entirely
-## rather than ship something the CI harness can't even run.
+## Localization architecture (P45, extended in the finalization pass):
+## a self-contained tr()/pseudo-locale layer, deliberately NOT built on
+## Godot's TranslationServer/Translation classes — a custom Translation
+## subclass (the idiomatic Godot approach) reproducibly crashes this
+## project's Godot 4.7.2 headless build at shutdown, confirmed with a
+## minimal reproduction (a *plain*, un-subclassed `Translation.new()`
+## alone crashes on quit() in this environment, before any of this
+## project's code runs). See docs/production/IMPLEMENTATION_STATUS.md.
 ##
-## "en" is the real, authored game text as written everywhere in the
-## project (no key indirection needed). "es" is a *test* locale, not a
-## real Spanish translation: PseudoLocale.pseudo_localize() transforms it
-## algorithmically, guaranteeing every string is both accented (exercises
-## non-ASCII glyph rendering) and >=35% longer than the source (the
-## "+30% string expansion" acceptance criterion) — a real Spanish
-## translation could easily be shorter than English and wouldn't reliably
-## prove either thing.
+## Two player-facing locales: "en" (the real, authored game text as
+## written everywhere in the project — no key indirection needed) and
+## "es" (real authored Spanish, data/locales/es.json: a flat map of the
+## exact English source string -> its Spanish translation, covering both
+## static UI text and every data-driven content string across
+## data/*.json). A third, non-player-facing QA_PSEUDO_LOCALE keeps the
+## original P45 pseudo-locale mechanism (algorithmic accenting + >=30%
+## string expansion, for exercising UI layout/glyph rendering) — it is
+## deliberately excluded from AVAILABLE_LOCALES so it never appears in
+## the Settings language dropdown, but remains directly settable
+## (LocalizationManager.set_locale(QA_PSEUDO_LOCALE)) for automated tests.
 
 const AVAILABLE_LOCALES: Array[String] = ["en", "es"]
 const DEFAULT_LOCALE: String = "en"
+const QA_PSEUDO_LOCALE: String = "qa-pseudo"
+## Flat file directly under res://data/ (not a subdirectory) so it is
+## automatically covered by DataValidator.scan_for_real_world_marks(),
+## which only lists res://data's immediate children.
+const CONTENT_DICT_PATH: String = "res://data/locale_es.json"
+
+static var _es_dict: Dictionary = {}
+static var _es_dict_loaded: bool = false
+static var _missing_keys: Dictionary = {}
 
 ## Never trust the host OS locale for this: a player (or this dev
 ## container, whose OS locale is Spanish) must see the real English text
 ## by default, unless they explicitly opt in via Settings.
 func set_locale(locale_id: String) -> void:
-    if not AVAILABLE_LOCALES.has(locale_id):
+    if not (AVAILABLE_LOCALES.has(locale_id) or locale_id == QA_PSEUDO_LOCALE):
         locale_id = DEFAULT_LOCALE
     SettingsManager.locale = locale_id
 
 func current_locale() -> String:
-    return SettingsManager.locale if AVAILABLE_LOCALES.has(SettingsManager.locale) else DEFAULT_LOCALE
+    var raw: String = SettingsManager.locale
+    if AVAILABLE_LOCALES.has(raw) or raw == QA_PSEUDO_LOCALE:
+        return raw
+    return DEFAULT_LOCALE
 
 func locale_display_name(locale_id: String) -> String:
     match locale_id:
         "es":
-            return "Pseudo-Spanish (QA)"
+            return "Español"
+        QA_PSEUDO_LOCALE:
+            return "Pseudo-locale (QA)"
         _:
             return "English"
 
-## The actual translation entry point every UI script routes real,
-## player-facing text through.
+static func _load_es_dict() -> void:
+    if _es_dict_loaded:
+        return
+    _es_dict_loaded = true
+    var file: FileAccess = FileAccess.open(CONTENT_DICT_PATH, FileAccess.READ)
+    if file == null:
+        push_error("LocalizationManager: could not open %s" % CONTENT_DICT_PATH)
+        return
+    var parsed: Variant = JSON.parse_string(file.get_as_text())
+    file.close()
+    if parsed is Dictionary:
+        _es_dict = parsed
+    else:
+        push_error("LocalizationManager: %s root must be a JSON object" % CONTENT_DICT_PATH)
+
+## The actual translation entry point every UI script and content display
+## call routes real, player-facing text through. Same flat lookup for both
+## code-authored UI strings and data-driven content strings — the "key" is
+## simply the exact authored English source text.
 func tr_text(source: String) -> String:
-    if current_locale() == "es":
+    var locale: String = current_locale()
+    if locale == QA_PSEUDO_LOCALE:
         return PseudoLocale.pseudo_localize(source)
+    if locale == "es":
+        _load_es_dict()
+        if _es_dict.has(source):
+            return String(_es_dict[source])
+        if not source.is_empty():
+            _missing_keys[source] = true
+        return source
     return source
+
+## QA/CI hook (docs/qa/EXPORTED_BUILD_SMOKE.md, tools/i18n_report.py): every
+## English source string that was looked up under "es" and had no
+## translation, so it silently fell back to English. Not an error by
+## itself (graceful fallback is the point), but worth tracking so
+## untranslated content doesn't go unnoticed.
+static func missing_translation_keys() -> Array:
+    return _missing_keys.keys()
+
+static func reset_missing_translation_keys() -> void:
+    _missing_keys.clear()
 
 ## Localizes every text-bearing Control under `root` (Label/Button/
 ## CheckButton/LinkButton text, plus tooltip_text on any Control) in

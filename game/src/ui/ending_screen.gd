@@ -7,15 +7,19 @@ extends Control
 @onready var _menu_button: Button = $Panel/Margin/VBox/ButtonRow/MenuButton
 
 func _ready() -> void:
+    # Localizes the static ButtonRow labels (Credits/Main Menu). Safe to run
+    # before the manual tr_text() assignments below overwrite Title/Body/
+    # MilestonesLabel with the real epilogue content.
+    LocalizationManager.localize_control_tree(self)
     var def: Dictionary = EpilogueCatalog.get_def(GameState.ending_id)
-    _title_label.text = String(def.get("title", "The End"))
-    _body_label.text = String(def.get("body", "")).format(GameState.ending_summary)
+    _title_label.text = LocalizationManager.tr_text(String(def.get("title", "The End")))
+    _body_label.text = LocalizationManager.tr_text(String(def.get("body", ""))).format(GameState.ending_summary)
 
     var milestones: Dictionary = EndingManager.compute_milestones()
-    var lines: PackedStringArray = ["Milestones:"]
+    var lines: PackedStringArray = [LocalizationManager.tr_text("Milestones:")]
     for milestone_id: String in EndingManager.MILESTONE_LABELS:
         var done: bool = bool(milestones.get(milestone_id, false))
-        lines.append("%s %s" % ["[x]" if done else "[ ]", String(EndingManager.MILESTONE_LABELS[milestone_id])])
+        lines.append("%s %s" % ["[x]" if done else "[ ]", LocalizationManager.tr_text(String(EndingManager.MILESTONE_LABELS[milestone_id]))])
     _milestones_label.text = "\n".join(lines)
 
     _credits_button.pressed.connect(func() -> void: SceneRouter.go_to("res://scenes/credits.tscn"))

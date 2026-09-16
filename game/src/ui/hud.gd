@@ -99,8 +99,8 @@ func _refresh_tutorial_banner() -> void:
     _tutorial_banner.visible = not step.is_empty()
     if step.is_empty():
         return
-    _tutorial_title_label.text = String(step.get("title", "Tutorial"))
-    _tutorial_body_label.text = String(step.get("body", ""))
+    _tutorial_title_label.text = LocalizationManager.tr_text(String(step.get("title", "Tutorial")))
+    _tutorial_body_label.text = LocalizationManager.tr_text(String(step.get("body", "")))
 
 func _on_tutorial_skip_step_pressed() -> void:
     var step: Dictionary = TutorialManager.current_step()
@@ -137,7 +137,7 @@ func _refresh_resource_strip() -> void:
     ])
     _date_label.text = LocalizationManager.tr_text(SimClock.format_calendar())
     var act_def: Dictionary = CampaignActManager.act_def(GameState.current_act)
-    _act_label.text = LocalizationManager.tr_text("ACT %s: %s" % [_roman_numeral(GameState.current_act), String(act_def.get("name", "?")).to_upper()])
+    _act_label.text = LocalizationManager.tr_text("ACT %s: %s" % [_roman_numeral(GameState.current_act), LocalizationManager.tr_text(String(act_def.get("name", "?"))).to_upper()])
     _act_label.tooltip_text = LocalizationManager.tr_text("%s\nNext: %s" % [String(act_def.get("tagline", "")), String(act_def.get("milestone_description", ""))])
     _pause_button.text = LocalizationManager.tr_text("Resume" if GameState.paused else "Pause")
 
@@ -155,7 +155,7 @@ func _format_trust_causes_tooltip() -> String:
     var lines: PackedStringArray = ["Recent causes:"]
     for c: Variant in causes:
         var entry: Dictionary = c
-        lines.append("Day %d: %s (%+.0f)" % [int(entry.get("day", 0)), String(entry.get("label", "?")), float(entry.get("delta", 0.0))])
+        lines.append("Day %d: %s (%+.0f)" % [int(entry.get("day", 0)), LocalizationManager.tr_text(String(entry.get("label", "?"))), float(entry.get("delta", 0.0))])
     return "\n".join(lines)
 
 func _on_pause_pressed() -> void:
@@ -231,7 +231,7 @@ func _refresh_incident_inbox() -> void:
         var row: HBoxContainer = HBoxContainer.new()
         var label: Label = Label.new()
         var severity: int = int(entry.get("severity", 2))
-        label.text = "%s%s" % ["[P%d] " % severity if severity <= 0 else "", String(entry.get("title", "?"))]
+        label.text = "%s%s" % ["[P%d] " % severity if severity <= 0 else "", LocalizationManager.tr_text(String(entry.get("title", "?")))]
         label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
         label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
         row.add_child(label)
@@ -247,9 +247,9 @@ func _show_incident_detail(pending_id: String) -> void:
         return
     EventBus.build_tool_changed.emit("")
     _clear_dynamic_content()
-    _inspector_title.text = String(entry.get("title", "Incident"))
+    _inspector_title.text = LocalizationManager.tr_text(String(entry.get("title", "Incident")))
     _inspector_body.text = "%s\n\nCategory: %s   Severity: P%d" % [
-        String(entry.get("body", "")), String(entry.get("category", "?")), int(entry.get("severity", 2)),
+        LocalizationManager.tr_text(String(entry.get("body", ""))), String(entry.get("category", "?")), int(entry.get("severity", 2)),
     ]
     for c: Variant in (entry.get("choices", []) as Array):
         var choice: Dictionary = c
@@ -260,7 +260,7 @@ func _show_incident_detail(pending_id: String) -> void:
         for key: String in effects:
             effect_parts.append("%s %+.0f" % [key, float(effects[key])])
         var effect_text: String = "" if effect_parts.is_empty() else " (%s)" % ", ".join(effect_parts)
-        btn.text = "%s%s" % [String(choice.get("label", choice_id)), effect_text]
+        btn.text = "%s%s" % [LocalizationManager.tr_text(String(choice.get("label", choice_id))), effect_text]
         btn.pressed.connect(func() -> void:
             IncidentManager.resolve(pending_id, choice_id)
             _refresh_incident_inbox()
@@ -276,7 +276,7 @@ func _show_build_palette() -> void:
     for buildable_id: String in catalog:
         var def: Dictionary = catalog[buildable_id]
         var btn: Button = Button.new()
-        btn.text = "%s ($%d)" % [String(def.get("name", buildable_id)), int(def.get("cost", 0))]
+        btn.text = "%s ($%d)" % [LocalizationManager.tr_text(String(def.get("name", buildable_id))), int(def.get("cost", 0))]
         if def.has("compute_units") or def.has("power_draw") or def.has("heat_output"):
             btn.tooltip_text = "+%d compute, +%d power draw, +%d heat, $%d/day upkeep" % [
                 int(def.get("compute_units", 0)), int(def.get("power_draw", 0)),
@@ -361,7 +361,7 @@ func _show_research_panel() -> void:
         var prereqs: Array = def.get("prerequisites", [])
         var prereq_names: PackedStringArray = []
         for prereq: Variant in prereqs:
-            prereq_names.append(String(ResearchNodeCatalog.get_def(String(prereq)).get("name", prereq)))
+            prereq_names.append(LocalizationManager.tr_text(String(ResearchNodeCatalog.get_def(String(prereq)).get("name", prereq))))
         var prereq_text: String = "" if prereq_names.is_empty() else " (needs %s)" % ", ".join(prereq_names)
 
         var status: String
@@ -375,7 +375,7 @@ func _show_research_panel() -> void:
             status = "Locked"
 
         label.text = "[%s] %s — $%d%s — %s" % [
-            String(def.get("branch", "?")).capitalize(), String(def.get("name", node_id)),
+            String(def.get("branch", "?")).capitalize(), LocalizationManager.tr_text(String(def.get("name", node_id))),
             int(def.get("cost", 0)), prereq_text, status,
         ]
         label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -404,7 +404,7 @@ func _show_models_panel() -> void:
         var tier: Dictionary = ModelTierCatalog.get_def(tier_id)
         var row: HBoxContainer = HBoxContainer.new()
         var label: Label = Label.new()
-        label.text = "%s — $%d" % [String(tier.get("name", tier_id)), int(tier.get("cost", 0))]
+        label.text = "%s — $%d" % [LocalizationManager.tr_text(String(tier.get("name", tier_id))), int(tier.get("cost", 0))]
         label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
         label.tooltip_text = "capability~%d safety~%d cost_eff~%d autonomy~%d" % [
             int(tier.get("capability_base", 0)), int(tier.get("safety_base", 0)),
@@ -431,7 +431,7 @@ func _show_models_panel() -> void:
             var tier_def: Dictionary = ModelTierCatalog.get_def(String(p.get("tier_id", "")))
             var prow: HBoxContainer = HBoxContainer.new()
             var plabel: Label = Label.new()
-            plabel.text = "%s (%d%%)" % [String(tier_def.get("name", "?")), int(round(ModelManager.project_progress_fraction(project_id) * 100.0))]
+            plabel.text = "%s (%d%%)" % [LocalizationManager.tr_text(String(tier_def.get("name", "?"))), int(round(ModelManager.project_progress_fraction(project_id) * 100.0))]
             plabel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
             prow.add_child(plabel)
             var cancel_btn: Button = Button.new()
@@ -458,7 +458,7 @@ func _show_models_panel() -> void:
             var row: HBoxContainer = HBoxContainer.new()
             var mlabel: Label = Label.new()
             mlabel.text = "%s — capability %d-%d, safety %d-%d, latent risk %s (eval depth %d/%d)" % [
-                String(m.get("name", "?")), int(cap_range.x), int(cap_range.y),
+                LocalizationManager.tr_text(String(m.get("name", "?"))), int(cap_range.x), int(cap_range.y),
                 int(safety_range.x), int(safety_range.y), risk_text, depth, EvaluationManager.MAX_EVAL_DEPTH,
             ]
             mlabel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -506,7 +506,7 @@ func _add_deployment_controls(model_id: String) -> void:
     var mode_id: String = String(deployment.get("mode_id", ""))
     var mode_def: Dictionary = DeploymentModeCatalog.get_def(mode_id)
     label.text = "  %s — rollout %d%%, users ~%d, exposure ~%d" % [
-        String(mode_def.get("name", mode_id)),
+        LocalizationManager.tr_text(String(mode_def.get("name", mode_id))),
         int(round(float(deployment.get("rollout_stage", 0.0)) * 100.0)),
         int(ReleaseManager.current_user_scale(deployment)),
         int(ReleaseManager.total_incident_exposure()),
@@ -516,7 +516,7 @@ func _add_deployment_controls(model_id: String) -> void:
     var next_mode: String = DeploymentModeCatalog.next_mode(mode_id)
     if not next_mode.is_empty():
         var promote_btn: Button = Button.new()
-        promote_btn.text = "Promote to %s" % String(DeploymentModeCatalog.get_def(next_mode).get("name", next_mode))
+        promote_btn.text = "Promote to %s" % LocalizationManager.tr_text(String(DeploymentModeCatalog.get_def(next_mode).get("name", next_mode)))
         promote_btn.pressed.connect(func() -> void:
             ReleaseManager.promote(deployment_id)
             _show_models_panel()
@@ -595,7 +595,7 @@ func _add_deployment_controls(model_id: String) -> void:
 
     var plan_header: Label = Label.new()
     plan_header.text = "  Subscription plan: %s (quota %d seats%s)" % [
-        String(SubscriptionPlanCatalog.get_def(String(deployment.get("plan_id", "pro"))).get("name", "?")),
+        LocalizationManager.tr_text(String(SubscriptionPlanCatalog.get_def(String(deployment.get("plan_id", "pro"))).get("name", "?"))),
         int(float(breakdown.get("quota", 0.0))),
         " — quota-capped right now" if bool(breakdown.get("quota_capped", false)) else "",
     ]
@@ -607,7 +607,7 @@ func _add_deployment_controls(model_id: String) -> void:
         var plan_def: Dictionary = SubscriptionPlanCatalog.get_def(plan_id)
         var plan_row: HBoxContainer = HBoxContainer.new()
         var plan_label: Label = Label.new()
-        plan_label.text = "    %s — %s" % [String(plan_def.get("name", plan_id)), String(plan_def.get("description", ""))]
+        plan_label.text = "    %s — %s" % [LocalizationManager.tr_text(String(plan_def.get("name", plan_id))), LocalizationManager.tr_text(String(plan_def.get("description", "")))]
         plan_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
         plan_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
         plan_row.add_child(plan_label)
@@ -661,7 +661,7 @@ func _add_deployment_controls(model_id: String) -> void:
         var perm_row: HBoxContainer = HBoxContainer.new()
         var perm_label: Label = Label.new()
         perm_label.text = "  [%s] %s — %s" % [
-            "ON" if granted else "off", String(perm_def.get("name", permission_id)),
+            "ON" if granted else "off", LocalizationManager.tr_text(String(perm_def.get("name", permission_id))),
             String(perm_def.get("productivity_description", "")) if not granted else String(perm_def.get("risk_description", "")),
         ]
         perm_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -750,7 +750,7 @@ func _show_company_panel() -> void:
         var round_row: HBoxContainer = HBoxContainer.new()
         var round_label: Label = Label.new()
         round_label.text = "%s available: +$%d cash for %d%% equity, +$%d/day obligation (needs valuation $%d)" % [
-            String(round_def.get("name", next_round_id)), int(round_def.get("amount", 0.0)),
+            LocalizationManager.tr_text(String(round_def.get("name", next_round_id))), int(round_def.get("amount", 0.0)),
             int(round_def.get("equity_pct", 0.0)), int(round_def.get("obligation_per_day", 0.0)),
             int(round_def.get("min_valuation", 0.0)),
         ]
@@ -801,7 +801,7 @@ func _show_company_panel() -> void:
         var case_def: Dictionary = LegalCaseTypeCatalog.get_def(case_type_id)
         var case_header: Label = Label.new()
         case_header.text = "%s (due day %d)" % [
-            String(case_def.get("name", case_type_id)), int(GameState.active_legal_case.get("deadline_day", 0)),
+            LocalizationManager.tr_text(String(case_def.get("name", case_type_id))), int(GameState.active_legal_case.get("deadline_day", 0)),
         ]
         case_header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
         _dynamic_content.add_child(case_header)
@@ -826,8 +826,8 @@ func _show_company_panel() -> void:
     var automation_effects: Dictionary = AutomationManager.daily_effects()
     var active_policy_def: Dictionary = AutomationManager.active_policy()
     automation_header.text = "Automation pressure: %d — policy \"%s\": %s (cash %+.0f, morale %+.1f, trust %+.1f, safety debt %+.1f per day)" % [
-        int(automation_effects.get("pressure", 0.0)), String(active_policy_def.get("name", GameState.workforce_policy)),
-        String(active_policy_def.get("description", "")), float(automation_effects.get("cash", 0.0)),
+        int(automation_effects.get("pressure", 0.0)), LocalizationManager.tr_text(String(active_policy_def.get("name", GameState.workforce_policy))),
+        LocalizationManager.tr_text(String(active_policy_def.get("description", ""))), float(automation_effects.get("cash", 0.0)),
         float(automation_effects.get("morale", 0.0)), float(automation_effects.get("trust", 0.0)), float(automation_effects.get("safety_debt", 0.0)),
     ]
     automation_header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -838,7 +838,7 @@ func _show_company_panel() -> void:
         var policy_def: Dictionary = WorkforcePolicyCatalog.get_def(policy_id)
         var policy_row: HBoxContainer = HBoxContainer.new()
         var policy_label: Label = Label.new()
-        policy_label.text = "  %s — %s" % [String(policy_def.get("name", policy_id)), String(policy_def.get("description", ""))]
+        policy_label.text = "  %s — %s" % [LocalizationManager.tr_text(String(policy_def.get("name", policy_id))), LocalizationManager.tr_text(String(policy_def.get("description", "")))]
         policy_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
         policy_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
         policy_row.add_child(policy_label)
@@ -859,7 +859,7 @@ func _show_company_panel() -> void:
         var row: HBoxContainer = HBoxContainer.new()
         var label: Label = Label.new()
         label.text = "%s — $%d (trust %+.0f, hype %+.0f)" % [
-            String(def.get("name", action_id)), int(def.get("cost", 0)),
+            LocalizationManager.tr_text(String(def.get("name", action_id))), int(def.get("cost", 0)),
             float(def.get("trust_delta", 0.0)), float(def.get("hype_debt_delta", 0.0)),
         ]
         label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -890,7 +890,7 @@ func _show_company_panel() -> void:
             var effects: Dictionary = entry.get("effects_applied", {})
             var hist_label: Label = Label.new()
             hist_label.text = "Day %d [P%d] %s — chose \"%s\" (trust %+.0f, safety debt %+.0f)" % [
-                int(entry.get("resolved_day", 0)), int(entry.get("severity", 2)), String(entry.get("title", "?")),
+                int(entry.get("resolved_day", 0)), int(entry.get("severity", 2)), LocalizationManager.tr_text(String(entry.get("title", "?"))),
                 String(entry.get("choice_id", "?")), float(effects.get("public_trust", 0.0)), float(effects.get("safety_debt", 0.0)),
             ]
             hist_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -915,7 +915,7 @@ func _show_world_panel() -> void:
             var doctrine_def: Dictionary = RivalDoctrineCatalog.get_def(String(rival.get("doctrine", "")))
             var label: Label = Label.new()
             label.text = "%s — %s — gen %d (%d%% to next), market share %d%%" % [
-                String(rival.get("name", "?")), String(doctrine_def.get("name", "?")), int(rival.get("generation", 0)),
+                LocalizationManager.tr_text(String(rival.get("name", "?"))), LocalizationManager.tr_text(String(doctrine_def.get("name", "?"))), int(rival.get("generation", 0)),
                 int(round(RivalManager.launch_progress_fraction(rival_id) * 100.0)), int(round(float(shares.get(rival_id, 0.0)) * 100.0)),
             ]
             label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -929,7 +929,7 @@ func _show_world_panel() -> void:
             history.reverse()
             for h: Variant in history:
                 var entry: Dictionary = h
-                var rival_name: String = String(RivalManager.find_rival(String(entry.get("rival_id", ""))).get("name", entry.get("rival_id", "?")))
+                var rival_name: String = LocalizationManager.tr_text(String(RivalManager.find_rival(String(entry.get("rival_id", ""))).get("name", entry.get("rival_id", "?"))))
                 var hist_label: Label = Label.new()
                 hist_label.text = "Day %d — %s reached generation %d" % [int(entry.get("day", 0)), rival_name, int(entry.get("generation", 0))]
                 _dynamic_content.add_child(hist_label)
@@ -944,7 +944,7 @@ func _show_world_panel() -> void:
         var owned_def: Dictionary = DatacenterTierCatalog.get_def(String(tier_id))
         var owned_label: Label = Label.new()
         owned_label.text = "  [Owned] %s — +%d compute, $%d/day" % [
-            String(owned_def.get("name", tier_id)), int(owned_def.get("compute_capacity_bonus", 0)), int(owned_def.get("operating_cost_per_day", 0)),
+            LocalizationManager.tr_text(String(owned_def.get("name", tier_id))), int(owned_def.get("compute_capacity_bonus", 0)), int(owned_def.get("operating_cost_per_day", 0)),
         ]
         owned_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
         _dynamic_content.add_child(owned_label)
@@ -955,9 +955,9 @@ func _show_world_panel() -> void:
         var tier_row: HBoxContainer = HBoxContainer.new()
         var tier_label: Label = Label.new()
         tier_label.text = "  %s — $%d — +%d compute, $%d/day — %s" % [
-            String(next_def.get("name", next_tier_id)), int(next_def.get("cost", 0)),
+            LocalizationManager.tr_text(String(next_def.get("name", next_tier_id))), int(next_def.get("cost", 0)),
             int(next_def.get("compute_capacity_bonus", 0)), int(next_def.get("operating_cost_per_day", 0)),
-            String(next_def.get("description", "")),
+            LocalizationManager.tr_text(String(next_def.get("description", ""))),
         ]
         tier_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
         tier_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -979,7 +979,7 @@ func _show_world_panel() -> void:
         var variable_def: Dictionary = WorldVariableCatalog.get_def(variable_id)
         var variable_label: Label = Label.new()
         variable_label.text = "  %s: %d/100 — %s" % [
-            String(variable_def.get("name", variable_id)), int(round(WorldStateManager.value(variable_id))),
+            LocalizationManager.tr_text(String(variable_def.get("name", variable_id))), int(round(WorldStateManager.value(variable_id))),
             String(variable_def.get("effect_description", "")),
         ]
         variable_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -998,7 +998,7 @@ func _show_world_panel() -> void:
         for i in mini(10, recent_news.size()):
             var news_entry: Dictionary = recent_news[i]
             var news_label: Label = Label.new()
-            news_label.text = "  Day %d — %s" % [int(news_entry.get("day", 0)), String(news_entry.get("headline", ""))]
+            news_label.text = "  Day %d — %s" % [int(news_entry.get("day", 0)), LocalizationManager.tr_text(String(news_entry.get("headline", "")))]
             news_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
             _dynamic_content.add_child(news_label)
 
@@ -1010,7 +1010,7 @@ func _show_glossary_panel() -> void:
     for term_id: String in GlossaryCatalog.ordered_ids():
         var term_def: Dictionary = GlossaryCatalog.get_def(term_id)
         var term_label: Label = Label.new()
-        term_label.text = "%s — %s" % [String(term_def.get("term", term_id)), String(term_def.get("definition", ""))]
+        term_label.text = "%s — %s" % [LocalizationManager.tr_text(String(term_def.get("term", term_id))), LocalizationManager.tr_text(String(term_def.get("definition", "")))]
         term_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
         _dynamic_content.add_child(term_label)
 
@@ -1037,19 +1037,19 @@ func _show_staff_detail(staff_id: String) -> void:
             if not order_target.is_empty():
                 var target_name: String = order_target
                 if order_task_id == ResearchManager.RESEARCH_TASK_ID:
-                    target_name = String(ResearchNodeCatalog.get_def(order_target).get("name", order_target))
+                    target_name = LocalizationManager.tr_text(String(ResearchNodeCatalog.get_def(order_target).get("name", order_target)))
                 elif order_task_id == ModelManager.TRAINING_TASK_ID:
                     var order_tier_id: String = ModelManager.project_tier_id(order_target)
-                    target_name = String(ModelTierCatalog.get_def(order_tier_id).get("name", order_tier_id))
+                    target_name = LocalizationManager.tr_text(String(ModelTierCatalog.get_def(order_tier_id).get("name", order_tier_id)))
                 elif order_task_id == EvaluationManager.EVAL_TASK_ID:
                     target_name = ModelManager.model_name(order_target)
                 target_suffix = " → %s" % target_name
             status_line = "Working: %s%s (%d%%)" % [
-                String(task_def.get("name", "?")), target_suffix, int(round(TaskManager.progress_fraction(order) * 100.0)),
+                LocalizationManager.tr_text(String(task_def.get("name", "?"))), target_suffix, int(round(TaskManager.progress_fraction(order) * 100.0)),
             ]
     var trait_names: PackedStringArray = []
     for trait_id: Variant in member.get("traits", []):
-        trait_names.append(String(StaffTraitCatalog.get_def(String(trait_id)).get("name", trait_id)))
+        trait_names.append(LocalizationManager.tr_text(String(StaffTraitCatalog.get_def(String(trait_id)).get("name", trait_id))))
     var trait_text: String = ", ".join(trait_names) if not trait_names.is_empty() else "None"
     var lead_text: String = " (Department Lead)" if bool(member.get("is_lead", false)) else ""
 
@@ -1081,13 +1081,13 @@ func _show_staff_detail(staff_id: String) -> void:
                 assign_target = ResearchManager.pick_active_node_for_assignment()
                 if assign_target.is_empty():
                     continue
-                target_label = String(ResearchNodeCatalog.get_def(assign_target).get("name", assign_target))
+                target_label = LocalizationManager.tr_text(String(ResearchNodeCatalog.get_def(assign_target).get("name", assign_target)))
             elif task_id == ModelManager.TRAINING_TASK_ID:
                 assign_target = ModelManager.pick_active_project_for_assignment()
                 if assign_target.is_empty():
                     continue
                 var tier_id: String = ModelManager.project_tier_id(assign_target)
-                target_label = String(ModelTierCatalog.get_def(tier_id).get("name", tier_id))
+                target_label = LocalizationManager.tr_text(String(ModelTierCatalog.get_def(tier_id).get("name", tier_id)))
             elif task_id == EvaluationManager.EVAL_TASK_ID:
                 assign_target = EvaluationManager.pick_model_for_evaluation_assignment()
                 if assign_target.is_empty():
@@ -1098,7 +1098,7 @@ func _show_staff_detail(staff_id: String) -> void:
                 continue
             var assign_btn: Button = Button.new()
             var label_suffix: String = "" if target_label.is_empty() else " (%s)" % target_label
-            assign_btn.text = "Assign: %s%s" % [String(task_def.get("name", task_id)), label_suffix]
+            assign_btn.text = "Assign: %s%s" % [LocalizationManager.tr_text(String(task_def.get("name", task_id))), label_suffix]
             var target_building_id: String = String((candidates[0] as Dictionary).get("id", ""))
             assign_btn.pressed.connect(func() -> void:
                 TaskManager.assign(staff_id, task_id, target_building_id, assign_target)

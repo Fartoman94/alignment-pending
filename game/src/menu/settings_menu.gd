@@ -62,7 +62,7 @@ func _build_keybind_rows() -> void:
         var row: HBoxContainer = HBoxContainer.new()
         var label: Label = Label.new()
         label.custom_minimum_size = Vector2(190, 0)
-        label.text = String(entry.get("label", action))
+        label.text = LocalizationManager.tr_text(String(entry.get("label", action)))
         row.add_child(label)
         var rebind_btn: Button = Button.new()
         rebind_btn.custom_minimum_size = Vector2(140, 0)

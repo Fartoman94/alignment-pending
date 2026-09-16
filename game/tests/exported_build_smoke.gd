@@ -47,8 +47,13 @@ static func run(tree: SceneTree) -> bool:
     data_dir.list_dir_begin()
     var entry: String = data_dir.get_next()
     while entry != "":
-        if entry.ends_with(".gd"):
-            var script_path: String = "res://src/data/%s" % entry
+        # A packaged export lists these as "name.gd.remap" (the physical
+        # pck entry), not "name.gd" (the logical res:// path editor/
+        # headless-source runs see) — strip the remap suffix so load()
+        # gets the logical path, which ResourceLoader resolves either way.
+        var script_name: String = entry.trim_suffix(".remap") if entry.ends_with(".gd.remap") else entry
+        if script_name.ends_with(".gd"):
+            var script_path: String = "res://src/data/%s" % script_name
             var script_res: Script = load(script_path)
             if script_res == null:
                 push_error("QA_EXPORTED_SMOKE: data catalog script failed to load from package: %s" % script_path)

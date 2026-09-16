@@ -3940,6 +3940,36 @@ func _initialize() -> void:
     # localize_control_tree() layer instead of TranslationServer.
     var loc_mgr: Node = get_root().get_node("LocalizationManager")
 
+    if loc_mgr.tr_text("Settings") != "Settings":
+        push_error("tr_text() should be the identity function for the 'en' locale")
+        quit(1)
+        return
+    loc_mgr.set_locale("es")
+    if loc_mgr.tr_text("Settings") != "Ajustes":
+        push_error("tr_text() should return the real authored Spanish translation under the 'es' locale (got '%s')" % loc_mgr.tr_text("Settings"))
+        quit(1)
+        return
+    var untranslated_source: String = "___no_such_string_in_any_locale_dict___"
+    if loc_mgr.tr_text(untranslated_source) != untranslated_source:
+        push_error("tr_text() should gracefully fall back to the English source for an untranslated string under 'es'")
+        quit(1)
+        return
+    if not loc_mgr.missing_translation_keys().has(untranslated_source):
+        push_error("An untranslated 'es' lookup should be tracked for the missing-translation QA report")
+        quit(1)
+        return
+    loc_mgr.reset_missing_translation_keys()
+    loc_mgr.set_locale("not_a_real_locale")
+    if loc_mgr.current_locale() != "en":
+        push_error("set_locale() should fall back to the default locale for an unknown locale id")
+        quit(1)
+        return
+    print("SMOKE_OK: LocalizationManager.tr_text() returns real Spanish under 'es', falls back gracefully and tracks misses, and rejects unknown locales")
+
+    # The original P45 pseudo-locale mechanism still exists, just under its
+    # own non-player-facing code (QA_PSEUDO_LOCALE) instead of overloading
+    # "es" — "es" is real, shipped Spanish now, which won't reliably expand
+    # by 30% the way an algorithmic transform does.
     if not is_equal_approx(PseudoLocale.pseudo_localize("").length(), 0):
         push_error("PseudoLocale.pseudo_localize('') should pass through empty strings unchanged")
         quit(1)
@@ -3960,28 +3990,12 @@ func _initialize() -> void:
         return
     print("SMOKE_OK: PseudoLocale.pseudo_localize() is a deterministic, >=30%%-expanding, digit-preserving transform")
 
-    if loc_mgr.tr_text("Settings") != "Settings":
-        push_error("tr_text() should be the identity function for the 'en' locale")
-        quit(1)
-        return
-    loc_mgr.set_locale("es")
-    if loc_mgr.tr_text("Settings") == "Settings":
-        push_error("tr_text() should pseudo-localize under the 'es' test locale")
-        quit(1)
-        return
-    loc_mgr.set_locale("not_a_real_locale")
-    if loc_mgr.current_locale() != "en":
-        push_error("set_locale() should fall back to the default locale for an unknown locale id")
-        quit(1)
-        return
-    print("SMOKE_OK: LocalizationManager.tr_text() switches locales and rejects unknown ones")
-
     # Real, static UI text: instantiate the real main menu, switch to the
-    # pseudo-locale, localize its control tree, and confirm a real button
-    # both changes AND survives the +30% expansion, then confirm
+    # QA pseudo-locale, localize its control tree, and confirm a real
+    # button both changes AND survives the +30% expansion, then confirm
     # re-localizing back to 'en' exactly restores the authored source
     # (proving the source-caching doesn't compound/lose the original).
-    loc_mgr.set_locale("es")
+    loc_mgr.set_locale(loc_mgr.QA_PSEUDO_LOCALE)
     var p45_menu_scene: PackedScene = load("res://scenes/main_menu.tscn")
     var p45_menu: Control = p45_menu_scene.instantiate()
     get_root().add_child(p45_menu)
@@ -4002,9 +4016,16 @@ func _initialize() -> void:
         push_error("Re-localizing back to 'en' should restore the exact authored source text (got '%s')" % p45_new_campaign_btn.text)
         quit(1)
         return
+    loc_mgr.set_locale("es")
+    loc_mgr.localize_control_tree(p45_menu)
+    if p45_new_campaign_btn.text != "Nueva Partida":
+        push_error("Re-localizing to 'es' should show the real authored Spanish translation (got '%s')" % p45_new_campaign_btn.text)
+        quit(1)
+        return
+    loc_mgr.set_locale("en")
     p45_menu.queue_free()
     await process_frame
-    print("SMOKE_OK: a real menu's static UI text survives +30%% pseudo-locale expansion and round-trips back to 'en' exactly")
+    print("SMOKE_OK: a real menu's static UI text survives +30%% QA-pseudo-locale expansion, shows real Spanish under 'es', and round-trips back to 'en' exactly")
 
     # Persistence: the chosen locale survives a real settings.cfg save/load.
     settings_mgr.locale = "es"
