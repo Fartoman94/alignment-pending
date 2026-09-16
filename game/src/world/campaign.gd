@@ -98,21 +98,41 @@ func _clear_staff_work(staff_id: String) -> void:
     if _staff_agents.has(staff_id):
         (_staff_agents[staff_id] as StaffAgent).clear_work()
 
+## Visual overhaul pass: docs/design/ART_BIBLE.md's lighting section asks
+## for "soft directional key + baked/SSIL-friendly ambient" plus, per the
+## finalization pack's visual-overhaul brief, a natural cool key light
+## alongside a warm interior fill so the office reads with some depth
+## instead of one flat gray wash — measured with a before/after GPU
+## profile (docs/performance/REAL_GPU_PROFILE.md) to confirm the extra
+## light doesn't cost anything worth trading the improvement away for.
 func _build_environment() -> void:
     var world_env := WorldEnvironment.new()
     var env := Environment.new()
     env.background_mode = Environment.BG_COLOR
-    env.background_color = Color("18202a")
+    env.background_color = Color("11151b")
     env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-    env.ambient_light_color = Color("9ca8b8")
-    env.ambient_light_energy = 0.75
+    env.ambient_light_color = Color("8c95a8")
+    env.ambient_light_energy = 0.55
     world_env.environment = env
     add_child(world_env)
-    var light := DirectionalLight3D.new()
-    light.rotation_degrees = Vector3(-55, -35, 0)
-    light.light_energy = 1.3
-    light.shadow_enabled = true
-    add_child(light)
+    # Natural key light — cool/blueish, as if daylight through the
+    # BackWall windows (see _build_office()).
+    var key_light := DirectionalLight3D.new()
+    key_light.name = "KeyLight"
+    key_light.rotation_degrees = Vector3(-55, -35, 0)
+    key_light.light_color = Color("d8e4ff")
+    key_light.light_energy = 1.2
+    key_light.shadow_enabled = true
+    add_child(key_light)
+    # Warm interior fill — a soft amber counter-light from roughly where
+    # ceiling office lighting would be, so surfaces facing away from the
+    # key light aren't pure flat shadow.
+    var fill_light := DirectionalLight3D.new()
+    fill_light.name = "FillLight"
+    fill_light.rotation_degrees = Vector3(-70, 140, 0)
+    fill_light.light_color = Color("ffc98a")
+    fill_light.light_energy = 0.35
+    add_child(fill_light)
 
 ## Office shell geometry (P39: routed through ProceduralMeshFactory
 ## instead of building BoxMesh/StandardMaterial3D inline).
@@ -122,12 +142,38 @@ func _box(name_: String, pos: Vector3, size: Vector3, color: Color) -> MeshInsta
     add_child(mi)
     return mi
 
+## Visual overhaul pass: the original shell was three blue-gray boxes
+## (floor/back wall/left wall all within a few shades of each other) —
+## exactly the "todo gris" / no-material-variety the brief called out.
+## Same shell, same empty-until-the-player-builds-something design (an
+## empty starting office is this project's own deliberate progression,
+## docs/design/ART_BIBLE.md's "1. Cheap converted office" — not a bug to
+## fix by pre-furnishing it), but now following the Art Bible's actual
+## named palette (charcoal/warm gray/off-white base, a tech-blue and a
+## brand-orange accent) instead of one undifferentiated blue-gray.
 func _build_office() -> void:
-    # An empty shell: the player builds everything else via BuildController.
-    _box("Floor", Vector3(0,-0.25,0), Vector3(18,0.5,14), Color("3d4654"))
-    _box("BackWall", Vector3(0,1.5,-7), Vector3(18,3.5,0.3), Color("657181"))
-    _box("LeftWall", Vector3(-9,1.5,0), Vector3(0.3,3.5,14), Color("596575"))
+    _box("Floor", Vector3(0,-0.25,0), Vector3(18,0.5,14), Color("39352f"))
+    _box("BackWall", Vector3(0,1.5,-7), Vector3(18,3.5,0.3), Color("6b6355"))
+    _box("LeftWall", Vector3(-9,1.5,0), Vector3(0.3,3.5,14), Color("5c554a"))
+    # A brand-orange baseboard trim along the back wall — a thin accent
+    # strip, not a repaint, so it reads as a deliberate design choice.
+    _box("BackWallTrim", Vector3(0,0.15,-6.83), Vector3(18,0.3,0.05), Color("d97b3f"))
+    # Two window "glow" panels on the back wall (an emissive material, no
+    # real glass/transparency system needed) — cool-toned to sell
+    # "natural light" per the brief's lighting direction, and to give
+    # the back wall some silhouette variety instead of one flat plane.
+    _window("BackWallWindowL", Vector3(-5.5, 2.0, -6.82))
+    _window("BackWallWindowR", Vector3(5.5, 2.0, -6.82))
     _build_ambient_decoration()
+
+func _window(name_: String, pos: Vector3) -> void:
+    var mi: MeshInstance3D = ProceduralMeshFactory.make_box(name_, Vector3(3.2, 1.6, 0.06), Color("bfe3ff"))
+    var mat: StandardMaterial3D = mi.mesh.surface_get_material(0)
+    mat.emission_enabled = true
+    mat.emission = Color("bfe3ff")
+    mat.emission_energy_multiplier = 0.6
+    mi.position = pos
+    add_child(mi)
 
 ## Fixed, non-buildable set dressing (finalization-pack 3D asset pack) —
 ## deliberately placed in the margin between the walls and the buildable

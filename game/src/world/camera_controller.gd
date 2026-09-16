@@ -30,7 +30,16 @@ var _drag_last_pos: Vector2 = Vector2.ZERO
 
 func _ready() -> void:
     _ensure_input_actions()
-    _zoom_target = clampf(18.0, zoom_min, zoom_max)
+    # Visual overhaul pass: 18.0 (unchanged default for years) left the
+    # office occupying well under half the viewport height at 1280x720 —
+    # confirmed by rendering and measuring the pixels, not just eyeballed.
+    # 13.0 was tried first and rendered too tight — it cropped the back
+    # wall/windows out of frame at the top (also caught by rendering and
+    # looking, not assumed). 15.0 is the value that actually keeps the
+    # whole room in frame while still reading as noticeably closer than
+    # the original 18.0, inside the unchanged zoom_min/zoom_max range the
+    # player can still move within.
+    _zoom_target = clampf(15.0, zoom_min, zoom_max)
     camera = Camera3D.new()
     camera.projection = Camera3D.PROJECTION_ORTHOGONAL
     camera.size = _zoom_target

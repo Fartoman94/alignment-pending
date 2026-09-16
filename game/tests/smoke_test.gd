@@ -542,7 +542,7 @@ func _initialize() -> void:
     await process_frame
 
     var fire_button: Button = null
-    var dynamic_content: Node = confirm_hud.get_node("RightPanel/Margin/VBox/DynamicContent")
+    var dynamic_content: Node = confirm_hud.get_node("RightPanel/Margin/VBox/Scroll/DynamicContent")
     for child in dynamic_content.get_children():
         for grandchild in child.get_children():
             if grandchild is Button and String((grandchild as Button).text) == "Fire":

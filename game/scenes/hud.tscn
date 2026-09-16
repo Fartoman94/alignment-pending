@@ -15,14 +15,14 @@ anchor_left = 0.0
 anchor_top = 0.0
 anchor_right = 1.0
 anchor_bottom = 0.0
-offset_bottom = 56.0
+offset_bottom = 92.0
 
 [node name="Background" type="ColorRect" parent="TopBar"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-color = Color(0.04, 0.055, 0.075, 0.92)
+color = Color(0.043, 0.055, 0.078, 0.96)
 
 [node name="Margin" type="MarginContainer" parent="TopBar"]
 layout_mode = 1
@@ -30,81 +30,113 @@ anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 theme_override_constants/margin_left = 16
-theme_override_constants/margin_top = 12
+theme_override_constants/margin_top = 8
 theme_override_constants/margin_right = 16
-theme_override_constants/margin_bottom = 12
+theme_override_constants/margin_bottom = 8
 
-[node name="HBox" type="HBoxContainer" parent="TopBar/Margin"]
+[node name="VBox" type="VBoxContainer" parent="TopBar/Margin"]
 layout_mode = 2
-theme_override_constants/separation = 20
+theme_override_constants/separation = 4
 
-[node name="CashLabel" type="Label" parent="TopBar/Margin/HBox"]
+[node name="ResourceRow" type="HBoxContainer" parent="TopBar/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="CashChip" type="PanelContainer" parent="TopBar/Margin/VBox/ResourceRow"]
+layout_mode = 2
+
+[node name="CashLabel" type="Label" parent="TopBar/Margin/VBox/ResourceRow/CashChip"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "$0"
 
-[node name="ComputeLabel" type="Label" parent="TopBar/Margin/HBox"]
+[node name="ComputeChip" type="PanelContainer" parent="TopBar/Margin/VBox/ResourceRow"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
+
+[node name="ComputeLabel" type="Label" parent="TopBar/Margin/VBox/ResourceRow/ComputeChip"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
 text = "COMPUTE 0%"
 
-[node name="PowerLabel" type="Label" parent="TopBar/Margin/HBox"]
+[node name="PowerChip" type="PanelContainer" parent="TopBar/Margin/VBox/ResourceRow"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
+
+[node name="PowerLabel" type="Label" parent="TopBar/Margin/VBox/ResourceRow/PowerChip"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
 text = "POWER 0%"
 
-[node name="TrustLabel" type="Label" parent="TopBar/Margin/HBox"]
+[node name="HeatChip" type="PanelContainer" parent="TopBar/Margin/VBox/ResourceRow"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
-text = "TRUST 0"
 
-[node name="SafetyDebtLabel" type="Label" parent="TopBar/Margin/HBox"]
+[node name="HeatLabel" type="Label" parent="TopBar/Margin/VBox/ResourceRow/HeatChip"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
-text = "SAFETY DEBT 0"
-
-[node name="HeatLabel" type="Label" parent="TopBar/Margin/HBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 16
 text = "HEAT 0%"
 
-[node name="DateLabel" type="Label" parent="TopBar/Margin/HBox"]
+[node name="TrustChip" type="PanelContainer" parent="TopBar/Margin/VBox/ResourceRow"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
+
+[node name="TrustLabel" type="Label" parent="TopBar/Margin/VBox/ResourceRow/TrustChip"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "TRUST 0"
+
+[node name="SafetyDebtChip" type="PanelContainer" parent="TopBar/Margin/VBox/ResourceRow"]
+layout_mode = 2
+
+[node name="SafetyDebtLabel" type="Label" parent="TopBar/Margin/VBox/ResourceRow/SafetyDebtChip"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "SAFETY DEBT 0"
+
+[node name="MetaRow" type="HBoxContainer" parent="TopBar/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="DateLabel" type="Label" parent="TopBar/Margin/VBox/MetaRow"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+theme_override_colors/font_color = Color(0.71, 0.75, 0.81, 1.0)
 text = "DAY 1"
 
-[node name="ActLabel" type="Label" parent="TopBar/Margin/HBox"]
+[node name="ActLabel" type="Label" parent="TopBar/Margin/VBox/MetaRow"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 15
+theme_override_colors/font_color = Color(0.71, 0.75, 0.81, 1.0)
 text = "ACT I: GARAGE INTELLIGENCE"
 
-[node name="Spacer" type="Control" parent="TopBar/Margin/HBox"]
+[node name="Spacer" type="Control" parent="TopBar/Margin/VBox/MetaRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="TimeControls" type="HBoxContainer" parent="TopBar/Margin/HBox"]
+[node name="TimeControls" type="HBoxContainer" parent="TopBar/Margin/VBox/MetaRow"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="PauseButton" type="Button" parent="TopBar/Margin/HBox/TimeControls"]
+[node name="PauseButton" type="Button" parent="TopBar/Margin/VBox/MetaRow/TimeControls"]
 layout_mode = 2
+custom_minimum_size = Vector2(0, 32)
 text = "Pause"
 
-[node name="Speed1Button" type="Button" parent="TopBar/Margin/HBox/TimeControls"]
+[node name="Speed1Button" type="Button" parent="TopBar/Margin/VBox/MetaRow/TimeControls"]
 layout_mode = 2
+custom_minimum_size = Vector2(0, 32)
 toggle_mode = true
 button_pressed = true
 button_group = SubResource("SpeedGroup")
 text = "1x"
 
-[node name="Speed2Button" type="Button" parent="TopBar/Margin/HBox/TimeControls"]
+[node name="Speed2Button" type="Button" parent="TopBar/Margin/VBox/MetaRow/TimeControls"]
 layout_mode = 2
+custom_minimum_size = Vector2(0, 32)
 toggle_mode = true
 button_group = SubResource("SpeedGroup")
 text = "2x"
 
-[node name="Speed3Button" type="Button" parent="TopBar/Margin/HBox/TimeControls"]
+[node name="Speed3Button" type="Button" parent="TopBar/Margin/VBox/MetaRow/TimeControls"]
 layout_mode = 2
+custom_minimum_size = Vector2(0, 32)
 toggle_mode = true
 button_group = SubResource("SpeedGroup")
 text = "4x"
@@ -115,29 +147,31 @@ anchor_left = 0.0
 anchor_top = 0.0
 anchor_right = 1.0
 anchor_bottom = 0.0
-offset_top = 56.0
-offset_bottom = 140.0
+offset_left = 264.0
+offset_right = -384.0
+offset_top = 100.0
+offset_bottom = 148.0
 
 [node name="Background" type="ColorRect" parent="TutorialBanner"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-color = Color(0.08, 0.12, 0.2, 0.92)
+color = Color(0.078, 0.114, 0.188, 0.95)
 
 [node name="Margin" type="MarginContainer" parent="TutorialBanner"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-theme_override_constants/margin_left = 16
-theme_override_constants/margin_top = 8
-theme_override_constants/margin_right = 16
-theme_override_constants/margin_bottom = 8
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 6
 
 [node name="HBox" type="HBoxContainer" parent="TutorialBanner/Margin"]
 layout_mode = 2
-theme_override_constants/separation = 16
+theme_override_constants/separation = 12
 
 [node name="VBox" type="VBoxContainer" parent="TutorialBanner/Margin/HBox"]
 layout_mode = 2
@@ -145,23 +179,35 @@ size_flags_horizontal = 3
 
 [node name="TitleLabel" type="Label" parent="TutorialBanner/Margin/HBox/VBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 15
 text = "Tutorial"
 
 [node name="BodyLabel" type="Label" parent="TutorialBanner/Margin/HBox/VBox"]
 layout_mode = 2
+theme_override_font_sizes/font_size = 13
 autowrap_mode = 3
+clip_text = true
 text = ""
 
-[node name="ButtonBox" type="VBoxContainer" parent="TutorialBanner/Margin/HBox"]
+[node name="ButtonBox" type="HBoxContainer" parent="TutorialBanner/Margin/HBox"]
 layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="MinimizeButton" type="Button" parent="TutorialBanner/Margin/HBox/ButtonBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 30)
+toggle_mode = true
+text = "_"
+tooltip_text = "Minimize"
 
 [node name="SkipStepButton" type="Button" parent="TutorialBanner/Margin/HBox/ButtonBox"]
 layout_mode = 2
+custom_minimum_size = Vector2(0, 30)
 text = "Skip Step"
 
 [node name="SkipAllButton" type="Button" parent="TutorialBanner/Margin/HBox/ButtonBox"]
 layout_mode = 2
+custom_minimum_size = Vector2(0, 30)
 text = "Skip Tutorial"
 
 [node name="BottomBar" type="Control" parent="."]
@@ -170,14 +216,14 @@ anchor_left = 0.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = -56.0
+offset_top = -68.0
 
 [node name="Background" type="ColorRect" parent="BottomBar"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-color = Color(0.04, 0.055, 0.075, 0.92)
+color = Color(0.043, 0.055, 0.078, 0.96)
 
 [node name="Margin" type="MarginContainer" parent="BottomBar"]
 layout_mode = 1
@@ -185,59 +231,67 @@ anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 theme_override_constants/margin_left = 16
-theme_override_constants/margin_top = 8
+theme_override_constants/margin_top = 6
 theme_override_constants/margin_right = 16
-theme_override_constants/margin_bottom = 8
+theme_override_constants/margin_bottom = 6
 
 [node name="HBox" type="HBoxContainer" parent="BottomBar/Margin"]
 layout_mode = 2
 alignment = 1
-theme_override_constants/separation = 10
+theme_override_constants/separation = 8
 
 [node name="BuildButton" type="Button" parent="BottomBar/Margin/HBox"]
 layout_mode = 2
+custom_minimum_size = Vector2(0, 56)
 toggle_mode = true
 button_group = SubResource("SectionGroup")
 text = "Build"
 
 [node name="StaffButton" type="Button" parent="BottomBar/Margin/HBox"]
 layout_mode = 2
+custom_minimum_size = Vector2(0, 56)
 toggle_mode = true
 button_group = SubResource("SectionGroup")
 text = "Staff"
 
 [node name="ResearchButton" type="Button" parent="BottomBar/Margin/HBox"]
 layout_mode = 2
+custom_minimum_size = Vector2(0, 56)
 toggle_mode = true
 button_group = SubResource("SectionGroup")
 text = "Research"
 
 [node name="ModelsButton" type="Button" parent="BottomBar/Margin/HBox"]
 layout_mode = 2
+custom_minimum_size = Vector2(0, 56)
 toggle_mode = true
 button_group = SubResource("SectionGroup")
 text = "Models"
 
 [node name="DeploymentsButton" type="Button" parent="BottomBar/Margin/HBox"]
 layout_mode = 2
+custom_minimum_size = Vector2(0, 56)
 toggle_mode = true
 button_group = SubResource("SectionGroup")
 text = "Deployments"
 
 [node name="CompanyButton" type="Button" parent="BottomBar/Margin/HBox"]
 layout_mode = 2
+custom_minimum_size = Vector2(0, 56)
 toggle_mode = true
 button_group = SubResource("SectionGroup")
 text = "Company"
 
 [node name="WorldButton" type="Button" parent="BottomBar/Margin/HBox"]
 layout_mode = 2
+custom_minimum_size = Vector2(0, 56)
 toggle_mode = true
 button_group = SubResource("SectionGroup")
 text = "World"
 
 [node name="GlossaryButton" type="Button" parent="BottomBar/Margin/HBox"]
 layout_mode = 2
+custom_minimum_size = Vector2(0, 56)
 toggle_mode = true
 button_group = SubResource("SectionGroup")
 text = "Glossary"
@@ -248,9 +302,9 @@ anchor_left = 0.0
 anchor_top = 0.0
 anchor_right = 0.0
 anchor_bottom = 1.0
-offset_right = 240.0
-offset_top = 56.0
-offset_bottom = -56.0
+offset_right = 260.0
+offset_top = 92.0
+offset_bottom = -68.0
 
 [node name="Margin" type="MarginContainer" parent="LeftPanel"]
 layout_mode = 1
@@ -268,16 +322,23 @@ theme_override_constants/separation = 8
 
 [node name="Title" type="Label" parent="LeftPanel/Margin/VBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 20
 text = "Inbox"
 
 [node name="EmptyLabel" type="Label" parent="LeftPanel/Margin/VBox"]
 layout_mode = 2
+theme_override_font_sizes/font_size = 14
 autowrap_mode = 3
 text = "No active objectives."
 
-[node name="IncidentList" type="VBoxContainer" parent="LeftPanel/Margin/VBox"]
+[node name="Scroll" type="ScrollContainer" parent="LeftPanel/Margin/VBox"]
 layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="IncidentList" type="VBoxContainer" parent="LeftPanel/Margin/VBox/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 6
 
 [node name="RightPanel" type="Panel" parent="."]
@@ -286,18 +347,18 @@ anchor_left = 1.0
 anchor_top = 0.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -280.0
-offset_top = 56.0
-offset_bottom = -56.0
+offset_left = -400.0
+offset_top = 92.0
+offset_bottom = -68.0
 
 [node name="Margin" type="MarginContainer" parent="RightPanel"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-theme_override_constants/margin_left = 14
+theme_override_constants/margin_left = 16
 theme_override_constants/margin_top = 12
-theme_override_constants/margin_right = 14
+theme_override_constants/margin_right = 16
 theme_override_constants/margin_bottom = 12
 
 [node name="VBox" type="VBoxContainer" parent="RightPanel/Margin"]
@@ -306,14 +367,21 @@ theme_override_constants/separation = 8
 
 [node name="Title" type="Label" parent="RightPanel/Margin/VBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 20
 text = "Inspector"
 
 [node name="Body" type="Label" parent="RightPanel/Margin/VBox"]
 layout_mode = 2
+theme_override_font_sizes/font_size = 14
 autowrap_mode = 3
 text = "Nothing selected."
 
-[node name="DynamicContent" type="VBoxContainer" parent="RightPanel/Margin/VBox"]
+[node name="Scroll" type="ScrollContainer" parent="RightPanel/Margin/VBox"]
 layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="DynamicContent" type="VBoxContainer" parent="RightPanel/Margin/VBox/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 6

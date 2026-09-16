@@ -17,27 +17,32 @@ extends CanvasLayer
 ## this interval instead of running unconditionally in _process().
 const RESOURCE_STRIP_REFRESH_INTERVAL_SEC: float = 0.15
 
-@onready var _cash_label: Label = $TopBar/Margin/HBox/CashLabel
-@onready var _compute_label: Label = $TopBar/Margin/HBox/ComputeLabel
-@onready var _power_label: Label = $TopBar/Margin/HBox/PowerLabel
-@onready var _trust_label: Label = $TopBar/Margin/HBox/TrustLabel
-@onready var _safety_label: Label = $TopBar/Margin/HBox/SafetyDebtLabel
-@onready var _heat_label: Label = $TopBar/Margin/HBox/HeatLabel
-@onready var _date_label: Label = $TopBar/Margin/HBox/DateLabel
-@onready var _act_label: Label = $TopBar/Margin/HBox/ActLabel
-@onready var _pause_button: Button = $TopBar/Margin/HBox/TimeControls/PauseButton
+@onready var _cash_label: Label = $TopBar/Margin/VBox/ResourceRow/CashChip/CashLabel
+@onready var _compute_label: Label = $TopBar/Margin/VBox/ResourceRow/ComputeChip/ComputeLabel
+@onready var _power_label: Label = $TopBar/Margin/VBox/ResourceRow/PowerChip/PowerLabel
+@onready var _trust_label: Label = $TopBar/Margin/VBox/ResourceRow/TrustChip/TrustLabel
+@onready var _safety_label: Label = $TopBar/Margin/VBox/ResourceRow/SafetyDebtChip/SafetyDebtLabel
+@onready var _heat_label: Label = $TopBar/Margin/VBox/ResourceRow/HeatChip/HeatLabel
+@onready var _date_label: Label = $TopBar/Margin/VBox/MetaRow/DateLabel
+@onready var _act_label: Label = $TopBar/Margin/VBox/MetaRow/ActLabel
+@onready var _pause_button: Button = $TopBar/Margin/VBox/MetaRow/TimeControls/PauseButton
 @onready var _speed_buttons: Array[Button] = [
-    $TopBar/Margin/HBox/TimeControls/Speed1Button,
-    $TopBar/Margin/HBox/TimeControls/Speed2Button,
-    $TopBar/Margin/HBox/TimeControls/Speed3Button,
+    $TopBar/Margin/VBox/MetaRow/TimeControls/Speed1Button,
+    $TopBar/Margin/VBox/MetaRow/TimeControls/Speed2Button,
+    $TopBar/Margin/VBox/MetaRow/TimeControls/Speed3Button,
 ]
 # docs/technical/INPUT_CAMERA.md / P07 spec: pause/1x/2x/4x, not 1x/2x/3x.
 const SPEED_TIER_VALUES: Array[float] = [1.0, 2.0, 4.0]
+@onready var _resource_chips: Array[PanelContainer] = [
+    $TopBar/Margin/VBox/ResourceRow/CashChip, $TopBar/Margin/VBox/ResourceRow/ComputeChip,
+    $TopBar/Margin/VBox/ResourceRow/PowerChip, $TopBar/Margin/VBox/ResourceRow/HeatChip,
+    $TopBar/Margin/VBox/ResourceRow/TrustChip, $TopBar/Margin/VBox/ResourceRow/SafetyDebtChip,
+]
 @onready var _inspector_title: Label = $RightPanel/Margin/VBox/Title
 @onready var _inspector_body: Label = $RightPanel/Margin/VBox/Body
-@onready var _dynamic_content: VBoxContainer = $RightPanel/Margin/VBox/DynamicContent
+@onready var _dynamic_content: VBoxContainer = $RightPanel/Margin/VBox/Scroll/DynamicContent
 @onready var _incident_empty_label: Label = $LeftPanel/Margin/VBox/EmptyLabel
-@onready var _incident_list: VBoxContainer = $LeftPanel/Margin/VBox/IncidentList
+@onready var _incident_list: VBoxContainer = $LeftPanel/Margin/VBox/Scroll/IncidentList
 @onready var _section_buttons: Array[Button] = [
     $BottomBar/Margin/HBox/BuildButton,
     $BottomBar/Margin/HBox/StaffButton,
@@ -53,10 +58,35 @@ const SPEED_TIER_VALUES: Array[float] = [1.0, 2.0, 4.0]
 @onready var _tutorial_body_label: Label = $TutorialBanner/Margin/HBox/VBox/BodyLabel
 @onready var _tutorial_skip_step_button: Button = $TutorialBanner/Margin/HBox/ButtonBox/SkipStepButton
 @onready var _tutorial_skip_all_button: Button = $TutorialBanner/Margin/HBox/ButtonBox/SkipAllButton
+@onready var _tutorial_minimize_button: Button = $TutorialBanner/Margin/HBox/ButtonBox/MinimizeButton
+const TUTORIAL_BANNER_HEIGHT: float = 48.0
+const TUTORIAL_BANNER_HEIGHT_MINIMIZED: float = 26.0
+var _tutorial_minimized: bool = false
 
 var _refresh_accumulator: float = 0.0
 
+## Art Bible palette (docs/design/ART_BIBLE.md): "gameplay accent families
+## are semantically assigned" — reused directly from assets/branding/
+## icon.svg's existing violet/teal/gold accents where a category matches
+## (safety/trust), extended with the Bible's named green/blue/coral for
+## money/compute/heat-as-risk. Power has no named Art Bible category (not
+## one of capability/safety/trust/risk/money/compute) — kept a neutral
+## steel tone deliberately rather than overloading another category's
+## color onto it.
+const CHIP_COLOR_MONEY: Color = Color("5ec26a")
+const CHIP_COLOR_COMPUTE: Color = Color("4c8fd6")
+const CHIP_COLOR_POWER: Color = Color("6b7688")
+const CHIP_COLOR_HEAT: Color = Color("ff7a5c")
+const CHIP_COLOR_TRUST: Color = Color("f6c85f")
+const CHIP_COLOR_SAFETY: Color = Color("2ed3c6")
+
 func _ready() -> void:
+    var chip_colors: Array[Color] = [
+        CHIP_COLOR_MONEY, CHIP_COLOR_COMPUTE, CHIP_COLOR_POWER,
+        CHIP_COLOR_HEAT, CHIP_COLOR_TRUST, CHIP_COLOR_SAFETY,
+    ]
+    for i in _resource_chips.size():
+        _style_chip(_resource_chips[i], chip_colors[i])
     _pause_button.pressed.connect(_on_pause_pressed)
     for i in _speed_buttons.size():
         _speed_buttons[i].pressed.connect(_on_speed_pressed.bind(i))
@@ -71,6 +101,7 @@ func _ready() -> void:
     EventBus.incident_raised.connect(_on_incident_raised)
     _tutorial_skip_step_button.pressed.connect(_on_tutorial_skip_step_pressed)
     _tutorial_skip_all_button.pressed.connect(_on_tutorial_skip_all_pressed)
+    _tutorial_minimize_button.pressed.connect(_on_tutorial_minimize_pressed)
     # Localizes every still-static label (Title, section buttons, tutorial
     # banner buttons) before any of the dynamic refreshes below run — those
     # route their own text through tr_text() on every call instead, so
@@ -85,6 +116,25 @@ func _ready() -> void:
     # nothing focused, ui_up/down/left/right and ui_accept have no target.
     _section_buttons[0].grab_focus()
     _refresh_tutorial_banner()
+
+## A subtle left accent bar + tinted background per resource chip — a
+## thin StyleBoxFlat, not a full-color fill, so the top bar stays legible
+## (dark background, light text) instead of turning into 6 solid color
+## blocks.
+func _style_chip(chip: PanelContainer, accent: Color) -> void:
+    var style: StyleBoxFlat = StyleBoxFlat.new()
+    style.bg_color = Color(accent.r, accent.g, accent.b, 0.14)
+    style.border_color = accent
+    style.border_width_left = 3
+    style.corner_radius_top_left = 4
+    style.corner_radius_bottom_left = 4
+    style.corner_radius_top_right = 4
+    style.corner_radius_bottom_right = 4
+    style.content_margin_left = 10
+    style.content_margin_right = 10
+    style.content_margin_top = 4
+    style.content_margin_bottom = 4
+    chip.add_theme_stylebox_override("panel", style)
 
 func _process(delta: float) -> void:
     _refresh_accumulator += delta
@@ -101,6 +151,11 @@ func _refresh_tutorial_banner() -> void:
         return
     _tutorial_title_label.text = LocalizationManager.tr_text(String(step.get("title", "Tutorial")))
     _tutorial_body_label.text = LocalizationManager.tr_text(String(step.get("body", "")))
+    _tutorial_body_label.visible = not _tutorial_minimized
+    _tutorial_skip_step_button.visible = not _tutorial_minimized
+    _tutorial_banner.offset_bottom = _tutorial_banner.offset_top + (
+        TUTORIAL_BANNER_HEIGHT_MINIMIZED if _tutorial_minimized else TUTORIAL_BANNER_HEIGHT
+    )
 
 func _on_tutorial_skip_step_pressed() -> void:
     var step: Dictionary = TutorialManager.current_step()
@@ -110,6 +165,10 @@ func _on_tutorial_skip_step_pressed() -> void:
 
 func _on_tutorial_skip_all_pressed() -> void:
     TutorialManager.skip_all()
+    _refresh_tutorial_banner()
+
+func _on_tutorial_minimize_pressed() -> void:
+    _tutorial_minimized = _tutorial_minimize_button.button_pressed
     _refresh_tutorial_banner()
 
 ## P45: unlike the mostly-static Labels/Buttons LocalizationManager.
