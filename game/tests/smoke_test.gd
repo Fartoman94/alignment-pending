@@ -515,6 +515,78 @@ func _initialize() -> void:
         return
     print("SMOKE_OK: firing removes the staff member from the roster")
 
+    # Finalization pass: the Fire button now opens a real confirmation
+    # dialog instead of firing immediately — drive it through the actual
+    # Hud scene, not just the manager API, since nothing else does and a
+    # real bug (ConfirmationDialog.popup_centered()/grab_focus() throwing
+    # "!is_inside_tree()" when called synchronously right after
+    # add_child(), reproduced directly against a standalone
+    # ConfirmationDialog before this was written) was found exactly
+    # because nothing exercised this path end-to-end.
+    staff_mgr.refresh_candidates()
+    var confirm_hired_id: String = ""
+    for i in staff_mgr.candidates.size():
+        var hire_result: Error = staff_mgr.hire(i)
+        if hire_result == OK:
+            confirm_hired_id = String(state.staff[0].get("id", ""))
+            break
+    if confirm_hired_id.is_empty():
+        push_error("Could not hire a candidate to test the Fire confirmation flow")
+        quit(1)
+        return
+    var confirm_hud_packed: PackedScene = load("res://scenes/hud.tscn")
+    var confirm_hud: Node = confirm_hud_packed.instantiate()
+    get_root().add_child(confirm_hud)
+    confirm_hud.call("_show_staff_panel")
+    await process_frame
+
+    var fire_button: Button = null
+    var dynamic_content: Node = confirm_hud.get_node("RightPanel/Margin/VBox/DynamicContent")
+    for child in dynamic_content.get_children():
+        for grandchild in child.get_children():
+            if grandchild is Button and String((grandchild as Button).text) == "Fire":
+                fire_button = grandchild
+                break
+        if fire_button != null:
+            break
+    if fire_button == null:
+        push_error("Could not find the Fire button in the real Staff panel")
+        quit(1)
+        return
+    fire_button.pressed.emit()
+    await process_frame
+
+    var dialog: ConfirmationDialog = null
+    for child in confirm_hud.get_children():
+        if child is ConfirmationDialog:
+            dialog = child
+            break
+    if dialog == null:
+        push_error("Pressing Fire should open a real ConfirmationDialog, none found")
+        quit(1)
+        return
+    if dialog.dialog_text.is_empty():
+        push_error("Confirmation dialog should have real, non-empty warning text")
+        quit(1)
+        return
+    if staff_mgr.find(confirm_hired_id).is_empty():
+        push_error("The staff member should NOT be fired yet — only the confirmation dialog opened so far")
+        quit(1)
+        return
+    dialog.get_ok_button().pressed.emit()
+    await process_frame
+    if not staff_mgr.find(confirm_hired_id).is_empty():
+        push_error("Confirming the Fire dialog should actually fire the staff member")
+        quit(1)
+        return
+    if is_instance_valid(dialog) and dialog.is_inside_tree():
+        push_error("The confirmation dialog should free itself after confirming")
+        quit(1)
+        return
+    confirm_hud.queue_free()
+    await process_frame
+    print("SMOKE_OK: the Fire button's confirmation dialog is real — opens on click, does nothing until confirmed, actually fires on confirm, and cleans itself up")
+
     # P11: task assignment and workstations.
     var task_catalog: Dictionary = WorkTaskCatalog.load_all()
     for expected_task_id: String in ["research_sprint", "training_run", "safety_audit"]:
@@ -3949,6 +4021,31 @@ func _initialize() -> void:
         push_error("tr_text() should return the real authored Spanish translation under the 'es' locale (got '%s')" % loc_mgr.tr_text("Settings"))
         quit(1)
         return
+    # Dynamic/templated strings: tr_text() must receive the raw template
+    # (with %s/%d placeholders still literal), not a pre-substituted
+    # result — GDScript's "%" operator binds tighter than a function call,
+    # so tr_text("template %s" % [arg]) silently passes tr_text the
+    # already-formatted string instead, which can never match a
+    # template-keyed dictionary entry. Real call sites must write
+    # tr_text("template %s") % [arg] instead — this is exactly that
+    # shape, reproduced directly.
+    var es_template: String = loc_mgr.tr_text("ACT %s: %s")
+    if es_template != "ACTO %s: %s":
+        push_error("tr_text() on a raw template should return its Spanish translation with placeholders intact (got '%s')" % es_template)
+        quit(1)
+        return
+    var es_formatted: String = loc_mgr.tr_text("ACT %s: %s") % ["I", "TEST"]
+    if es_formatted != "ACTO I: TEST":
+        push_error("tr_text(template) %% args should produce a correctly Spanish-formatted string (got '%s')" % es_formatted)
+        quit(1)
+        return
+    var broken_formatted: String = loc_mgr.tr_text("ACT %s: %s" % ["I", "TEST"])
+    if broken_formatted == "ACTO I: TEST":
+        push_error("this probe should demonstrate the wrong call shape actually fails to translate (regression guard against reintroducing it)")
+        quit(1)
+        return
+    print("SMOKE_OK: tr_text() on a templated string with placeholders translates correctly when called before %% substitution")
+
     var untranslated_source: String = "___no_such_string_in_any_locale_dict___"
     if loc_mgr.tr_text(untranslated_source) != untranslated_source:
         push_error("tr_text() should gracefully fall back to the English source for an untranslated string under 'es'")
