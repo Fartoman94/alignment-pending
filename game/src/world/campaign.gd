@@ -188,7 +188,7 @@ func _spawn_staff_agent(staff_id: String) -> void:
     agent.bounds_max = Vector2(7.0, 5.0)
     var role_id: String = String(StaffManager.find(staff_id).get("role", ""))
     var role_def: Dictionary = StaffRoleCatalog.get_def(role_id)
-    agent.role_color = Color(String(role_def.get("visual_color", "ffffff")))
+    agent.character_model_path = String(role_def.get("character_model", ""))
     agent.rng.randomize()
     agent.position = Vector3(randf_range(-6.0, 6.0), 0.0, randf_range(-4.0, 4.0))
     add_child(agent)

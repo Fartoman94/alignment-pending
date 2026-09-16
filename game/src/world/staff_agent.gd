@@ -18,11 +18,6 @@ var bounds_min: Vector2 = Vector2(-7.0, -5.0)
 var bounds_max: Vector2 = Vector2(7.0, 5.0)
 var coordinator: NavCoordinator
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-## Set by the spawner (Campaign._spawn_staff_agent()) from the staff
-## member's role (StaffRoleCatalog.visual_color) before this node enters
-## the tree. P39: a minimal procedural placeholder body — real character
-## art/animation is P40's job.
-var role_color: Color = Color.WHITE
 
 var state: State = State.IDLE
 var total_distance_traveled: float = 0.0
@@ -35,21 +30,42 @@ var _has_reservation: bool = false
 var _synced: bool = false
 var _has_work_target: bool = false
 
-# P40: modular low-poly body parts + procedural animation. Each part is
-# its own MeshInstance3D (swappable/extendable independently — "modular"),
-# built once in _build_visual() and then just re-transformed every frame
-# by _animate_visual(), never rebuilt — cheap enough for 50+ agents at
-# once (a handful of sin() calls and Transform assignments per agent).
-var _torso: MeshInstance3D
-var _head: MeshInstance3D
-var _left_arm: MeshInstance3D
-var _right_arm: MeshInstance3D
-var _left_leg: MeshInstance3D
-var _right_leg: MeshInstance3D
-var _accessory: MeshInstance3D
+# P40, replaced by the finalization-pack 3D asset pack: a real, authored
+# low-poly character model (game/assets/models/characters/*.glb, one per
+# role — see StaffRoleCatalog's character_model field) instead of the
+# original procedural capsule body. Still animated procedurally (no
+# skeleton/AnimationPlayer — the pack's characters are static meshes by
+# design), just re-transformed every frame by _animate_visual(), never
+# rebuilt — cheap enough for 150+ agents at once.
+##
+## The pack's meshes are authored Z-up in local space (confirmed by
+## rendering one and inspecting the pixels: without a corrective
+## rotation, a character renders as a top-down silhouette, not a front
+## view) — _build_visual() rotates the whole loaded model -90° on X to
+## match Godot's Y-up convention. leg_l/leg_r/arm_l/arm_r are wrapped in
+## their own pivot Node3D positioned at the joint (hip/shoulder — the top
+## of each limb mesh's local Z range) instead of rotating the limb mesh
+## directly: the mesh's own local origin sits at the limb's far end (the
+## foot for legs, and — critically — nowhere near the arm mesh at all
+## for arms, since a hanging arm's local origin is inherited from the
+## character root, well below the shoulder), so rotating the raw mesh
+## node would swing it around the wrong point entirely.
+var _leg_l_pivot: Node3D
+var _leg_r_pivot: Node3D
+var _arm_l_pivot: Node3D
+var _arm_r_pivot: Node3D
+## Everything that isn't a leg/arm pivot (torso, head, hair, and every
+## role-specific accessory — tie, glasses, labcoat, vest, helmet, cap,
+## tablet) reparented under one group so the idle/walk/work bob is a
+## single position offset instead of N separate ones.
+var _bob_group: Node3D
 var _visual_time: float = 0.0
 ## Random per-agent phase offset so a crowd doesn't all bob in unison.
 var _visual_phase: float = 0.0
+## Set by the spawner (Campaign._spawn_staff_agent()) from the staff
+## member's role (StaffRoleCatalog.character_model) before this node
+## enters the tree.
+var character_model_path: String = ""
 
 func _ready() -> void:
     _nav_agent = NavigationAgent3D.new()
@@ -76,38 +92,72 @@ func _ready() -> void:
     await get_tree().physics_frame
     _synced = true
 
-## A modular low-poly placeholder body (P40): 7 independent parts, each
-## its own MeshInstance3D, tinted by department (role_color). Original
-## proportions chosen for silhouette clarity at isometric camera distance
-## — a large head-to-body ratio and a bright accessory accent read clearly
-## even as a small on-screen shape. Real authored character art is a later
-## content pass; this is the procedural floor described in
-## docs/design/ART_ASSET_LIST.md's "Character MVP".
+## Loads the role's authored character model, corrects its authored Z-up
+## orientation to Godot's Y-up, and wraps each limb in a joint-positioned
+## pivot so rotation animates naturally (see the class-level doc comment
+## above for why the raw meshes can't just be rotated directly).
 func _build_visual() -> void:
     _visual_phase = rng.randf_range(0.0, TAU)
-    _torso = ProceduralMeshFactory.make_capsule("Torso", 0.28, 1.3, role_color)
-    _torso.position.y = 0.75
-    add_child(_torso)
-    _head = ProceduralMeshFactory.make_capsule("Head", 0.18, 0.36, role_color.lightened(0.35))
-    _head.position.y = 1.56
-    add_child(_head)
-    _left_arm = ProceduralMeshFactory.make_capsule("LeftArm", 0.07, 0.7, role_color.darkened(0.1))
-    _left_arm.position = Vector3(-0.32, 1.05, 0.0)
-    add_child(_left_arm)
-    _right_arm = ProceduralMeshFactory.make_capsule("RightArm", 0.07, 0.7, role_color.darkened(0.1))
-    _right_arm.position = Vector3(0.32, 1.05, 0.0)
-    add_child(_right_arm)
-    _left_leg = ProceduralMeshFactory.make_capsule("LeftLeg", 0.09, 0.8, role_color.darkened(0.3))
-    _left_leg.position = Vector3(-0.13, 0.35, 0.0)
-    add_child(_left_leg)
-    _right_leg = ProceduralMeshFactory.make_capsule("RightLeg", 0.09, 0.8, role_color.darkened(0.3))
-    _right_leg.position = Vector3(0.13, 0.35, 0.0)
-    add_child(_right_leg)
-    # A small bright badge — the one "accessory" slot (ART_ASSET_LIST.md);
-    # a distinct authored accessory per role is a later art pass.
-    _accessory = ProceduralMeshFactory.make_box("Accessory", Vector3(0.12, 0.12, 0.05), role_color.lightened(0.6), 0.4)
-    _accessory.position = Vector3(0.0, 0.95, 0.26)
-    add_child(_accessory)
+    var packed: PackedScene = load(character_model_path)
+    if packed == null:
+        push_error("StaffAgent: could not load character model '%s'" % character_model_path)
+        return
+    var model: Node3D = packed.instantiate()
+    add_child(model)
+    var world_node: Node = model.get_node_or_null("world")
+    if world_node == null:
+        push_error("StaffAgent: character model '%s' has no 'world' root node" % character_model_path)
+        return
+
+    # Everything visible (bob group AND limb pivots) lives under one
+    # wrapper carrying the corrective rotation — reparenting limbs
+    # directly under `self` (as an earlier version of this did) silently
+    # left them outside the rotation, rendering the whole character
+    # sideways/from-above. Caught by actually rendering and looking at
+    # the pixels, not just by the headless test suite passing.
+    var visual_root: Node3D = Node3D.new()
+    visual_root.name = "VisualRoot"
+    visual_root.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+    add_child(visual_root)
+
+    _bob_group = Node3D.new()
+    _bob_group.name = "BobGroup"
+    visual_root.add_child(_bob_group)
+
+    var limb_names: Array[String] = ["leg_l", "leg_r", "arm_l", "arm_r"]
+    for child in world_node.get_children().duplicate():
+        var mesh_inst: Node3D = child
+        if limb_names.has(String(mesh_inst.name)):
+            var pivot: Node3D = Node3D.new()
+            pivot.name = "%s_pivot" % mesh_inst.name
+            var joint_z: float = _joint_z(mesh_inst)
+            pivot.position = Vector3(0.0, 0.0, joint_z)
+            world_node.remove_child(mesh_inst)
+            visual_root.add_child(pivot)
+            pivot.add_child(mesh_inst)
+            mesh_inst.position = Vector3(0.0, 0.0, -joint_z)
+            match String(mesh_inst.name):
+                "leg_l": _leg_l_pivot = pivot
+                "leg_r": _leg_r_pivot = pivot
+                "arm_l": _arm_l_pivot = pivot
+                "arm_r": _arm_r_pivot = pivot
+        else:
+            world_node.remove_child(mesh_inst)
+            _bob_group.add_child(mesh_inst)
+    model.queue_free()
+
+## The joint a limb hangs/pivots from — the top of its local Z-range
+## (hip for a leg, shoulder for an arm) — read directly from the mesh's
+## own AABB rather than hardcoded, so it works for every character in
+## the pack without per-model tuning.
+func _joint_z(mesh_inst: Node3D) -> float:
+    if not (mesh_inst is MeshInstance3D):
+        return 0.0
+    var mesh: Mesh = (mesh_inst as MeshInstance3D).mesh
+    if mesh == null:
+        return 0.0
+    var aabb: AABB = mesh.get_aabb()
+    return aabb.position.z + aabb.size.z
 
 func _physics_process(delta: float) -> void:
     if not _synced or GameState.paused:
@@ -130,33 +180,32 @@ func _physics_process(delta: float) -> void:
 ## WORKING, so a player can tell what a staff member is doing at a glance
 ## even at isometric distance.
 func _animate_visual(delta: float) -> void:
+    if _leg_l_pivot == null:
+        return  # _build_visual() failed to load a model — nothing to animate.
     _visual_time += delta
     var t: float = _visual_time * 6.0 + _visual_phase
     match state:
         State.MOVING:
             var swing: float = sin(t) * 0.5
-            _left_leg.rotation.x = swing
-            _right_leg.rotation.x = -swing
-            _left_arm.rotation.x = -swing * 0.6
-            _right_arm.rotation.x = swing * 0.6
-            _torso.position.y = 0.75 + absf(sin(t)) * 0.03
-            _head.position.y = 1.56 + absf(sin(t)) * 0.03
+            _leg_l_pivot.rotation.x = swing
+            _leg_r_pivot.rotation.x = -swing
+            _arm_l_pivot.rotation.x = -swing * 0.6
+            _arm_r_pivot.rotation.x = swing * 0.6
+            _bob_group.position.z = absf(sin(t)) * 0.03
         State.WORKING:
             var focus_t: float = _visual_time * 10.0 + _visual_phase
-            _right_arm.rotation.x = -0.9 + sin(focus_t) * 0.15
-            _left_arm.rotation.x = -0.1
-            _left_leg.rotation.x = 0.0
-            _right_leg.rotation.x = 0.0
-            _torso.position.y = 0.75
-            _head.position.y = 1.56 + sin(focus_t * 0.5) * 0.01
+            _arm_r_pivot.rotation.x = -0.9 + sin(focus_t) * 0.15
+            _arm_l_pivot.rotation.x = -0.1
+            _leg_l_pivot.rotation.x = 0.0
+            _leg_r_pivot.rotation.x = 0.0
+            _bob_group.position.z = sin(focus_t * 0.5) * 0.01
         State.IDLE:
             var idle_t: float = _visual_time * 1.5 + _visual_phase
-            _left_leg.rotation.x = 0.0
-            _right_leg.rotation.x = 0.0
-            _left_arm.rotation.x = 0.0
-            _right_arm.rotation.x = 0.0
-            _torso.position.y = 0.75 + sin(idle_t) * 0.015
-            _head.position.y = 1.56 + sin(idle_t) * 0.02
+            _leg_l_pivot.rotation.x = 0.0
+            _leg_r_pivot.rotation.x = 0.0
+            _arm_l_pivot.rotation.x = 0.0
+            _arm_r_pivot.rotation.x = 0.0
+            _bob_group.position.z = sin(idle_t) * 0.015
 
 func _try_start_moving() -> void:
     for attempt in MAX_RESERVE_ATTEMPTS:

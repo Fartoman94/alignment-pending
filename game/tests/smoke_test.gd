@@ -386,6 +386,7 @@ func _initialize() -> void:
         var agent: Node3D = staff_agent_script.new()
         agent.coordinator = coordinator
         agent.rng.seed = 1000 + i
+        agent.character_model_path = "res://assets/models/characters/engineer.glb"
         agent.position = Vector3(randf_range(-6.0, 6.0), 0.0, randf_range(-4.0, 4.0))
         get_root().add_child(agent)
         agents.append(agent)
@@ -3448,38 +3449,43 @@ func _initialize() -> void:
     print("SMOKE_OK: ProceduralMeshFactory produces correctly-configured, tinted, original procedural meshes and materials")
 
     for role_id: String in StaffRoleCatalog.load_all():
-        var role_visual_color: String = String(StaffRoleCatalog.get_def(role_id).get("visual_color", ""))
+        var role_def: Dictionary = StaffRoleCatalog.get_def(role_id)
+        var role_visual_color: String = String(role_def.get("visual_color", ""))
         if not role_visual_color.is_valid_html_color():
-            push_error("Staff role '%s' should have a valid visual_color for its placeholder body" % role_id)
+            push_error("Staff role '%s' should have a valid visual_color" % role_id)
             quit(1)
             return
-    print("SMOKE_OK: every staff role has a valid, data-driven placeholder body color")
+        var role_model_path: String = String(role_def.get("character_model", ""))
+        if not role_model_path.ends_with(".glb") or not FileAccess.file_exists(role_model_path):
+            push_error("Staff role '%s' should have a character_model pointing at a real .glb file (got '%s')" % [role_id, role_model_path])
+            quit(1)
+            return
+    print("SMOKE_OK: every staff role has a valid visual_color and a real character_model .glb file")
 
     # Loaded dynamically for the same compile-order reason as the 20-agent
     # nav test above (StaffAgent touches GameState.paused).
     var test_agent: Node3D = load("res://src/world/staff_agent.gd").new()
-    test_agent.role_color = Color("4c7ea8")
+    test_agent.character_model_path = "res://assets/models/characters/researcher.glb"
     get_root().add_child(test_agent)
     await process_frame
-    var found_torso: bool = false
+    if test_agent.get("_leg_l_pivot") == null or test_agent.get("_leg_r_pivot") == null \
+            or test_agent.get("_arm_l_pivot") == null or test_agent.get("_arm_r_pivot") == null:
+        push_error("A real StaffAgent should build joint pivots for all 4 limbs from its character model")
+        quit(1)
+        return
+    var bob_group: Node3D = test_agent.get("_bob_group")
     var found_head: bool = false
-    for child in test_agent.get_children():
-        if child is MeshInstance3D and String(child.name) == "Torso":
-            found_torso = true
-            var torso_mat: StandardMaterial3D = (child as MeshInstance3D).mesh.material
-            if not torso_mat.albedo_color.is_equal_approx(Color("4c7ea8")):
-                push_error("A staff agent's Torso mesh should be tinted with its role_color")
-                quit(1)
-                return
-        if child is MeshInstance3D and String(child.name) == "Head":
-            found_head = true
-    if not found_torso or not found_head:
-        push_error("A real StaffAgent should build a visible Torso + Head placeholder body (no more invisible staff)")
+    if bob_group != null:
+        for child in bob_group.get_children():
+            if child is MeshInstance3D and String(child.name) == "head":
+                found_head = true
+    if bob_group == null or not found_head:
+        push_error("A real StaffAgent should build a visible character body with a head (no more invisible staff)")
         quit(1)
         return
     test_agent.queue_free()
     await process_frame
-    print("SMOKE_OK: a real StaffAgent builds a visible, role-tinted placeholder body — staff are no longer invisible")
+    print("SMOKE_OK: a real StaffAgent loads its role's authored character model — real geometry, animatable limb pivots, staff are no longer invisible or procedurally-capsuled")
 
     # P40: character visuals and animation — modular low-poly parts,
     # procedural idle/walk/work approximations, and 50-agent performance.
@@ -3500,27 +3506,33 @@ func _initialize() -> void:
         var p40_agent: Node3D = load("res://src/world/staff_agent.gd").new()
         p40_agent.coordinator = p40_coordinator
         p40_agent.rng.seed = 2000 + i
-        p40_agent.role_color = Color(String(StaffRoleCatalog.get_def(String(p40_role_ids[i % p40_role_ids.size()])).get("visual_color", "ffffff")))
+        var p40_role_def: Dictionary = StaffRoleCatalog.get_def(String(p40_role_ids[i % p40_role_ids.size()]))
+        p40_agent.character_model_path = String(p40_role_def.get("character_model", ""))
         p40_agent.position = Vector3(randf_range(-6.0, 6.0), 0.0, randf_range(-4.0, 4.0))
         get_root().add_child(p40_agent)
         p40_agents.append(p40_agent)
     await process_frame
 
-    var missing_parts: int = 0
+    var agents_missing_pivots: int = 0
+    var agents_missing_head: int = 0
     for a in p40_agents:
-        var part_names: Array[String] = ["Torso", "Head", "LeftArm", "RightArm", "LeftLeg", "RightLeg", "Accessory"]
-        var found_parts: Dictionary = {}
-        for child in (a as Node3D).get_children():
-            if child is MeshInstance3D:
-                found_parts[String(child.name)] = true
-        for part_name: String in part_names:
-            if not found_parts.has(part_name):
-                missing_parts += 1
-    if missing_parts > 0:
-        push_error("Every staff agent should build all 7 modular body parts (missing %d across 50 agents)" % missing_parts)
+        if a.get("_leg_l_pivot") == null or a.get("_leg_r_pivot") == null \
+                or a.get("_arm_l_pivot") == null or a.get("_arm_r_pivot") == null:
+            agents_missing_pivots += 1
+            continue
+        var a_bob_group: Node3D = a.get("_bob_group")
+        var a_found_head: bool = false
+        if a_bob_group != null:
+            for child in a_bob_group.get_children():
+                if child is MeshInstance3D and String(child.name) == "head":
+                    a_found_head = true
+        if not a_found_head:
+            agents_missing_head += 1
+    if agents_missing_pivots > 0 or agents_missing_head > 0:
+        push_error("Every staff agent should build a complete character model with 4 limb pivots and a head (%d missing pivots, %d missing head, across 50 agents)" % [agents_missing_pivots, agents_missing_head])
         quit(1)
         return
-    print("SMOKE_OK: every staff agent builds a complete modular 7-part low-poly body")
+    print("SMOKE_OK: every staff agent builds a complete, role-appropriate character model with animatable limb pivots")
 
     var p40_start_ms: int = Time.get_ticks_msec()
     for i in 900:
@@ -3972,6 +3984,7 @@ func _initialize() -> void:
     # with no player-visible behavior change.
     var p44_test_agent_script: GDScript = load("res://src/world/staff_agent.gd")
     var p44_test_agent: Node3D = p44_test_agent_script.new()
+    p44_test_agent.character_model_path = "res://assets/models/characters/engineer.glb"
     get_root().add_child(p44_test_agent)
     await process_frame
     if not is_equal_approx(p44_test_agent._nav_agent.neighbor_distance, 6.0) or p44_test_agent._nav_agent.max_neighbors != 5:

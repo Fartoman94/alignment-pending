@@ -20,8 +20,11 @@ Every manager (`GameState`, `SaveManager`, `IncidentManager`, `RivalManager`, ..
 ## UI source art — `res://assets/ui/`
 `alignment_pending_logo.svg` (wordmark), `dashboard_mockup.svg` (reference mockup, not currently instantiated by any scene — a design reference asset, not a shipped one; flagged here rather than silently included).
 
+## Character models (10) — `res://assets/models/characters/*.glb`
+`junior`, `engineer`, `researcher`, `safety`, `legal`, `ops`, `hr`, `manager`, `ceo`, `cfo` — see `docs/legal/ASSET_PROVENANCE.md` for origin. 6 are wired: `StaffRoleCatalog`'s `character_model` field maps each of the 6 playable staff roles to one of these files, loaded by `StaffAgent._build_visual()` in place of the old P39/P40 procedural capsule body. `ceo`/`cfo`/`hr`/`legal` are imported and validated (`DataValidator` confirms every `character_model` path that IS referenced by a role resolves to a real file, and `scenes/dev/asset_gallery.tscn` displays all 10) but have no game system wired to them yet. The pack's authored orientation is Z-up in local mesh space, not Godot's Y-up — confirmed by rendering one and looking at the pixels before assuming — so every loader applies a `-90°` X correction; see `StaffAgent`'s class-level doc comment for the full reasoning, including why the correction has to be on a dedicated wrapper node and not the agent itself.
+
 ## What's explicitly excluded from the shipped export
-`export_presets.cfg`'s `exclude_filter` strips `tools/**` (dev-only asset-rendering scripts) and `tests/smoke_test.gd`(`.uid`) — the ~200-assertion source suite is meaningless without the editable project tree it inspects, and isn't needed at runtime. `tests/exported_build_smoke.gd` is deliberately **not** excluded — `src/boot/boot.gd` `preload()`s it, so the packaged game needs it present to honor `--qa-exported-smoke`.
+`export_presets.cfg`'s `exclude_filter` strips `tools/**` (dev-only asset-rendering scripts), `scenes/dev/**`/`src/dev/**` (the asset gallery QA scene), and `tests/smoke_test.gd`(`.uid`) — the ~200-assertion source suite is meaningless without the editable project tree it inspects, and isn't needed at runtime. `tests/exported_build_smoke.gd` is deliberately **not** excluded — `src/boot/boot.gd` `preload()`s it, so the packaged game needs it present to honor `--qa-exported-smoke`.
 
 ## Automated verification
 - Source-tree scene/catalog/autoload existence: `tests/smoke_test.gd` (`tools/bootstrap.sh`).

@@ -492,6 +492,13 @@ static func _validate_staff_role_record(path: String, record: Variant, index: in
         if not (visual_color is String) or not String(visual_color).is_valid_html_color():
             issues.append(Issue.new(path, id_label, "'visual_color' must be a valid hex color string (e.g. 'a1b2c3')"))
 
+    if entry.has("character_model"):
+        var character_model: String = str(entry.get("character_model", ""))
+        if character_model.is_empty() or not character_model.ends_with(".glb"):
+            issues.append(Issue.new(path, id_label, "'character_model' must be a non-empty path to a .glb file"))
+        elif not FileAccess.file_exists(character_model):
+            issues.append(Issue.new(path, id_label, "'character_model' points to a file that doesn't exist: %s" % character_model))
+
     return issues
 
 static func validate_staff_trait_file(path: String) -> Array[Issue]:
