@@ -127,6 +127,31 @@ func _build_office() -> void:
     _box("Floor", Vector3(0,-0.25,0), Vector3(18,0.5,14), Color("3d4654"))
     _box("BackWall", Vector3(0,1.5,-7), Vector3(18,3.5,0.3), Color("657181"))
     _box("LeftWall", Vector3(-9,1.5,0), Vector3(0.3,3.5,14), Color("596575"))
+    _build_ambient_decoration()
+
+## Fixed, non-buildable set dressing (finalization-pack 3D asset pack) —
+## deliberately placed in the margin between the walls and the buildable
+## grid/navmesh (grid+navmesh both span roughly X:[-8,8] Z:[-6,6]; the
+## floor extends to X:[-9,9] Z:[-7,7]), so nothing here can block a build
+## cell or need a NavigationObstacle3D. Not a general prop-placement
+## system (see KNOWN_ISSUES.md's "500 props" scope boundary) — just a
+## few fixed pieces so the office reads as inhabited rather than an
+## empty shell before the player has built anything.
+func _build_ambient_decoration() -> void:
+    _static_prop("res://assets/models/props/plant.glb", Vector3(-8.4, 0.0, -6.3))
+    _static_prop("res://assets/models/props/plant.glb", Vector3(-8.4, 0.0, 2.5))
+    _static_prop("res://assets/models/props/water_dispenser.glb", Vector3(-3.5, 0.0, -6.4))
+    _static_prop("res://assets/models/props/trash_bin.glb", Vector3(3.5, 0.0, -6.4))
+
+func _static_prop(model_path: String, pos: Vector3) -> void:
+    var packed: PackedScene = load(model_path)
+    if packed == null:
+        push_error("Campaign: could not load decorative prop '%s'" % model_path)
+        return
+    var inst: Node3D = packed.instantiate()
+    inst.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+    inst.position = pos
+    add_child(inst)
 
 func _build_camera() -> void:
     camera_controller = CameraController.new()
