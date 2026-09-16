@@ -222,6 +222,25 @@ var tutorial_completed_steps: Array = []
 ## TutorialManager.
 var tutorial_skipped_all: bool = false
 
+## Achievement-tracking state (P46/finalization pass) for the 4 draft
+## achievements that need sustained/causal tracking rather than a single
+## instantaneous state check. Kept in sync by AchievementManager.
+## model_id -> calendar_day an evaluation revealed meaningfully elevated
+## latent risk (latent_risk_range().x >= 50) and hasn't been resolved by a
+## later, non-same-day deployment decision yet ("Read the Memo").
+var pending_safety_warnings: Dictionary = {}
+## Cumulative count of deployments that reached Public mode while their
+## model still had unresolved evaluation depth ("Known Unknowns").
+var eval_warning_release_count: int = 0
+## Consecutive in-game days every currently-Public deployment's model has
+## had true reliability >= 90 ("Five Nines-ish"); resets to 0 the moment
+## that's not true (including "no Public deployment at all").
+var reliability_streak_days: int = 0
+## False the moment compute saturates (compute_used >= effective
+## capacity) at any point during the current campaign act; reset true at
+## the start of each new act ("Capacity Planning").
+var capacity_clean_this_act: bool = true
+
 func toggle_pause() -> void:
     paused = not paused
     EventBus.simulation_pause_changed.emit(paused)
@@ -326,6 +345,10 @@ func reset_to_defaults() -> void:
     current_act = 1
     tutorial_completed_steps = []
     tutorial_skipped_all = false
+    pending_safety_warnings = {}
+    eval_warning_release_count = 0
+    reliability_streak_days = 0
+    capacity_clean_this_act = true
 
 ## Campaign state payload only. The save format version lives one layer up,
 ## in SaveManager's envelope, so it isn't duplicated here.
@@ -401,6 +424,10 @@ func to_dict() -> Dictionary:
         "current_act": current_act,
         "tutorial_completed_steps": tutorial_completed_steps,
         "tutorial_skipped_all": tutorial_skipped_all,
+        "pending_safety_warnings": pending_safety_warnings,
+        "eval_warning_release_count": eval_warning_release_count,
+        "reliability_streak_days": reliability_streak_days,
+        "capacity_clean_this_act": capacity_clean_this_act,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -504,3 +531,8 @@ func from_dict(data: Dictionary) -> void:
     var loaded_tutorial_steps: Variant = data.get("tutorial_completed_steps", [])
     tutorial_completed_steps = loaded_tutorial_steps if loaded_tutorial_steps is Array else []
     tutorial_skipped_all = bool(data.get("tutorial_skipped_all", tutorial_skipped_all))
+    var loaded_pending_safety_warnings: Variant = data.get("pending_safety_warnings", {})
+    pending_safety_warnings = loaded_pending_safety_warnings if loaded_pending_safety_warnings is Dictionary else {}
+    eval_warning_release_count = int(data.get("eval_warning_release_count", eval_warning_release_count))
+    reliability_streak_days = int(data.get("reliability_streak_days", reliability_streak_days))
+    capacity_clean_this_act = bool(data.get("capacity_clean_this_act", capacity_clean_this_act))

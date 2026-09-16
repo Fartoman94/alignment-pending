@@ -34,5 +34,29 @@
     "name": "Not a Monopoly",
     "description": "Finish with under 50% market share and positive cash flow.",
     "trigger": "ending_low_market_share"
+  },
+  {
+    "id": "known_unknowns",
+    "name": "Known Unknowns",
+    "description": "Release a model to the public 3 times while its evaluation was still incomplete.",
+    "trigger": "eval_warning_release"
+  },
+  {
+    "id": "read_the_memo",
+    "name": "Read the Memo",
+    "description": "Wait at least a day to deploy a model after an evaluation flagged it as high-risk.",
+    "trigger": "delayed_launch_after_safety_warning"
+  },
+  {
+    "id": "five_nines_ish",
+    "name": "Five Nines-ish",
+    "description": "Keep every public deployment above 90 reliability for 30 straight days.",
+    "trigger": "reliability_streak_30_days"
+  },
+  {
+    "id": "capacity_planning",
+    "name": "Capacity Planning",
+    "description": "Get through an entire campaign act without compute ever saturating.",
+    "trigger": "clean_compute_act"
   }
 ]

@@ -4105,7 +4105,7 @@ func _initialize() -> void:
     print("SMOKE_OK: platform-unavailable errors are graceful — the game keeps running, nothing crashes")
 
     var p46_achievement_ids: Array = AchievementCatalog.ordered_ids()
-    var p46_expected: Array[String] = ["alignment_pending", "everybody_gets_a_dashboard", "hello_world", "rollback_friday", "runway_is_a_number", "not_a_monopoly"]
+    var p46_expected: Array[String] = ["alignment_pending", "everybody_gets_a_dashboard", "hello_world", "rollback_friday", "runway_is_a_number", "not_a_monopoly", "known_unknowns", "read_the_memo", "five_nines_ish", "capacity_planning"]
     for aid: String in p46_expected:
         if not p46_achievement_ids.has(aid):
             push_error("AchievementCatalog should define achievement '%s'" % aid)
@@ -4168,6 +4168,85 @@ func _initialize() -> void:
             quit(1)
             return
     print("SMOKE_OK: AchievementManager unlocks real achievements from real EventBus signals and tracked state")
+
+    # Finalization pass: the 4 achievements that need real tracking state
+    # rather than one instantaneous check (see achievement_manager.gd).
+    state.models = [{"id": "p46b_model", "evals_completed": 0, "reliability": 50.0, "latent_risk": 90.0}]
+    state.eval_warning_release_count = 0
+    for i in 3:  # mirrors AchievementManager.EVAL_WARNING_RELEASES_REQUIRED
+        state.deployments = [{"id": "p46b_dep_%d" % i, "model_id": "p46b_model", "mode_id": "public"}]
+        bus2.deployment_changed.emit("p46b_dep_%d" % i)
+    if not platform_svc.is_achievement_unlocked("known_unknowns"):
+        push_error("'Known Unknowns' should unlock after 3 Public releases with an incomplete evaluation")
+        quit(1)
+        return
+    if state.eval_warning_release_count < 3:  # mirrors AchievementManager.EVAL_WARNING_RELEASES_REQUIRED
+        push_error("eval_warning_release_count should have counted every qualifying release")
+        quit(1)
+        return
+    state.deployments = []
+
+    # Read the Memo: a same-day deploy after a high-risk eval must NOT
+    # unlock it (this decoy model is never referenced by the real
+    # achievement's id, only used to prove the negative case).
+    state.calendar_day = 10
+    state.models.append({"id": "p46b_decoy", "evals_completed": 1, "reliability": 50.0, "latent_risk": 90.0})
+    bus2.task_completed.emit("p46b_staff", "safety_audit", "p46b_decoy")  # EvaluationManager.EVAL_TASK_ID
+    await process_frame
+    if not state.pending_safety_warnings.has("p46b_decoy"):
+        push_error("A high-risk evaluation should record a pending safety warning for its model")
+        quit(1)
+        return
+    state.deployments = [{"id": "p46b_dep_decoy", "model_id": "p46b_decoy", "mode_id": "public"}]
+    bus2.deployment_changed.emit("p46b_dep_decoy")
+    if platform_svc.is_achievement_unlocked("read_the_memo"):
+        push_error("'Read the Memo' should not unlock from a same-day deploy right after the warning")
+        quit(1)
+        return
+    state.deployments = []
+
+    # Now the real case: warning today, deploy strictly later.
+    state.models.append({"id": "p46b_delayed", "evals_completed": 1, "reliability": 50.0, "latent_risk": 90.0})
+    bus2.task_completed.emit("p46b_staff", "safety_audit", "p46b_delayed")  # EvaluationManager.EVAL_TASK_ID
+    await process_frame
+    state.calendar_day = 11
+    state.deployments = [{"id": "p46b_dep_delayed", "model_id": "p46b_delayed", "mode_id": "public"}]
+    bus2.deployment_changed.emit("p46b_dep_delayed")
+    if not platform_svc.is_achievement_unlocked("read_the_memo"):
+        push_error("'Read the Memo' should unlock when the deploy happens strictly after the day the warning was recorded")
+        quit(1)
+        return
+    state.deployments = []
+    state.models = []
+
+    # Five Nines-ish: 30 consecutive days with every Public deployment's
+    # model at/above the reliability bar.
+    state.models = [{"id": "p46b_reliable", "evals_completed": 5, "reliability": 95.0, "latent_risk": 10.0}]
+    state.deployments = [{"id": "p46b_dep_reliable", "model_id": "p46b_reliable", "mode_id": "public"}]
+    state.reliability_streak_days = 0
+    for d in 30:  # mirrors AchievementManager.RELIABILITY_STREAK_DAYS_REQUIRED
+        bus2.day_advanced.emit(state.calendar_day)
+    if not platform_svc.is_achievement_unlocked("five_nines_ish"):
+        push_error("'Five Nines-ish' should unlock after 30 consecutive days above the reliability bar")
+        quit(1)
+        return
+    state.deployments = []
+    state.models = []
+
+    # Capacity Planning: no saturation across an act transition.
+    state.capacity_clean_this_act = true
+    state.compute_used = 10.0
+    state.compute_capacity = 100.0
+    state.heat_load = 0.0
+    state.datacenter_compute_bonus = 0.0
+    state.world_compute_availability_multiplier = 1.0
+    bus2.day_advanced.emit(state.calendar_day)
+    bus2.campaign_act_changed.emit(2)
+    if not platform_svc.is_achievement_unlocked("capacity_planning"):
+        push_error("'Capacity Planning' should unlock on an act transition with zero saturation during it")
+        quit(1)
+        return
+    print("SMOKE_OK: the 4 finalization-pass achievements (eval-warning releases, delayed launch after a safety warning, sustained reliability, and a saturation-free act) unlock from real tracked state")
 
     # P47: release-candidate quality gate — content/provenance audit,
     # zero-third-party-dependency check, and the final full-suite gate.

@@ -141,6 +141,8 @@ const ACHIEVEMENT_REQUIRED_FIELDS: Array[String] = ["id", "name", "description",
 const ACHIEVEMENT_TRIGGERS: Array[String] = [
     "final_act_reached", "staff_count_50", "first_public_deployment",
     "successful_rollback", "runway_under_7_days", "ending_low_market_share",
+    "eval_warning_release", "delayed_launch_after_safety_warning",
+    "reliability_streak_30_days", "clean_compute_act",
 ]
 
 ## One validation problem: which file, which record, and why.
