@@ -6,7 +6,6 @@ extends Node
 ## checked against, and a bankruptcy recovery window instead of an
 ## instant game-over.
 
-const BASE_RENT: float = 300.0
 const LEGAL_COST_PER_MODEL: float = 50.0
 const LEGAL_COST_PER_DEPLOYMENT: float = 100.0
 const SUPPORT_COST_PER_1K_USERS: float = 20.0
@@ -19,8 +18,12 @@ const BANKRUPTCY_RECOVERY_DAYS: int = 10
 func _ready() -> void:
     EventBus.day_advanced.connect(_on_day_advanced)
 
+## Real per-building rent (RealEstateManager), replacing the old flat
+## placeholder — GameState.daily_real_estate_cost is recomputed by
+## RealEstateManager on every day_advanced, same "read the already-cached
+## total" approach this function already uses for datacenter_cost().
 func rent_cost() -> float:
-    return BASE_RENT
+    return GameState.daily_real_estate_cost
 
 func legal_cost() -> float:
     return (

@@ -23,6 +23,11 @@ func _ready() -> void:
     EventBus.build_tool_changed.connect(_on_build_tool_changed)
     EventBus.staff_roster_changed.connect(_sync_staff_agents)
     EventBus.task_assigned.connect(_on_task_assigned)
+    # Rebuild the walls/trim/garage-door live when the player actually
+    # moves — without this, RealEstateManager.move_to() would be correct
+    # in data but visually silent until the next scene reload, which is
+    # exactly the "impacte... visible" gap the brief calls out.
+    EventBus.real_estate_moved.connect(_on_real_estate_moved)
     EventBus.task_completed.connect(_on_task_completed)
     EventBus.task_unassigned.connect(_on_task_unassigned)
     EventBus.research_unlocked.connect(_on_research_unlocked)
@@ -134,14 +139,6 @@ func _build_environment() -> void:
     fill_light.light_energy = 0.35
     add_child(fill_light)
 
-## Office shell geometry (P39: routed through ProceduralMeshFactory
-## instead of building BoxMesh/StandardMaterial3D inline).
-func _box(name_: String, pos: Vector3, size: Vector3, color: Color) -> MeshInstance3D:
-    var mi: MeshInstance3D = ProceduralMeshFactory.make_box(name_, size, color)
-    mi.position = pos
-    add_child(mi)
-    return mi
-
 ## Visual overhaul pass: the original shell was three blue-gray boxes
 ## (floor/back wall/left wall all within a few shades of each other) —
 ## exactly the "todo gris" / no-material-variety the brief called out.
@@ -151,29 +148,97 @@ func _box(name_: String, pos: Vector3, size: Vector3, color: Color) -> MeshInsta
 ## fix by pre-furnishing it), but now following the Art Bible's actual
 ## named palette (charcoal/warm gray/off-white base, a tech-blue and a
 ## brand-orange accent) instead of one undifferentiated blue-gray.
+## Real estate progression (RealEstateManager, garage -> HQ) is presented
+## here the same "palette + trim, not a layout change" way the visual-
+## overhaul pass reworked office materials: the buildable grid/navmesh
+## dimensions never change per tier (resizing them could strand already-
+## placed buildings from an earlier tier outside a shrunk floor — a real
+## correctness risk, not just a cosmetic one), but the walls' material and
+## the garage-door prop are real, deterministic functions of
+## GameState.current_building_id, so the move from a "cheap converted
+## office" to a "corporate building" (Art Bible's own progression list)
+## reads as a visible reward, not a purely numeric one.
+var _office_visuals: Node3D
+
 func _build_office() -> void:
-    _box("Floor", Vector3(0,-0.25,0), Vector3(18,0.5,14), Color("39352f"))
-    _box("BackWall", Vector3(0,1.5,-7), Vector3(18,3.5,0.3), Color("6b6355"))
-    _box("LeftWall", Vector3(-9,1.5,0), Vector3(0.3,3.5,14), Color("5c554a"))
-    # A brand-orange baseboard trim along the back wall — a thin accent
-    # strip, not a repaint, so it reads as a deliberate design choice.
-    _box("BackWallTrim", Vector3(0,0.15,-6.83), Vector3(18,0.3,0.05), Color("d97b3f"))
+    _office_visuals = Node3D.new()
+    _office_visuals.name = "OfficeVisuals"
+    add_child(_office_visuals)
+    _rebuild_office_visuals()
+    _build_ambient_decoration()
+
+## Rebuildable subset (walls/trim/windows/garage-door) — everything that
+## changes per real-estate tier lives under _office_visuals so a move can
+## free and redraw just this, not the whole office (ambient decoration/
+## grid/nav/staff are untouched by a move).
+func _rebuild_office_visuals() -> void:
+    for child in _office_visuals.get_children():
+        child.queue_free()
+    var tier: String = String(RealEstateManager.current_company_tier_def().get("id", "garage"))
+    var palette: Dictionary = _office_palette(tier)
+    _office_box("Floor", Vector3(0,-0.25,0), Vector3(18,0.5,14), palette["floor"])
+    _office_box("BackWall", Vector3(0,1.5,-7), Vector3(18,3.5,0.3), palette["wall"])
+    _office_box("LeftWall", Vector3(-9,1.5,0), Vector3(0.3,3.5,14), palette["wall_side"])
+    # A baseboard trim along the back wall — a thin accent strip, not a
+    # repaint, so it reads as a deliberate design choice. Brand orange
+    # everywhere except the garage, which hasn't "earned" the brand color
+    # yet — a plain safety-yellow strip instead (garages get hazard
+    # stripes, not corporate trim).
+    _office_box("BackWallTrim", Vector3(0,0.15,-6.83), Vector3(18,0.3,0.05), palette["trim"])
     # Two window "glow" panels on the back wall (an emissive material, no
     # real glass/transparency system needed) — cool-toned to sell
     # "natural light" per the brief's lighting direction, and to give
     # the back wall some silhouette variety instead of one flat plane.
-    _window("BackWallWindowL", Vector3(-5.5, 2.0, -6.82))
-    _window("BackWallWindowR", Vector3(5.5, 2.0, -6.82))
-    _build_ambient_decoration()
+    # Brighter at higher tiers (more/better windows a bigger lease buys).
+    _office_window("BackWallWindowL", Vector3(-5.5, 2.0, -6.82), palette["window_energy"])
+    _office_window("BackWallWindowR", Vector3(5.5, 2.0, -6.82), palette["window_energy"])
+    if tier == "garage" or tier == "garage_plus":
+        # A visible garage door on the left wall — the one concrete,
+        # unmistakable "this is still the garage" signal the brief asks
+        # for ("el garage inicial debe quedar como punto de partida
+        # canon"), not just a slightly-different gray.
+        _office_box("GarageDoor", Vector3(-8.85, 1.1, 4.5), Vector3(0.15, 2.2, 3.4), Color("2c2a28"))
+        _office_box("GarageDoorTrim", Vector3(-8.8, 2.25, 4.5), Vector3(0.1, 0.12, 3.6), Color("d9c02e"))
 
-func _window(name_: String, pos: Vector3) -> void:
+func _on_real_estate_moved(_building_id: String, _bought: bool) -> void:
+    _rebuild_office_visuals()
+
+func _office_box(name_: String, pos: Vector3, size: Vector3, color: Color) -> void:
+    var mi: MeshInstance3D = ProceduralMeshFactory.make_box(name_, size, color)
+    mi.position = pos
+    _office_visuals.add_child(mi)
+
+## Garage: grungy concrete, no brand polish. Small/medium office: today's
+## established warm-charcoal baseline (visual-overhaul pass). Premium/HQ:
+## a visibly brighter, cleaner palette plus stronger window glow — the
+## Art Bible's own "cheap converted office -> corporate building"
+## progression, told entirely through material/lighting, no new geometry.
+func _office_palette(tier: String) -> Dictionary:
+    match tier:
+        "garage", "garage_plus":
+            return {
+                "floor": Color("2e2b26"), "wall": Color("4a453d"), "wall_side": Color("423e37"),
+                "trim": Color("d9c02e"), "window_energy": 0.25,
+            }
+        "premium_office", "hq_building":
+            return {
+                "floor": Color("403c33"), "wall": Color("827a6c"), "wall_side": Color("6f6759"),
+                "trim": Color("d97b3f"), "window_energy": 1.0,
+            }
+        _:
+            return {
+                "floor": Color("39352f"), "wall": Color("6b6355"), "wall_side": Color("5c554a"),
+                "trim": Color("d97b3f"), "window_energy": 0.6,
+            }
+
+func _office_window(name_: String, pos: Vector3, energy: float = 0.6) -> void:
     var mi: MeshInstance3D = ProceduralMeshFactory.make_box(name_, Vector3(3.2, 1.6, 0.06), Color("bfe3ff"))
     var mat: StandardMaterial3D = mi.mesh.surface_get_material(0)
     mat.emission_enabled = true
     mat.emission = Color("bfe3ff")
-    mat.emission_energy_multiplier = 0.6
+    mat.emission_energy_multiplier = energy
     mi.position = pos
-    add_child(mi)
+    _office_visuals.add_child(mi)
 
 ## Fixed, non-buildable set dressing (finalization-pack 3D asset pack) —
 ## deliberately placed in the margin between the walls and the buildable

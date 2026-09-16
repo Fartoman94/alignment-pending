@@ -15,6 +15,14 @@ const BOARD_TRACK_PATH: String = "res://data/board_track.json"
 const CONTROL_PRESSURE_PER_POINT: float = 0.05
 const LOW_RUNWAY_THRESHOLD_DAYS: float = 30.0
 const LOW_RUNWAY_PRESSURE_PER_DAY: float = 2.0
+## ceo/cfo (added by the real-estate/company-progression pass, finalization
+## pack's "NPCs con función real": "ceo... board", "cfo... finance/runway")
+## mitigate board pressure the same bounded way LegalManager's compliance
+## staff mitigate legal exposure — a CEO handles investor relations, a CFO
+## keeps the board calmer about runway, each on their own half of the
+## pressure formula below.
+const CEO_CONTROL_PRESSURE_MITIGATION_PER_HEAD: float = 0.3
+const CFO_RUNWAY_PRESSURE_MITIGATION_PER_HEAD: float = 0.5
 
 const VALUATION_BASE: float = 50000.0
 const VALUATION_PER_DAILY_REVENUE: float = 40.0
@@ -93,10 +101,18 @@ func demand_choice_effects(choice_id: String) -> Dictionary:
     return _board_config.get(choice_id, {})
 
 func _on_day_advanced(_day: int) -> void:
-    var control_pressure: float = (100.0 - GameState.board_control_pct) * CONTROL_PRESSURE_PER_POINT
-    var runway_pressure: float = LOW_RUNWAY_PRESSURE_PER_DAY if EconomyManager.runway_days() < LOW_RUNWAY_THRESHOLD_DAYS else 0.0
+    var control_pressure: float = maxf(0.0, (100.0 - GameState.board_control_pct) * CONTROL_PRESSURE_PER_POINT - float(_role_headcount("ceo")) * CEO_CONTROL_PRESSURE_MITIGATION_PER_HEAD)
+    var base_runway_pressure: float = LOW_RUNWAY_PRESSURE_PER_DAY if EconomyManager.runway_days() < LOW_RUNWAY_THRESHOLD_DAYS else 0.0
+    var runway_pressure: float = maxf(0.0, base_runway_pressure - float(_role_headcount("cfo")) * CFO_RUNWAY_PRESSURE_MITIGATION_PER_HEAD)
     GameState.board_pressure = clampf(GameState.board_pressure + control_pressure + runway_pressure, 0.0, 100.0)
     _maybe_trigger_demand()
+
+func _role_headcount(role_id: String) -> int:
+    var count: int = 0
+    for member: Variant in GameState.staff:
+        if String((member as Dictionary).get("role", "")) == role_id:
+            count += 1
+    return count
 
 func _maybe_trigger_demand() -> void:
     if has_active_demand():

@@ -4,5 +4,9 @@
   { "id": "data_ops", "name": "Data Ops", "base_salary_min": 700, "base_salary_max": 1100, "primary_skill": "operations", "visual_color": "3f9e8f", "character_model": "res://assets/models/characters/ops.glb" },
   { "id": "safety_analyst", "name": "Safety Analyst", "base_salary_min": 800, "base_salary_max": 1250, "primary_skill": "safety", "visual_color": "5aa552", "character_model": "res://assets/models/characters/safety.glb" },
   { "id": "product_manager", "name": "Product Manager", "base_salary_min": 750, "base_salary_max": 1200, "primary_skill": "communication", "visual_color": "8a5cb0", "character_model": "res://assets/models/characters/manager.glb" },
-  { "id": "support_specialist", "name": "Support Specialist", "base_salary_min": 600, "base_salary_max": 950, "primary_skill": "operations", "visual_color": "c9a83a", "character_model": "res://assets/models/characters/junior.glb" }
+  { "id": "support_specialist", "name": "Support Specialist", "base_salary_min": 600, "base_salary_max": 950, "primary_skill": "operations", "visual_color": "c9a83a", "character_model": "res://assets/models/characters/junior.glb" },
+  { "id": "legal_specialist", "name": "Legal Specialist", "base_salary_min": 900, "base_salary_max": 1350, "primary_skill": "safety", "visual_color": "6f6a8c", "character_model": "res://assets/models/characters/legal.glb" },
+  { "id": "hr_partner", "name": "HR Partner", "base_salary_min": 650, "base_salary_max": 1000, "primary_skill": "communication", "visual_color": "d68fa0", "character_model": "res://assets/models/characters/hr.glb" },
+  { "id": "ceo", "name": "Chief Executive Officer", "base_salary_min": 2000, "base_salary_max": 2800, "primary_skill": "communication", "visual_color": "2f3b52", "character_model": "res://assets/models/characters/ceo.glb" },
+  { "id": "cfo", "name": "Chief Financial Officer", "base_salary_min": 1700, "base_salary_max": 2400, "primary_skill": "operations", "visual_color": "3f6b4f", "character_model": "res://assets/models/characters/cfo.glb" }
 ]

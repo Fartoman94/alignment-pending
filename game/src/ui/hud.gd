@@ -982,6 +982,97 @@ func _show_company_panel() -> void:
             hist_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
             _dynamic_content.add_child(hist_label)
 
+## Garage -> corporate building progression (RealEstateManager): current
+## building/capacity/rent, in-place office upgrades, and every other
+## building available to move into. Part of the World panel rather than
+## its own bottom-nav tab — the brief that introduced this system called
+## it the "World / Real Estate" screen, and the bottom nav already has 8
+## buttons.
+func _build_real_estate_section() -> void:
+    var building: Dictionary = RealEstateManager.current_building_def()
+    var district: Dictionary = RealEstateManager.current_district_def()
+    var header: Label = Label.new()
+    header.text = LocalizationManager.tr_text("Real estate — %s, %s") % [
+        LocalizationManager.tr_text(String(building.get("name", "?"))),
+        LocalizationManager.tr_text(String(district.get("name", "?"))),
+    ]
+    header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    _dynamic_content.add_child(header)
+    var stats: Label = Label.new()
+    stats.text = LocalizationManager.tr_text("  %d/%d staff — $%d/day rent") % [
+        GameState.staff.size(), RealEstateManager.effective_employee_cap(),
+        int(RealEstateManager.daily_rent_cost()),
+    ]
+    stats.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    _dynamic_content.add_child(stats)
+
+    var upgrades_header: Label = Label.new()
+    upgrades_header.text = LocalizationManager.tr_text("Office upgrades (this building)")
+    _dynamic_content.add_child(upgrades_header)
+    for upgrade_id: String in OfficeUpgradeCatalog.load_all().keys():
+        var udef: Dictionary = OfficeUpgradeCatalog.get_def(upgrade_id)
+        if GameState.office_upgrades_purchased.has(upgrade_id):
+            var owned_label: Label = Label.new()
+            owned_label.text = LocalizationManager.tr_text("  [Installed] %s") % [LocalizationManager.tr_text(String(udef.get("name", upgrade_id)))]
+            _dynamic_content.add_child(owned_label)
+            continue
+        var row: HBoxContainer = HBoxContainer.new()
+        var label: Label = Label.new()
+        label.text = LocalizationManager.tr_text("  %s — $%d") % [LocalizationManager.tr_text(String(udef.get("name", upgrade_id))), int(udef.get("cost", 0))]
+        label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+        row.add_child(label)
+        var buy_btn: Button = Button.new()
+        buy_btn.text = LocalizationManager.tr_text("Install")
+        buy_btn.disabled = not RealEstateManager.can_purchase_upgrade(upgrade_id)
+        buy_btn.pressed.connect(func() -> void:
+            RealEstateManager.purchase_upgrade(upgrade_id)
+            _show_world_panel()
+        )
+        row.add_child(buy_btn)
+        _dynamic_content.add_child(row)
+
+    var listings_header: Label = Label.new()
+    listings_header.text = LocalizationManager.tr_text("Available buildings")
+    _dynamic_content.add_child(listings_header)
+    for building_id: String in BuildingCatalog.ids_in_order():
+        if building_id == GameState.current_building_id:
+            continue
+        var bdef: Dictionary = BuildingCatalog.get_def(building_id)
+        var bdistrict: Dictionary = DistrictCatalog.get_def(String(bdef.get("district", "")))
+        var mode: String = String(bdef.get("mode", ""))
+        var listing: VBoxContainer = VBoxContainer.new()
+        var info_label: Label = Label.new()
+        info_label.text = LocalizationManager.tr_text("  %s — %s district — cap %d — $%d buy / $%d/day rent — prestige %d, talent %d, regulation %d") % [
+            LocalizationManager.tr_text(String(bdef.get("name", building_id))),
+            LocalizationManager.tr_text(String(bdistrict.get("name", ""))),
+            int(bdef.get("capacity", 0)), int(bdef.get("purchase_cost", 0)), int(bdef.get("rent_cost_per_day", 0)),
+            int(bdistrict.get("prestige", 0)), int(bdistrict.get("talent", 0)), int(bdistrict.get("regulation", 0)),
+        ]
+        info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+        listing.add_child(info_label)
+        var actions_row: HBoxContainer = HBoxContainer.new()
+        if mode == "rent" or mode == "rent_or_buy":
+            var rent_btn: Button = Button.new()
+            rent_btn.text = LocalizationManager.tr_text("Move in (rent) — $%d") % [int(RealEstateManager.relocation_cost(building_id, false))]
+            rent_btn.disabled = not RealEstateManager.can_move_to(building_id, false)
+            rent_btn.pressed.connect(func() -> void:
+                RealEstateManager.move_to(building_id, false)
+                _show_world_panel()
+            )
+            actions_row.add_child(rent_btn)
+        if mode == "rent_or_buy":
+            var buy_move_btn: Button = Button.new()
+            buy_move_btn.text = LocalizationManager.tr_text("Buy — $%d") % [int(RealEstateManager.relocation_cost(building_id, true))]
+            buy_move_btn.disabled = not RealEstateManager.can_move_to(building_id, true)
+            buy_move_btn.pressed.connect(func() -> void:
+                RealEstateManager.move_to(building_id, true)
+                _show_world_panel()
+            )
+            actions_row.add_child(buy_move_btn)
+        listing.add_child(actions_row)
+        _dynamic_content.add_child(listing)
+
 func _show_world_panel() -> void:
     EventBus.build_tool_changed.emit("")
     _clear_dynamic_content()
@@ -1019,6 +1110,8 @@ func _show_world_panel() -> void:
                 var hist_label: Label = Label.new()
                 hist_label.text = LocalizationManager.tr_text("Day %d — %s reached generation %d") % [int(entry.get("day", 0)), rival_name, int(entry.get("generation", 0))]
                 _dynamic_content.add_child(hist_label)
+
+    _build_real_estate_section()
 
     var datacenter_header: Label = Label.new()
     datacenter_header.text = LocalizationManager.tr_text("Remote datacenters — abstract compute capacity, no grid placement needed. +%d compute capacity, $%d/day upkeep.") % [

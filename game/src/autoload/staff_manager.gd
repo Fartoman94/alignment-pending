@@ -5,6 +5,11 @@ extends Node
 ## in GameState.staff (persisted); this autoload is the operations layer.
 
 const CANDIDATE_POOL_SIZE: int = 3
+## hr_partner (finalization pack's "NPCs con función real": "HR ayuda a
+## hiring") widens the candidate pool — a dedicated recruiter surfaces more
+## offers. Capped so a large HR department can't make the pool unbounded.
+const HR_PARTNER_POOL_BONUS_PER_HEAD: int = 1
+const HR_PARTNER_POOL_BONUS_MAX: int = 4
 const SKILL_KEYS: Array[String] = ["capability", "engineering", "operations", "safety", "communication"]
 
 # P24: staff depth (traits, relationships, promotion, burnout, resignation,
@@ -74,9 +79,16 @@ func _deduct_payroll() -> void:
         GameState.cash -= total
         EventBus.metric_changed.emit("cash", GameState.cash)
 
+func effective_candidate_pool_size() -> int:
+    var hr_partners: int = 0
+    for member: Dictionary in GameState.staff:
+        if String(member.get("role", "")) == "hr_partner":
+            hr_partners += 1
+    return CANDIDATE_POOL_SIZE + mini(hr_partners * HR_PARTNER_POOL_BONUS_PER_HEAD, HR_PARTNER_POOL_BONUS_MAX)
+
 func refresh_candidates() -> void:
     candidates.clear()
-    for i in CANDIDATE_POOL_SIZE:
+    for i in effective_candidate_pool_size():
         candidates.append(_generate_candidate())
 
 func _generate_candidate() -> Dictionary:
@@ -92,6 +104,16 @@ func _generate_candidate() -> Dictionary:
     var primary: String = String(role_def.get("primary_skill", "capability"))
     if skills.has(primary):
         skills[primary] = clampi(int(skills[primary]) + SimClock.rng("staff_skills").randi_range(10, 25), 0, 100)
+
+    # The occupied district's talent score (finalization pack's real-estate
+    # pass: "la localización debe influir en talento") nudges every rolled
+    # skill uniformly — a deterministic function of already-tracked state,
+    # not a new RNG draw, so it doesn't disturb SimClock's seeded streams.
+    var district_talent: float = float(RealEstateManager.current_district_def().get("talent", 50.0))
+    var talent_bonus: int = int((district_talent - 50.0) / 10.0)
+    if talent_bonus != 0:
+        for key: String in SKILL_KEYS:
+            skills[key] = clampi(int(skills[key]) + talent_bonus, 0, 100)
 
     # The world's talent_market cycle (P31) scales the whole range: a hot
     # market makes every fresh candidate pricier, a cold one cheaper.
@@ -138,17 +160,27 @@ func _generate_name() -> String:
     return "%s %s" % [first, last]
 
 ## Hires candidates[candidate_index], assigning it a stable unique id, and
-## tops the pool back up to CANDIDATE_POOL_SIZE.
+## tops the pool back up to effective_candidate_pool_size(). Gated by
+## RealEstateManager.effective_employee_cap() — the current building's size
+## (finalization pack's real-estate pass: a move "debe impactar... hiring"
+## — a bigger office is a precondition for a bigger headcount, not just
+## flavor).
 func hire(candidate_index: int) -> Error:
     if candidate_index < 0 or candidate_index >= candidates.size():
         return ERR_INVALID_PARAMETER
+    if GameState.staff.size() >= RealEstateManager.effective_employee_cap():
+        return ERR_UNAVAILABLE
     var candidate: Dictionary = (candidates[candidate_index] as Dictionary).duplicate(true)
     candidate["id"] = "staff_%d" % GameState.next_staff_id
     GameState.next_staff_id += 1
     candidate["hire_date"] = GameState.calendar_day
     GameState.staff.append(candidate)
     candidates.remove_at(candidate_index)
-    candidates.append(_generate_candidate())
+    # Tops up to effective_candidate_pool_size() rather than a flat +1, so
+    # hiring an hr_partner grows the pool on the very next hire instead of
+    # only at the next full refresh_candidates() (game start).
+    while candidates.size() < effective_candidate_pool_size():
+        candidates.append(_generate_candidate())
     EventBus.staff_roster_changed.emit()
     AudioManager.play_sfx("staff_hired")
     return OK
@@ -231,6 +263,10 @@ func _apply_daily_staff_dynamics() -> void:
     _roll_resignations()
 
 func _update_fatigue_and_morale() -> void:
+    # Purchased office upgrades (RealEstateManager, e.g. "Coffee Corner")
+    # apply the same small passive morale nudge to everyone, every day —
+    # computed once outside the loop since it doesn't vary per member.
+    var office_morale_bonus: float = RealEstateManager.passive_morale_bonus_per_day()
     for member: Dictionary in GameState.staff:
         var trait_ids: Array = member.get("traits", [])
         var fatigue_resistance: float = 1.0
@@ -260,6 +296,7 @@ func _update_fatigue_and_morale() -> void:
             affinity_sum += float((rel as Dictionary).get("affinity", 0.0))
         var avg_affinity: float = affinity_sum / float(relationships.size()) if not relationships.is_empty() else 0.0
         morale += clampf(avg_affinity / RELATIONSHIP_AFFINITY_MAX, -1.0, 1.0) * RELATIONSHIP_MORALE_WEIGHT
+        morale += office_morale_bonus
         member["morale"] = clampf(morale, 0.0, 100.0)
 
 ## Coworkers sharing a department slowly drift toward liking each other a

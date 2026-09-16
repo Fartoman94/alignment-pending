@@ -1,0 +1,8 @@
+[
+  { "id": "garage", "display_name": "Garage Startup", "employee_cap": 4, "unlock_requirements": { "cash": 0, "trust": 0 }, "real_estate_class": "garage" },
+  { "id": "garage_plus", "display_name": "Improved Garage", "employee_cap": 6, "unlock_requirements": { "cash": 5000, "trust": 10 }, "real_estate_class": "garage_upgrade" },
+  { "id": "small_office", "display_name": "Small Rented Office", "employee_cap": 12, "unlock_requirements": { "cash": 18000, "trust": 20 }, "real_estate_class": "small_office" },
+  { "id": "medium_office", "display_name": "Medium Office", "employee_cap": 24, "unlock_requirements": { "cash": 60000, "trust": 35 }, "real_estate_class": "medium_office" },
+  { "id": "premium_office", "display_name": "Premium Office Floor", "employee_cap": 50, "unlock_requirements": { "cash": 150000, "trust": 50 }, "real_estate_class": "premium_office" },
+  { "id": "hq_building", "display_name": "Corporate Building", "employee_cap": 100, "unlock_requirements": { "cash": 500000, "trust": 70 }, "real_estate_class": "hq_building" }
+]

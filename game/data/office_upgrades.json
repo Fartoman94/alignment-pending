@@ -1,0 +1,9 @@
+[
+  { "id": "better_lighting", "name": "Better Lighting", "cost": 1500, "effects": { "morale": 5 } },
+  { "id": "extra_desks", "name": "Extra Desks", "cost": 2500, "effects": { "employee_cap": 2 } },
+  { "id": "coffee_corner", "name": "Coffee Corner", "cost": 1800, "effects": { "morale": 8 } },
+  { "id": "meeting_corner", "name": "Meeting Corner", "cost": 3200, "effects": { "trust": 3 } },
+  { "id": "server_closet", "name": "Server Closet", "cost": 6000, "effects": { "employee_cap": 3 } },
+  { "id": "break_area", "name": "Break Area", "cost": 4200, "effects": { "morale": 10 } },
+  { "id": "small_board_room", "name": "Small Board Room", "cost": 8500, "effects": { "trust": 4 } }
+]

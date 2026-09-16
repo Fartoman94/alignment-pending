@@ -42,3 +42,5 @@ signal campaign_act_changed(act_number: int)
 ## listeners (e.g. AchievementManager) can react to a rollback alone.
 signal deployment_rolled_back(deployment_id: String, mode_id: String)
 signal achievement_unlocked(achievement_id: String)
+signal real_estate_moved(building_id: String, bought: bool)
+signal office_upgrade_purchased(upgrade_id: String)

@@ -1,0 +1,7 @@
+[
+  { "id": "garage_start", "name": "Starter Garage", "district": "industrial", "mode": "owned", "purchase_cost": 0, "rent_cost_per_day": 0, "capacity": 4, "rooms": ["open_floor", "tiny_storage"], "tier": "garage" },
+  { "id": "loft_alpha", "name": "Loft Alpha", "district": "old_town", "mode": "rent", "purchase_cost": 95000, "rent_cost_per_day": 450, "capacity": 10, "rooms": ["open_floor", "meeting_corner"], "tier": "small_office" },
+  { "id": "office_hub_12", "name": "Office Hub 12", "district": "innovation", "mode": "rent_or_buy", "purchase_cost": 220000, "rent_cost_per_day": 1200, "capacity": 24, "rooms": ["ops", "research", "meeting_room"], "tier": "medium_office" },
+  { "id": "meridian_tower_floor", "name": "Meridian Tower Floor", "district": "downtown", "mode": "rent_or_buy", "purchase_cost": 750000, "rent_cost_per_day": 4500, "capacity": 50, "rooms": ["open_floor", "board_room", "lab", "server_room"], "tier": "premium_office" },
+  { "id": "north_quarter_hq", "name": "North Quarter HQ", "district": "financial_core", "mode": "rent_or_buy", "purchase_cost": 2500000, "rent_cost_per_day": 12000, "capacity": 100, "rooms": ["multiple_floors", "board_room", "executive", "lab", "datacenter"], "tier": "hq_building" }
+]

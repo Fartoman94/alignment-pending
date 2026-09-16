@@ -15,7 +15,12 @@ const DEBT_EXPOSURE_PER_POINT: float = 0.03
 ## exposure gain, floored at 0 — mitigation can cancel a day's increase
 ## but never itself drives exposure negative.
 const MITIGATION_PER_COMPLIANCE_STAFF: float = 0.5
-const COMPLIANCE_ROLE_ID: String = "safety_analyst"
+## legal_specialist (added by the real-estate/company-progression pass,
+## finalization pack's "NPCs con función real": "legal baja exposición")
+## mitigates the same exposure meter safety_analyst always has, on the same
+## per-head rate — a dedicated compliance hire is exactly what this role is
+## for.
+const COMPLIANCE_ROLE_IDS: Array[String] = ["safety_analyst", "legal_specialist"]
 
 func _ready() -> void:
     EventBus.day_advanced.connect(_on_day_advanced)
@@ -26,7 +31,7 @@ func has_active_case() -> bool:
 func compliance_staff_count() -> int:
     var count: int = 0
     for member: Variant in GameState.staff:
-        if String((member as Dictionary).get("role", "")) == COMPLIANCE_ROLE_ID:
+        if COMPLIANCE_ROLE_IDS.has(String((member as Dictionary).get("role", ""))):
             count += 1
     return count
 

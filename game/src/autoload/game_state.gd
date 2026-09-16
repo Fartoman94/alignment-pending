@@ -241,6 +241,21 @@ var reliability_streak_days: int = 0
 ## the start of each new act ("Capacity Planning").
 var capacity_clean_this_act: bool = true
 
+# Real estate / company progression (RealEstateManager): which building
+# (BuildingCatalog id) the company currently occupies, which buildings it
+# has ever outright bought (mode "rent_or_buy", exercised the buy option —
+# no more daily rent on those), and which office_upgrades.json upgrades are
+# active in the *current* building (cleared on a move — see
+# RealEstateManager.move_to()).
+var current_building_id: String = "garage_start"
+var owned_building_ids: Array = []
+var office_upgrades_purchased: Array = []
+var real_estate_move_history: Array = []
+## Owned by RealEstateManager, mirrors how daily_infrastructure_cost is
+## owned by BuildController — a separate line item so BuildController's own
+## recompute never has to know about real estate.
+var daily_real_estate_cost: float = 0.0
+
 func toggle_pause() -> void:
     paused = not paused
     EventBus.simulation_pause_changed.emit(paused)
@@ -349,6 +364,11 @@ func reset_to_defaults() -> void:
     eval_warning_release_count = 0
     reliability_streak_days = 0
     capacity_clean_this_act = true
+    current_building_id = "garage_start"
+    owned_building_ids = []
+    office_upgrades_purchased = []
+    real_estate_move_history = []
+    daily_real_estate_cost = 0.0
 
 ## Campaign state payload only. The save format version lives one layer up,
 ## in SaveManager's envelope, so it isn't duplicated here.
@@ -428,6 +448,11 @@ func to_dict() -> Dictionary:
         "eval_warning_release_count": eval_warning_release_count,
         "reliability_streak_days": reliability_streak_days,
         "capacity_clean_this_act": capacity_clean_this_act,
+        "current_building_id": current_building_id,
+        "owned_building_ids": owned_building_ids,
+        "office_upgrades_purchased": office_upgrades_purchased,
+        "real_estate_move_history": real_estate_move_history,
+        "daily_real_estate_cost": daily_real_estate_cost,
     }
 
 func from_dict(data: Dictionary) -> void:
@@ -536,3 +561,11 @@ func from_dict(data: Dictionary) -> void:
     eval_warning_release_count = int(data.get("eval_warning_release_count", eval_warning_release_count))
     reliability_streak_days = int(data.get("reliability_streak_days", reliability_streak_days))
     capacity_clean_this_act = bool(data.get("capacity_clean_this_act", capacity_clean_this_act))
+    current_building_id = String(data.get("current_building_id", current_building_id))
+    var loaded_owned_buildings: Variant = data.get("owned_building_ids", [])
+    owned_building_ids = loaded_owned_buildings if loaded_owned_buildings is Array else []
+    var loaded_office_upgrades: Variant = data.get("office_upgrades_purchased", [])
+    office_upgrades_purchased = loaded_office_upgrades if loaded_office_upgrades is Array else []
+    var loaded_move_history: Variant = data.get("real_estate_move_history", [])
+    real_estate_move_history = loaded_move_history if loaded_move_history is Array else []
+    daily_real_estate_cost = float(data.get("daily_real_estate_cost", daily_real_estate_cost))

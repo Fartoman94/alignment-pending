@@ -105,6 +105,21 @@ const WORKFORCE_SAFETY_DEBT_PER_PRESSURE_MAX: float = 5.0
 # P30: remote datacenter progression.
 const DATACENTER_TIER_REQUIRED_FIELDS: Array[String] = ["id", "name", "description", "cost", "compute_capacity_bonus", "operating_cost_per_day"]
 
+# Real estate / company progression (garage -> HQ building): districts the
+# company can operate out of, the buildings/offices it can rent or buy in
+# them, the company-size tiers those buildings unlock, and the in-place
+# office upgrades layered on top of whichever building is current.
+const DISTRICT_REQUIRED_FIELDS: Array[String] = ["id", "name", "rent_multiplier", "buy_multiplier", "prestige", "talent", "regulation"]
+const DISTRICT_STAT_MIN: float = 0.0
+const DISTRICT_STAT_MAX: float = 100.0
+
+const BUILDING_REQUIRED_FIELDS: Array[String] = ["id", "name", "district", "mode", "purchase_cost", "rent_cost_per_day", "capacity", "rooms", "tier"]
+const BUILDING_MODES: Array[String] = ["owned", "rent", "rent_or_buy"]
+
+const COMPANY_TIER_REQUIRED_FIELDS: Array[String] = ["id", "display_name", "employee_cap", "unlock_requirements", "real_estate_class"]
+
+const OFFICE_UPGRADE_REQUIRED_FIELDS: Array[String] = ["id", "name", "cost", "effects"]
+
 # P31: world-state simulation cycles. Amplitude is bounded relative to
 # midpoint so a cycle can never push the value outside [0, 100].
 const WORLD_VARIABLE_REQUIRED_FIELDS: Array[String] = ["id", "name", "description", "effect_description", "midpoint", "amplitude", "period_days"]
@@ -182,6 +197,10 @@ static func validate_all() -> Array[Issue]:
     issues.append_array(validate_agent_permission_file("res://data/agent_permissions.json"))
     issues.append_array(validate_workforce_policy_file("res://data/workforce_policies.json"))
     issues.append_array(validate_datacenter_tier_file("res://data/datacenter_tiers.json"))
+    issues.append_array(validate_district_file("res://data/districts.json"))
+    issues.append_array(validate_building_file("res://data/buildings.json"))
+    issues.append_array(validate_company_tier_file("res://data/company_tiers.json"))
+    issues.append_array(validate_office_upgrade_file("res://data/office_upgrades.json"))
     issues.append_array(validate_world_variable_file("res://data/world_variables.json"))
     issues.append_array(validate_subscription_plan_file("res://data/subscription_plans.json"))
     issues.append_array(validate_news_template_file("res://data/news_templates.json"))
@@ -1596,6 +1615,285 @@ static func _validate_datacenter_tier_record(path: String, record: Variant, inde
 
     if entry.has("operating_cost_per_day") and not _is_whole_number_at_least(entry.get("operating_cost_per_day"), 0):
         issues.append(Issue.new(path, id_label, "'operating_cost_per_day' must be a whole number >= 0"))
+
+    return issues
+
+static func validate_district_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of district records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_district_record(path, records[i], i, seen_ids))
+    return issues
+
+static func _validate_district_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "district record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in DISTRICT_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+
+    if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))
+
+    for mult_field: String in ["rent_multiplier", "buy_multiplier"]:
+        if entry.has(mult_field):
+            var mult: Variant = entry.get(mult_field)
+            if not (mult is int or mult is float) or float(mult) <= 0.0:
+                issues.append(Issue.new(path, id_label, "'%s' must be a number > 0" % mult_field))
+
+    for stat_field: String in ["prestige", "talent", "regulation"]:
+        if entry.has(stat_field):
+            var stat: Variant = entry.get(stat_field)
+            if not (stat is int or stat is float) or float(stat) < DISTRICT_STAT_MIN or float(stat) > DISTRICT_STAT_MAX:
+                issues.append(Issue.new(path, id_label, "'%s' must be a number in [%s, %s]" % [stat_field, DISTRICT_STAT_MIN, DISTRICT_STAT_MAX]))
+
+    return issues
+
+static func validate_building_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of building records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_building_record(path, records[i], i, seen_ids))
+    return issues
+
+## Cross-references district against DistrictCatalog and tier against
+## CompanyTierCatalog directly (both are cheap static lookups) — same
+## "call out to the real catalog" approach _validate_staff_role_record
+## already uses for character_model/ResourceLoader.exists().
+static func _validate_building_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "building record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in BUILDING_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+
+    if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))
+
+    if entry.has("district"):
+        var district: String = str(entry.get("district", ""))
+        if district.is_empty() or DistrictCatalog.get_def(district).is_empty():
+            issues.append(Issue.new(path, id_label, "'district' references unknown district id '%s'" % district))
+
+    if entry.has("tier"):
+        var tier: String = str(entry.get("tier", ""))
+        if tier.is_empty() or CompanyTierCatalog.get_def(tier).is_empty():
+            issues.append(Issue.new(path, id_label, "'tier' references unknown company tier id '%s'" % tier))
+
+    if entry.has("mode"):
+        var mode: String = str(entry.get("mode", ""))
+        if not BUILDING_MODES.has(mode):
+            issues.append(Issue.new(path, id_label, "unknown mode '%s' (expected one of %s)" % [mode, BUILDING_MODES]))
+
+    if entry.has("purchase_cost") and not _is_whole_number_at_least(entry.get("purchase_cost"), 0):
+        issues.append(Issue.new(path, id_label, "'purchase_cost' must be a whole number >= 0"))
+
+    if entry.has("rent_cost_per_day") and not _is_whole_number_at_least(entry.get("rent_cost_per_day"), 0):
+        issues.append(Issue.new(path, id_label, "'rent_cost_per_day' must be a whole number >= 0"))
+
+    if entry.has("capacity") and not _is_whole_number_at_least(entry.get("capacity"), 1):
+        issues.append(Issue.new(path, id_label, "'capacity' must be a whole number >= 1"))
+
+    if entry.has("rooms") and not (entry.get("rooms") is Array):
+        issues.append(Issue.new(path, id_label, "'rooms' must be an array"))
+
+    return issues
+
+static func validate_company_tier_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of company tier records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_company_tier_record(path, records[i], i, seen_ids))
+    return issues
+
+static func _validate_company_tier_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "company tier record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in COMPANY_TIER_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+        if not entry_id.is_empty() and not CompanyTierCatalog.ORDER.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "id '%s' is not listed in CompanyTierCatalog.ORDER" % entry_id))
+
+    if entry.has("display_name") and (not (entry["display_name"] is String) or String(entry["display_name"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'display_name' must be a non-empty string"))
+
+    if entry.has("employee_cap") and not _is_whole_number_at_least(entry.get("employee_cap"), 1):
+        issues.append(Issue.new(path, id_label, "'employee_cap' must be a whole number >= 1"))
+
+    if entry.has("unlock_requirements"):
+        var unlock: Variant = entry.get("unlock_requirements")
+        if not (unlock is Dictionary):
+            issues.append(Issue.new(path, id_label, "'unlock_requirements' must be an object"))
+        else:
+            for key: String in ["cash", "trust"]:
+                if not (unlock as Dictionary).has(key):
+                    issues.append(Issue.new(path, id_label, "'unlock_requirements' missing key '%s'" % key))
+                elif not ((unlock as Dictionary)[key] is int or (unlock as Dictionary)[key] is float) or float((unlock as Dictionary)[key]) < 0.0:
+                    issues.append(Issue.new(path, id_label, "'unlock_requirements.%s' must be a number >= 0" % key))
+
+    if entry.has("real_estate_class") and (not (entry["real_estate_class"] is String) or String(entry["real_estate_class"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'real_estate_class' must be a non-empty string"))
+
+    return issues
+
+static func validate_office_upgrade_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of office upgrade records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_office_upgrade_record(path, records[i], i, seen_ids))
+    return issues
+
+static func _validate_office_upgrade_record(path: String, record: Variant, index: int, seen_ids: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "office upgrade record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in OFFICE_UPGRADE_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+
+    if entry.has("name") and (not (entry["name"] is String) or String(entry["name"]).is_empty()):
+        issues.append(Issue.new(path, id_label, "'name' must be a non-empty string"))
+
+    if entry.has("cost") and not _is_whole_number_at_least(entry.get("cost"), 1):
+        issues.append(Issue.new(path, id_label, "'cost' must be a whole number >= 1"))
+
+    if entry.has("effects"):
+        var effects: Variant = entry.get("effects")
+        if not (effects is Dictionary):
+            issues.append(Issue.new(path, id_label, "'effects' must be an object"))
+        elif (effects as Dictionary).is_empty():
+            issues.append(Issue.new(path, id_label, "'effects' must have at least one entry"))
+        else:
+            for key: String in (effects as Dictionary):
+                if not OfficeUpgradeCatalog.EFFECT_KEYS.has(key):
+                    issues.append(Issue.new(path, id_label, "'effects' has unknown key '%s' (expected one of %s)" % [key, OfficeUpgradeCatalog.EFFECT_KEYS]))
+                var value: Variant = (effects as Dictionary)[key]
+                if not (value is int or value is float):
+                    issues.append(Issue.new(path, id_label, "'effects.%s' value must be numeric" % key))
 
     return issues
 

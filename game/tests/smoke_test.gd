@@ -1409,13 +1409,15 @@ func _initialize() -> void:
     # isolate that too.
     var world_mgr: Node = get_root().get_node("WorldStateManager")
     var mood_delta: float = world_mgr.public_mood_daily_trust_delta()
+    var real_estate_mgr: Node = get_root().get_node("RealEstateManager")
+    var district_trust_delta: float = real_estate_mgr.district_daily_trust_delta()
     bus2.day_advanced.emit(state.calendar_day)
     var expected_conversion: float = hype_before_tick * float(comm_mgr.HYPE_CONVERSION_RATE)
     if not is_equal_approx(state.hype_debt, hype_before_tick - expected_conversion):
         push_error("Hype debt should decay by converting into trust loss daily")
         quit(1)
         return
-    if not is_equal_approx(state.public_trust, clampf(trust_before_tick - expected_conversion + mood_delta, 0.0, 100.0)):
+    if not is_equal_approx(state.public_trust, clampf(trust_before_tick - expected_conversion + mood_delta + district_trust_delta, 0.0, 100.0)):
         push_error("Hype debt conversion should reduce public trust by the converted amount")
         quit(1)
         return
@@ -2302,11 +2304,13 @@ func _initialize() -> void:
         quit(1)
         return
 
-    staff_mgr.refresh_candidates()
+    # Direct roster population (not staff_mgr.hire(), which is now gated by
+    # RealEstateManager.effective_employee_cap() — the garage tier's cap of
+    # 4 would silently truncate this to 4 hires) — this block tests
+    # compliance_staff_count() counting, not the hiring-cap flow itself.
+    state.staff = []
     for i in 10:
-        staff_mgr.hire(0)
-    for member: Dictionary in state.staff:
-        member["role"] = "safety_analyst"
+        state.staff.append({"id": "compliance_test_staff_%d" % i, "role": "safety_analyst"})
     if legal_mgr.compliance_staff_count() != 10:
         push_error("compliance_staff_count() should count safety_analyst staff (expected 10, got %d)" % legal_mgr.compliance_staff_count())
         quit(1)
@@ -2588,12 +2592,13 @@ func _initialize() -> void:
     var cash_before_automation_tick: float = state.cash
     var trust_before_automation_tick: float = state.public_trust
     var automation_mood_delta: float = world_mgr.public_mood_daily_trust_delta()
+    var automation_district_delta: float = real_estate_mgr.district_daily_trust_delta()
     bus2.day_advanced.emit(state.calendar_day)
     if not is_equal_approx(state.cash, cash_before_automation_tick + expected_cash_delta + other_daily_delta3):
         push_error("The active policy's cash_per_pressure * automation_pressure should apply daily (expected %+.1f)" % expected_cash_delta)
         quit(1)
         return
-    if not is_equal_approx(state.public_trust, clampf(clampf(trust_before_automation_tick + expected_trust_delta, 0.0, 100.0) + automation_mood_delta, 0.0, 100.0)):
+    if not is_equal_approx(state.public_trust, clampf(clampf(trust_before_automation_tick + expected_trust_delta, 0.0, 100.0) + automation_mood_delta + automation_district_delta, 0.0, 100.0)):
         push_error("The active policy's trust_per_pressure * automation_pressure should apply daily")
         quit(1)
         return
@@ -2807,8 +2812,9 @@ func _initialize() -> void:
     state.deployments = []
     state.public_trust = 50.0
     var trust_before_mood_tick: float = state.public_trust
+    var mood_tick_district_delta: float = real_estate_mgr.district_daily_trust_delta()
     bus2.day_advanced.emit(state.calendar_day)
-    if not is_equal_approx(state.public_trust, clampf(trust_before_mood_tick + mood_delta_check, 0.0, 100.0)):
+    if not is_equal_approx(state.public_trust, clampf(trust_before_mood_tick + mood_delta_check + mood_tick_district_delta, 0.0, 100.0)):
         push_error("public_mood should visibly nudge public_trust daily, independent of player actions")
         quit(1)
         return
@@ -2823,6 +2829,12 @@ func _initialize() -> void:
     state.safety_debt = 100.0
     state.deployments = []
     var expected_pressure_gain: float = (100.0 * regulator_mgr.DEBT_PRESSURE_PER_POINT) * climate_multiplier_check
+    # RealEstateManager connects to day_advanced before RegulatorManager
+    # (autoload order), and the current (garage/industrial) district's
+    # regulation stat is below the 50 midpoint, so its drift is negative —
+    # applied to regulatory_pressure while it's still pinned at the 0.0
+    # floor set above, it's clamped away entirely before RegulatorManager's
+    # own delta ever applies. Not double-counted here for that reason.
     bus2.day_advanced.emit(state.calendar_day)
     if not is_equal_approx(state.regulatory_pressure, clampf(expected_pressure_gain, 0.0, 100.0)):
         push_error("regulation_climate should visibly scale RegulatorManager's daily pressure accrual")
@@ -4384,6 +4396,181 @@ func _initialize() -> void:
         quit(1)
         return
     print("SMOKE_OK: the real-world-mark scanner genuinely detects violations and avoids common-word false positives")
+
+    # Real estate / company progression (garage -> HQ building).
+    if DistrictCatalog.load_all().size() < 6:
+        push_error("DistrictCatalog should seed at least 6 districts")
+        quit(1)
+        return
+    if BuildingCatalog.load_all().size() < 5:
+        push_error("BuildingCatalog should seed at least 5 buildings (garage through HQ)")
+        quit(1)
+        return
+    if CompanyTierCatalog.load_all().size() != CompanyTierCatalog.ORDER.size():
+        push_error("CompanyTierCatalog should seed exactly the tiers listed in ORDER")
+        quit(1)
+        return
+    if OfficeUpgradeCatalog.load_all().size() < 5:
+        push_error("OfficeUpgradeCatalog should seed at least 5 upgrades")
+        quit(1)
+        return
+    print("SMOKE_OK: DistrictCatalog/BuildingCatalog/CompanyTierCatalog/OfficeUpgradeCatalog all seed real content")
+
+    state.reset_to_defaults()
+    if state.current_building_id != "garage_start":
+        push_error("A fresh campaign should start in the garage — the canon campaign start")
+        quit(1)
+        return
+    if real_estate_mgr.effective_employee_cap() != 4:
+        push_error("The garage tier's employee cap should be 4 (expected 4, got %d)" % real_estate_mgr.effective_employee_cap())
+        quit(1)
+        return
+    if not is_equal_approx(real_estate_mgr.daily_rent_cost(), 0.0):
+        push_error("The starter garage is owned outright and should never charge rent")
+        quit(1)
+        return
+    print("SMOKE_OK: a fresh campaign starts in the garage, at its real employee cap, paying no rent")
+
+    state.staff = []
+    staff_mgr.refresh_candidates()
+    for i in 4:
+        var hire_err_cap: Error = staff_mgr.hire(0)
+        if hire_err_cap != OK:
+            push_error("Hiring up to the garage's cap of 4 should succeed (failed at hire #%d, error %s)" % [i, hire_err_cap])
+            quit(1)
+            return
+    var over_cap_err: Error = staff_mgr.hire(0)
+    if over_cap_err == OK:
+        push_error("Hiring past RealEstateManager.effective_employee_cap() should be rejected")
+        quit(1)
+        return
+    print("SMOKE_OK: StaffManager.hire() is gated by the current building's real employee cap")
+
+    state.cash = 1000.0
+    if real_estate_mgr.can_move_to("loft_alpha", false):
+        push_error("A move should be rejected when cash is below the destination tier's unlock_requirements")
+        quit(1)
+        return
+    state.cash = 200000.0
+    state.public_trust = 50.0
+    var cash_before_move: float = state.cash
+    var loft_relocation_cost: float = real_estate_mgr.relocation_cost("loft_alpha", false)
+    var move_err: Error = real_estate_mgr.move_to("loft_alpha", false)
+    if move_err != OK:
+        push_error("A well-funded, unlock-eligible move should succeed (error %s)" % move_err)
+        quit(1)
+        return
+    if state.current_building_id != "loft_alpha":
+        push_error("move_to() should update current_building_id")
+        quit(1)
+        return
+    if not is_equal_approx(state.cash, cash_before_move - loft_relocation_cost):
+        push_error("move_to() should deduct exactly the relocation cost (rent-only move: no purchase_cost)")
+        quit(1)
+        return
+    if real_estate_mgr.effective_employee_cap() != 12:
+        push_error("Loft Alpha's tier (small_office) should raise the employee cap to 12 (got %d)" % real_estate_mgr.effective_employee_cap())
+        quit(1)
+        return
+    if not is_equal_approx(real_estate_mgr.daily_rent_cost(), 450.0 * float(DistrictCatalog.get_def("old_town").get("rent_multiplier", 1.0))):
+        push_error("daily_rent_cost() should be the listing's rent times its district's rent_multiplier")
+        quit(1)
+        return
+    if not is_equal_approx(economy_mgr.rent_cost(), real_estate_mgr.daily_rent_cost()):
+        push_error("EconomyManager.rent_cost() should read the real per-building rent, not a flat placeholder")
+        quit(1)
+        return
+    print("SMOKE_OK: RealEstateManager.move_to() relocates, charges the real relocation cost, raises the employee cap, and EconomyManager's ledger reflects the new real rent")
+
+    var upgrade_cash_before: float = state.cash
+    var lighting_def: Dictionary = OfficeUpgradeCatalog.get_def("better_lighting")
+    var upgrade_err: Error = real_estate_mgr.purchase_upgrade("better_lighting")
+    if upgrade_err != OK:
+        push_error("Purchasing an affordable, not-yet-owned office upgrade should succeed (error %s)" % upgrade_err)
+        quit(1)
+        return
+    if not is_equal_approx(state.cash, upgrade_cash_before - float(lighting_def.get("cost", 0.0))):
+        push_error("purchase_upgrade() should deduct exactly its cost")
+        quit(1)
+        return
+    var repeat_upgrade_err: Error = real_estate_mgr.purchase_upgrade("better_lighting")
+    if repeat_upgrade_err == OK:
+        push_error("purchase_upgrade() should reject an upgrade already installed in the current building")
+        quit(1)
+        return
+    real_estate_mgr.purchase_upgrade("extra_desks")
+    if real_estate_mgr.effective_employee_cap() != 14:
+        push_error("extra_desks' +2 employee_cap should stack on top of the tier's base 12 (got %d)" % real_estate_mgr.effective_employee_cap())
+        quit(1)
+        return
+    state.cash = 500000.0  # enough to buy office_hub_12 (220000 + relocation overhead) regardless of what the upgrades above spent
+    var move_again_err: Error = real_estate_mgr.move_to("office_hub_12", true)
+    if move_again_err != OK:
+        push_error("Buying and moving into a well-funded, unlock-eligible 'rent_or_buy' listing should succeed (error %s)" % move_again_err)
+        quit(1)
+        return
+    if not state.owned_building_ids.has("office_hub_12"):
+        push_error("Buying a 'rent_or_buy' listing should record it in owned_building_ids")
+        quit(1)
+        return
+    if not is_equal_approx(real_estate_mgr.daily_rent_cost(), 0.0):
+        push_error("A bought (owned) building should never charge daily rent")
+        quit(1)
+        return
+    if not state.office_upgrades_purchased.is_empty():
+        push_error("Moving to a different building should clear office_upgrades_purchased — a new space doesn't inherit the old one's renovations")
+        quit(1)
+        return
+    print("SMOKE_OK: office upgrades stack their effective_employee_cap bonus, refuse to double-install, and are cleared by the next move; buying a 'rent_or_buy' listing stops charging rent")
+
+    var re_save_err: Error = save_mgr.save_manual(2)
+    var building_before_reload: String = state.current_building_id
+    var owned_before_reload: Array = state.owned_building_ids.duplicate()
+    state.reset_to_defaults()
+    var re_load_err: Error = save_mgr.load_manual(2)
+    if re_save_err != OK or re_load_err != OK or state.current_building_id != building_before_reload or state.owned_building_ids != owned_before_reload:
+        push_error("Real estate state (current_building_id/owned_building_ids) should survive save/load")
+        quit(1)
+        return
+    print("SMOKE_OK: real estate state persists across save/load")
+
+    # NPCs with a real function (finalization pack's "NPCs con función
+    # real"): legal_specialist/hr_partner/ceo/cfo close the roster gap the
+    # earlier 3D-asset-integration/visual-rework passes both flagged —
+    # every one of the pack's 10 character models is now a real,
+    # hireable role with a real, bounded, mechanical effect.
+    if StaffRoleCatalog.load_all().size() != 10:
+        push_error("StaffRoleCatalog should now seed all 10 roles the character pack ships models for (got %d)" % StaffRoleCatalog.load_all().size())
+        quit(1)
+        return
+    state.staff = [{"id": "legal_test", "role": "legal_specialist"}]
+    if legal_mgr.compliance_staff_count() != 1:
+        push_error("legal_specialist should count toward LegalManager's compliance mitigation, same as safety_analyst")
+        quit(1)
+        return
+    state.staff = []
+    var hr_pool_before: int = staff_mgr.effective_candidate_pool_size()
+    state.staff = [{"id": "hr_test", "role": "hr_partner"}]
+    staff_mgr.refresh_candidates()
+    if staff_mgr.effective_candidate_pool_size() != hr_pool_before + int(staff_mgr.HR_PARTNER_POOL_BONUS_PER_HEAD) or staff_mgr.candidates.size() != staff_mgr.effective_candidate_pool_size():
+        push_error("A hired hr_partner should widen the real candidate pool, not just a documented-but-inert stat")
+        quit(1)
+        return
+    state.staff = []
+    staff_mgr.refresh_candidates()
+    state.board_control_pct = 50.0
+    state.board_pressure = 0.0
+    bus2.day_advanced.emit(state.calendar_day)
+    var pressure_gain_no_ceo: float = state.board_pressure
+    state.board_pressure = 0.0
+    state.staff = [{"id": "ceo_test", "role": "ceo"}]
+    bus2.day_advanced.emit(state.calendar_day)
+    if state.board_pressure >= pressure_gain_no_ceo:
+        push_error("A hired ceo should measurably reduce board control-pressure accrual (no ceo: %.3f, with ceo: %.3f)" % [pressure_gain_no_ceo, state.board_pressure])
+        quit(1)
+        return
+    state.staff = []
+    print("SMOKE_OK: legal_specialist/hr_partner/ceo all apply a real, bounded, mechanical effect — not just flavor text")
 
     if DirAccess.dir_exists_absolute("res://addons"):
         push_error("No third-party addons should be present (see CLAUDE.md's no-unapproved-dependency rule)")
