@@ -8,6 +8,15 @@ extends CanvasLayer
 ## systems (build/staff/research/...); today they only show honest
 ## placeholders instead of doing nothing.
 
+## P44: measured with a 300+300-entry incident/communication history,
+## _refresh_resource_strip() costs ~4ms per call (its trust-causes
+## tooltip sorts the entire history every time) — at a naive per-frame
+## 60Hz refresh that's ~240ms of CPU per second on its own. Nothing here
+## needs sub-frame latency (a label lagging one-seventh of a second behind
+## a cash change is imperceptible), so both refreshes are throttled to
+## this interval instead of running unconditionally in _process().
+const RESOURCE_STRIP_REFRESH_INTERVAL_SEC: float = 0.15
+
 @onready var _cash_label: Label = $TopBar/Margin/HBox/CashLabel
 @onready var _compute_label: Label = $TopBar/Margin/HBox/ComputeLabel
 @onready var _power_label: Label = $TopBar/Margin/HBox/PowerLabel
@@ -45,6 +54,8 @@ const SPEED_TIER_VALUES: Array[float] = [1.0, 2.0, 4.0]
 @onready var _tutorial_skip_step_button: Button = $TutorialBanner/Margin/HBox/ButtonBox/SkipStepButton
 @onready var _tutorial_skip_all_button: Button = $TutorialBanner/Margin/HBox/ButtonBox/SkipAllButton
 
+var _refresh_accumulator: float = 0.0
+
 func _ready() -> void:
     _pause_button.pressed.connect(_on_pause_pressed)
     for i in _speed_buttons.size():
@@ -65,7 +76,11 @@ func _ready() -> void:
     _section_buttons[0].grab_focus()
     _refresh_tutorial_banner()
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+    _refresh_accumulator += delta
+    if _refresh_accumulator < RESOURCE_STRIP_REFRESH_INTERVAL_SEC:
+        return
+    _refresh_accumulator = 0.0
     _refresh_resource_strip()
     _refresh_tutorial_banner()
 

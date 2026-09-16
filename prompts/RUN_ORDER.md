@@ -46,7 +46,7 @@ Run exactly one prompt at a time. Do not skip quality gates.
 - [x] `phase_04_polish/P41_audio_system_and_adaptive_music.md` — Audio system and adaptive music
 - [x] `phase_04_polish/P42_accessibility_completion.md` — Accessibility completion
 - [x] `phase_04_polish/P43_controller_support.md` — Controller support
-- [ ] `phase_04_polish/P44_performance_and_stress_pass.md` — Performance and stress pass
+- [x] `phase_04_polish/P44_performance_and_stress_pass.md` — Performance and stress pass
 - [ ] `phase_05_shipping/P45_localization_architecture.md` — Localization architecture
 - [ ] `phase_05_shipping/P46_steam_integration_adapter.md` — Steam integration adapter
 - [ ] `phase_05_shipping/P47_release_candidate_quality_gate.md` — Release candidate quality gate

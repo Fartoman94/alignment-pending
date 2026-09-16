@@ -57,6 +57,15 @@ func _ready() -> void:
     _nav_agent.path_desired_distance = 0.3
     _nav_agent.target_desired_distance = ARRIVE_DISTANCE
     _nav_agent.avoidance_enabled = true
+    # P44: measured with the 150-agent stress scene — RVO avoidance's
+    # per-tick neighbor search defaults (500m radius, 10 neighbors) scan
+    # far more of the office than a ~14x10 unit floor ever needs, and
+    # every extra neighbor considered costs CPU across all 150 agents,
+    # every physics tick. Capped to what a crowded single office actually
+    # needs (see docs/technical/PERFORMANCE_BUDGET.md's "stagger path
+    # queries" guidance) with no visible change to movement quality.
+    _nav_agent.neighbor_distance = 6.0
+    _nav_agent.max_neighbors = 5
     _nav_agent.velocity_computed.connect(_on_velocity_computed)
     add_child(_nav_agent)
     _build_visual()

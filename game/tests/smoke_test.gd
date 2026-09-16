@@ -3890,4 +3890,46 @@ func _initialize() -> void:
         return
     print("SMOKE_OK: the main menu grabs initial UI focus for mouse-free navigation")
 
+    # P44: performance and stress pass. Profiled the 150-agent stress
+    # scene, the day_advanced simulation cascade, and Hud's per-frame
+    # resource strip refresh (see IMPLEMENTATION_STATUS.md for the full
+    # numbers). The one confirmed, fixed bottleneck: _refresh_resource_
+    # strip()'s trust-causes tooltip sorts the ENTIRE incident/
+    # communication history every call — throttled instead of running
+    # unconditionally in _process(), a straightforward, real ~8x CPU cut
+    # with no player-visible behavior change.
+    var p44_test_agent_script: GDScript = load("res://src/world/staff_agent.gd")
+    var p44_test_agent: Node3D = p44_test_agent_script.new()
+    get_root().add_child(p44_test_agent)
+    await process_frame
+    if not is_equal_approx(p44_test_agent._nav_agent.neighbor_distance, 6.0) or p44_test_agent._nav_agent.max_neighbors != 5:
+        push_error("StaffAgent's NavigationAgent3D should cap its avoidance neighbor search for a crowded office (see PERFORMANCE_BUDGET.md)")
+        quit(1)
+        return
+    p44_test_agent.queue_free()
+    await process_frame
+    print("SMOKE_OK: StaffAgent's avoidance neighbor search is capped for the 150-agent stress scene")
+
+    var p44_campaign_scene: PackedScene = load("res://scenes/campaign.tscn")
+    var p44_campaign: Node = p44_campaign_scene.instantiate()
+    get_root().add_child(p44_campaign)
+    await process_frame
+    await process_frame
+    var p44_hud: Node = p44_campaign.hud
+    p44_hud._refresh_accumulator = 0.0
+    state.cash = 42.0
+    p44_hud._process(0.01)
+    if p44_hud._cash_label.text.contains("42"):
+        push_error("Hud's resource strip should NOT refresh on every single frame (that's the measured bottleneck this prompt fixes)")
+        quit(1)
+        return
+    p44_hud._process(p44_hud.RESOURCE_STRIP_REFRESH_INTERVAL_SEC)
+    if not p44_hud._cash_label.text.contains("42"):
+        push_error("Hud's resource strip should refresh once the throttle interval has elapsed")
+        quit(1)
+        return
+    p44_campaign.queue_free()
+    await process_frame
+    print("SMOKE_OK: Hud's resource strip refresh is throttled instead of rebuilding every frame")
+
     quit(0)
