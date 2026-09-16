@@ -1,0 +1,109 @@
+name: Release build
+
+# Bootstrap gate on every push/PR; full export+package+checksum pipeline
+# only on version tags (v*) or manual dispatch, so ordinary commits don't
+# pay for two ~1.3GB template downloads and a Windows cross-export.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  GODOT_VERSION: "4.7.2-stable"
+
+jobs:
+  bootstrap:
+    name: Bootstrap gate (smoke tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Godot editor
+        id: cache-godot
+        uses: actions/cache@v4
+        with:
+          path: ~/godot-editor
+          key: godot-editor-${{ env.GODOT_VERSION }}
+
+      - name: Download + verify Godot editor
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p ~/godot-editor
+          cd ~/godot-editor
+          curl -fL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          curl -fsSL -o SHA512-SUMS.txt "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/SHA512-SUMS.txt"
+          grep "Godot_v${GODOT_VERSION}_linux.x86_64.zip" SHA512-SUMS.txt | sha512sum -c -
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}_linux.x86_64" godot4
+          chmod +x godot4
+
+      - name: Run bootstrap (import/rescan + smoke_test.gd)
+        run: |
+          export PATH="$HOME/godot-editor:$PATH"
+          bash tools/bootstrap.sh
+
+  release-export:
+    name: Export + package + checksum
+    needs: bootstrap
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Godot editor
+        id: cache-godot
+        uses: actions/cache@v4
+        with:
+          path: ~/godot-editor
+          key: godot-editor-${{ env.GODOT_VERSION }}
+
+      - name: Download + verify Godot editor
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p ~/godot-editor
+          cd ~/godot-editor
+          curl -fL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          curl -fsSL -o SHA512-SUMS.txt "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/SHA512-SUMS.txt"
+          grep "Godot_v${GODOT_VERSION}_linux.x86_64.zip" SHA512-SUMS.txt | sha512sum -c -
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}_linux.x86_64" godot4
+          chmod +x godot4
+
+      - name: Cache export templates
+        id: cache-templates
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}
+          key: godot-templates-${{ env.GODOT_VERSION }}
+
+      - name: Download + verify export templates
+        if: steps.cache-templates.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.local/share/godot/export_templates/${GODOT_VERSION}
+          cd /tmp
+          curl -fL -o templates.tpz "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz"
+          curl -fsSL -o SHA512-SUMS.txt "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/SHA512-SUMS.txt"
+          grep "Godot_v${GODOT_VERSION}_export_templates.tpz" SHA512-SUMS.txt | sha512sum -c -
+          unzip -q templates.tpz
+          mv templates/* ~/.local/share/godot/export_templates/${GODOT_VERSION}/
+
+      - name: Export, package, checksum
+        run: |
+          export PATH="$HOME/godot-editor:$PATH"
+          bash tools/export_release.sh
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: alignment-pending-${{ github.ref_name }}
+          path: |
+            dist/alignment_pending_linux_x86_64.tar.gz
+            dist/windows/alignment_pending_windows_x86_64.zip
+            dist/CHECKSUMS.sha256.txt
+          if-no-files-found: error
