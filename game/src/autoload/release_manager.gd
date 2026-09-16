@@ -65,9 +65,11 @@ func rollback(deployment_id: String) -> Error:
     var deployment: Dictionary = _find_deployment(deployment_id)
     if deployment.is_empty():
         return ERR_DOES_NOT_EXIST
+    var mode_id: String = String(deployment.get("mode_id", ""))
     GameState.deployments.erase(deployment)
     _recompute_inference()
     EventBus.deployment_changed.emit(deployment_id)
+    EventBus.deployment_rolled_back.emit(deployment_id, mode_id)
     return OK
 
 func set_rate_limit(deployment_id: String, fraction: float) -> void:

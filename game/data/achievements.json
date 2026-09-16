@@ -1,0 +1,38 @@
+[
+  {
+    "id": "alignment_pending",
+    "name": "Alignment Pending",
+    "description": "Reach the final act.",
+    "trigger": "final_act_reached"
+  },
+  {
+    "id": "everybody_gets_a_dashboard",
+    "name": "Everybody Gets a Dashboard",
+    "description": "Employ 50 staff.",
+    "trigger": "staff_count_50"
+  },
+  {
+    "id": "hello_world",
+    "name": "Hello, World?",
+    "description": "Ship the first public model.",
+    "trigger": "first_public_deployment"
+  },
+  {
+    "id": "rollback_friday",
+    "name": "Rollback Friday",
+    "description": "Successfully roll back a troubled release.",
+    "trigger": "successful_rollback"
+  },
+  {
+    "id": "runway_is_a_number",
+    "name": "The Runway Is a Number",
+    "description": "Survive with under seven days of cash runway.",
+    "trigger": "runway_under_7_days"
+  },
+  {
+    "id": "not_a_monopoly",
+    "name": "Not a Monopoly",
+    "description": "Finish with under 50% market share and positive cash flow.",
+    "trigger": "ending_low_market_share"
+  }
+]

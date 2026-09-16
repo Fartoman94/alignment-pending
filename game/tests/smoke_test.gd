@@ -4020,4 +4020,128 @@ func _initialize() -> void:
     loc_mgr.set_locale("en")
     print("SMOKE_OK: the chosen locale persists across a settings.cfg save/load round trip")
 
+    # P46: Steam integration adapter — a local-mock-first platform-service
+    # interface (never a real SDK; none is an approved dependency).
+    var platform_svc: Node = get_root().get_node("PlatformService")
+
+    if not platform_svc.is_available():
+        push_error("The mock backend should report itself as available")
+        quit(1)
+        return
+    if platform_svc.is_achievement_unlocked("p46_test_achievement"):
+        push_error("An achievement should start locked")
+        quit(1)
+        return
+    if platform_svc.unlock_achievement("p46_test_achievement") != OK:
+        push_error("unlock_achievement() should succeed against the available mock backend")
+        quit(1)
+        return
+    if not platform_svc.is_achievement_unlocked("p46_test_achievement"):
+        push_error("An unlocked achievement should read back as unlocked")
+        quit(1)
+        return
+    if not platform_svc.unlocked_achievement_ids().has("p46_test_achievement"):
+        push_error("unlocked_achievement_ids() should list a real unlocked achievement")
+        quit(1)
+        return
+    var p46_cloud_payload: Dictionary = {"test": true, "value": 42}
+    if platform_svc.save_to_cloud("p46_test_slot", p46_cloud_payload) != OK:
+        push_error("save_to_cloud() should succeed against the available mock backend")
+        quit(1)
+        return
+    var p46_cloud_loaded: Dictionary = platform_svc.load_from_cloud("p46_test_slot")
+    if int(p46_cloud_loaded.get("value", 0)) != 42:
+        push_error("load_from_cloud() should round-trip what save_to_cloud() wrote")
+        quit(1)
+        return
+    print("SMOKE_OK: the local mock platform backend unlocks/reads achievements and round-trips cloud saves")
+
+    # "Platform unavailable errors are graceful": swap in the bare
+    # interface (every real platform SDK's absence looks like this) and
+    # confirm every call degrades safely instead of crashing.
+    platform_svc.set_backend(PlatformBackend.new())
+    if platform_svc.is_available() or platform_svc.is_cloud_available():
+        push_error("An unavailable backend should report itself as unavailable, not silently available")
+        quit(1)
+        return
+    if platform_svc.unlock_achievement("p46_test_achievement") != ERR_UNAVAILABLE:
+        push_error("unlock_achievement() should fail gracefully (ERR_UNAVAILABLE), not crash, with no backend")
+        quit(1)
+        return
+    if platform_svc.is_achievement_unlocked("p46_test_achievement"):
+        push_error("An unavailable backend should never report an achievement as unlocked")
+        quit(1)
+        return
+    if platform_svc.save_to_cloud("p46_test_slot", {}) != ERR_UNAVAILABLE or not platform_svc.load_from_cloud("p46_test_slot").is_empty():
+        push_error("Cloud save/load should fail gracefully with no backend available")
+        quit(1)
+        return
+    platform_svc.set_backend(load("res://src/platform/local_mock_platform_backend.gd").new())
+    print("SMOKE_OK: platform-unavailable errors are graceful — the game keeps running, nothing crashes")
+
+    var p46_achievement_ids: Array = AchievementCatalog.ordered_ids()
+    var p46_expected: Array[String] = ["alignment_pending", "everybody_gets_a_dashboard", "hello_world", "rollback_friday", "runway_is_a_number", "not_a_monopoly"]
+    for aid: String in p46_expected:
+        if not p46_achievement_ids.has(aid):
+            push_error("AchievementCatalog should define achievement '%s'" % aid)
+            quit(1)
+            return
+    var p46_dup_trigger: Dictionary = {"id": "dup", "name": "Dup", "description": "d", "trigger": "final_act_reached"}
+    var p46_dup_issues: Array = DataValidator._validate_achievement_record("test", p46_dup_trigger, 0, {}, {"final_act_reached": "alignment_pending"})
+    if p46_dup_issues.is_empty():
+        push_error("DataValidator should reject two achievements sharing the same trigger")
+        quit(1)
+        return
+    print("SMOKE_OK: AchievementCatalog defines every real achievement, and triggers are validated 1:1")
+
+    # Real, deterministic achievement unlocks driven by real EventBus
+    # signals — the same signals the real game already fires.
+    state.staff = []
+    bus2.staff_roster_changed.emit()
+    if platform_svc.is_achievement_unlocked("everybody_gets_a_dashboard"):
+        push_error("'Everybody Gets a Dashboard' should not unlock below 50 staff")
+        quit(1)
+        return
+    for i in 50:
+        state.staff.append({"id": "p46_staff_%d" % i, "role": "engineer"})
+    bus2.staff_roster_changed.emit()
+    if not platform_svc.is_achievement_unlocked("everybody_gets_a_dashboard"):
+        push_error("'Everybody Gets a Dashboard' should unlock at 50 staff")
+        quit(1)
+        return
+    state.staff = []
+
+    state.current_act = 5
+    bus2.campaign_act_changed.emit(5)
+    if not platform_svc.is_achievement_unlocked("alignment_pending"):
+        push_error("'Alignment Pending' should unlock on reaching Act V")
+        quit(1)
+        return
+    state.current_act = 1
+
+    state.deployments = [{"id": "p46_dep_1", "model_id": "p46_model_1", "mode_id": "public"}]
+    bus2.deployment_changed.emit("p46_dep_1")
+    if not platform_svc.is_achievement_unlocked("hello_world"):
+        push_error("'Hello, World?' should unlock the first time a deployment reaches Public")
+        quit(1)
+        return
+    state.deployments = []
+
+    bus2.deployment_rolled_back.emit("p46_dep_2", "beta")
+    if not platform_svc.is_achievement_unlocked("rollback_friday"):
+        push_error("'Rollback Friday' should unlock on a real rollback")
+        quit(1)
+        return
+
+    state.cash = 50.0
+    state.bankruptcy_day = -1
+    var p46_runway_before: bool = platform_svc.is_achievement_unlocked("runway_is_a_number")
+    if not p46_runway_before and economy_mgr.runway_days() < 7.0:
+        bus2.day_advanced.emit(state.calendar_day)
+        if not platform_svc.is_achievement_unlocked("runway_is_a_number"):
+            push_error("'The Runway Is a Number' should unlock while solvent with under 7 days of runway")
+            quit(1)
+            return
+    print("SMOKE_OK: AchievementManager unlocks real achievements from real EventBus signals and tracked state")
+
     quit(0)

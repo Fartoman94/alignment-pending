@@ -123,6 +123,15 @@ const SFX_CUE_REQUIRED_FIELDS: Array[String] = ["id", "bus", "waveform", "base_f
 const SFX_CUE_BUSES: Array[String] = ["SFX", "UI"]
 const SFX_CUE_WAVEFORMS: Array[String] = ["sine", "square", "triangle", "noise"]
 
+# P46: platform integration (achievements/cloud hooks). AchievementManager
+# owns the actual detection logic per trigger id; this is just the closed
+# vocabulary DataValidator checks against.
+const ACHIEVEMENT_REQUIRED_FIELDS: Array[String] = ["id", "name", "description", "trigger"]
+const ACHIEVEMENT_TRIGGERS: Array[String] = [
+    "final_act_reached", "staff_count_50", "first_public_deployment",
+    "successful_rollback", "runway_under_7_days", "ending_low_market_share",
+]
+
 ## One validation problem: which file, which record, and why.
 class Issue:
     var source: String
@@ -168,6 +177,7 @@ static func validate_all() -> Array[Issue]:
     issues.append_array(validate_glossary_term_file("res://data/glossary_terms.json"))
     issues.append_array(validate_epilogue_file("res://data/epilogues.json"))
     issues.append_array(validate_sfx_cue_file("res://data/sfx_cues.json"))
+    issues.append_array(validate_achievement_file("res://data/achievements.json"))
     return issues
 
 static func validate_event_file(path: String) -> Array[Issue]:
@@ -2041,6 +2051,70 @@ static func _validate_epilogue_record(path: String, record: Variant, index: int,
         issues.append(Issue.new(path, id_label, "'title' must be a non-empty string"))
     if entry.has("body") and (not (entry["body"] is String) or String(entry["body"]).is_empty()):
         issues.append(Issue.new(path, id_label, "'body' must be a non-empty string"))
+
+    return issues
+
+static func validate_achievement_file(path: String) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    if not FileAccess.file_exists(path):
+        issues.append(Issue.new(path, "", "file does not exist"))
+        return issues
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        issues.append(Issue.new(path, "", "could not open file (error %s)" % FileAccess.get_open_error()))
+        return issues
+    var text: String = file.get_as_text()
+    file.close()
+
+    var parsed: Variant = JSON.parse_string(text)
+    if not (parsed is Array):
+        issues.append(Issue.new(path, "", "root must be a JSON array of achievement records"))
+        return issues
+
+    var records: Array = parsed
+    var seen_ids: Dictionary = {}
+    var seen_triggers: Dictionary = {}
+    for i in records.size():
+        issues.append_array(_validate_achievement_record(path, records[i], i, seen_ids, seen_triggers))
+    return issues
+
+static func _validate_achievement_record(path: String, record: Variant, index: int, seen_ids: Dictionary, seen_triggers: Dictionary) -> Array[Issue]:
+    var issues: Array[Issue] = []
+    var record_label: String = "record #%d" % index
+    if not (record is Dictionary):
+        issues.append(Issue.new(path, record_label, "achievement record must be a JSON object"))
+        return issues
+
+    var entry: Dictionary = record
+    for field: String in ACHIEVEMENT_REQUIRED_FIELDS:
+        if not entry.has(field):
+            issues.append(Issue.new(path, record_label, "missing required field '%s'" % field))
+
+    var entry_id: String = str(entry.get("id", ""))
+    var id_label: String = entry_id if not entry_id.is_empty() else record_label
+    if entry.has("id"):
+        if entry_id.is_empty():
+            issues.append(Issue.new(path, record_label, "'id' must be a non-empty string"))
+        elif seen_ids.has(entry_id):
+            issues.append(Issue.new(path, entry_id, "duplicate id (first seen at record #%d)" % int(seen_ids[entry_id])))
+        else:
+            seen_ids[entry_id] = index
+
+    for text_field: String in ["name", "description"]:
+        if entry.has(text_field) and (not (entry[text_field] is String) or String(entry[text_field]).is_empty()):
+            issues.append(Issue.new(path, id_label, "'%s' must be a non-empty string" % text_field))
+
+    if entry.has("trigger"):
+        var trigger: String = String(entry.get("trigger", ""))
+        if not ACHIEVEMENT_TRIGGERS.has(trigger):
+            issues.append(Issue.new(path, id_label, "unknown trigger '%s' (expected one of %s)" % [trigger, ACHIEVEMENT_TRIGGERS]))
+        # Every trigger is 1:1 with an achievement — AchievementManager
+        # unlocks the first (and only) matching achievement id per event,
+        # so two records sharing a trigger would leave one unreachable.
+        elif seen_triggers.has(trigger):
+            issues.append(Issue.new(path, id_label, "trigger '%s' is already used by achievement '%s' — each trigger must map to exactly one achievement" % [trigger, seen_triggers[trigger]]))
+        else:
+            seen_triggers[trigger] = entry_id
 
     return issues
 

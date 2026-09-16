@@ -1,33 +1,28 @@
-; ALIGNMENT PENDING starter project
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
 config_version=5
 
 [application]
+
 config/name="Alignment Pending"
 run/main_scene="res://scenes/boot.tscn"
-config/features=PackedStringArray("4.7", "GL Compatibility")
-
-[display]
-window/size/viewport_width=1280
-window/size/viewport_height=720
-window/size/window_width_override=1280
-window/size/window_height_override=720
-window/stretch/mode="canvas_items"
-
-[rendering]
-renderer/rendering_method="gl_compatibility"
-renderer/rendering_method.mobile="gl_compatibility"
-environment/defaults/default_clear_color=Color(0.055, 0.071, 0.09, 1)
-
-[audio]
-buses/default_bus_layout="res://default_bus_layout.tres"
+config/features=PackedStringArray("4.5", "GL Compatibility")
 
 [autoload]
+
 EventBus="*res://src/autoload/event_bus.gd"
 GameState="*res://src/autoload/game_state.gd"
 SaveManager="*res://src/autoload/save_manager.gd"
 SceneRouter="*res://src/autoload/scene_router.gd"
 SettingsManager="*res://src/autoload/settings_manager.gd"
 SimClock="*res://src/autoload/sim_clock.gd"
+AchievementManager="*res://src/autoload/achievement_manager.gd"
 AgentPermissionManager="*res://src/autoload/agent_permission_manager.gd"
 AudioManager="*res://src/autoload/audio_manager.gd"
 AutomationManager="*res://src/autoload/automation_manager.gd"
@@ -44,6 +39,7 @@ LegalManager="*res://src/autoload/legal_manager.gd"
 LocalizationManager="*res://src/autoload/localization_manager.gd"
 ModelManager="*res://src/autoload/model_manager.gd"
 NewsFeedManager="*res://src/autoload/news_feed_manager.gd"
+PlatformService="*res://src/autoload/platform_service.gd"
 RegulatorManager="*res://src/autoload/regulator_manager.gd"
 ReleaseManager="*res://src/autoload/release_manager.gd"
 RivalManager="*res://src/autoload/rival_manager.gd"
@@ -53,3 +49,17 @@ StaffManager="*res://src/autoload/staff_manager.gd"
 TaskManager="*res://src/autoload/task_manager.gd"
 TutorialManager="*res://src/autoload/tutorial_manager.gd"
 WorldStateManager="*res://src/autoload/world_state_manager.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/size/window_width_override=1280
+window/size/window_height_override=720
+window/stretch/mode="canvas_items"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+environment/defaults/default_clear_color=Color(0.055, 0.071, 0.09, 1)

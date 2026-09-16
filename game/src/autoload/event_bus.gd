@@ -37,3 +37,8 @@ signal deployment_churn_event(deployment_id: String, churned_fraction: float)
 signal incident_resolved(incident_id: String, choice_id: String)
 signal news_posted(headline: String)
 signal campaign_act_changed(act_number: int)
+## Fired specifically by ReleaseManager.rollback() — distinct from the
+## generic deployment_changed (also fired by deploy()/promote()) so
+## listeners (e.g. AchievementManager) can react to a rollback alone.
+signal deployment_rolled_back(deployment_id: String, mode_id: String)
+signal achievement_unlocked(achievement_id: String)
