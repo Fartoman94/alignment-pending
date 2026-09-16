@@ -193,12 +193,20 @@ func _rebuild_office_visuals() -> void:
     _office_window("BackWallWindowL", Vector3(-5.5, 2.0, -6.82), palette["window_energy"])
     _office_window("BackWallWindowR", Vector3(5.5, 2.0, -6.82), palette["window_energy"])
     if tier == "garage" or tier == "garage_plus":
-        # A visible garage door on the left wall — the one concrete,
-        # unmistakable "this is still the garage" signal the brief asks
-        # for ("el garage inicial debe quedar como punto de partida
-        # canon"), not just a slightly-different gray.
-        _office_box("GarageDoor", Vector3(-8.85, 1.1, 4.5), Vector3(0.15, 2.2, 3.4), Color("2c2a28"))
-        _office_box("GarageDoorTrim", Vector3(-8.8, 2.25, 4.5), Vector3(0.1, 0.12, 3.6), Color("d9c02e"))
+        # Mega-asset-pack pass: a real modeled garage door (previously a
+        # flat procedural box) — the one concrete, unmistakable "this is
+        # still the garage" signal the brief asks for ("el garage inicial
+        # debe quedar como punto de partida canon"), now real geometry
+        # (ribbed panel) instead of a tinted rectangle. y_rot 90 turns its
+        # authored width (local X) to run along the wall (world Z);
+        # position/height matched to the door's own real AABB (2.45 tall).
+        _office_model("res://assets/models/mega/architecture/garage/garage_door_closed.glb", "GarageDoor", Vector3(-8.85, 0.0, 4.5), 90.0)
+        # A steel support column and a storage shelf — real set dressing
+        # from the same pack, garage-only sizing/placement (KNOWN_ISSUES.md's
+        # "not a general prop-placement system" still applies: fixed spots,
+        # not a system).
+        _office_model("res://assets/models/mega/architecture/garage/steel_beam.glb", "SteelBeam", Vector3(-6.0, 0.0, -5.5), 0.0)
+        _office_model("res://assets/models/mega/architecture/garage/storage_shelf.glb", "GarageStorageShelf", Vector3(8.3, 0.0, -6.6), 180.0)
 
 func _on_real_estate_moved(_building_id: String, _bought: bool) -> void:
     _rebuild_office_visuals()
@@ -207,6 +215,31 @@ func _office_box(name_: String, pos: Vector3, size: Vector3, color: Color) -> vo
     var mi: MeshInstance3D = ProceduralMeshFactory.make_box(name_, size, color)
     mi.position = pos
     _office_visuals.add_child(mi)
+
+## Loads a real mega-asset-pack model into _office_visuals, correcting its
+## authored Z-up orientation the same way every other real model in this
+## project does (StaffAgent/BuildController/visual_showcase.gd), with an
+## optional y_rot_deg to turn a wall-mounted piece to face the right way.
+## The facing rotation is a SEPARATE outer wrapper around the Z-up-
+## correction node, not one combined Vector3(-90, y, 0) — composing both
+## into a single Euler triple doesn't commute the way a naive reading
+## suggests (confirmed by rendering: a combined rotation warped the
+## garage door instead of just turning it to face into the room), so
+## each rotation gets its own node, same nested-transform discipline
+## StaffAgent's VisualRoot already uses for its own correction.
+func _office_model(path: String, name_: String, pos: Vector3, y_rot_deg: float = 0.0) -> void:
+    var packed: PackedScene = load(path)
+    if packed == null:
+        push_error("Campaign: could not load office model '%s'" % path)
+        return
+    var facing: Node3D = Node3D.new()
+    facing.name = name_
+    facing.position = pos
+    facing.rotation_degrees = Vector3(0.0, y_rot_deg, 0.0)
+    _office_visuals.add_child(facing)
+    var inst: Node3D = packed.instantiate()
+    inst.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+    facing.add_child(inst)
 
 ## Garage: grungy concrete, no brand polish. Small/medium office: today's
 ## established warm-charcoal baseline (visual-overhaul pass). Premium/HQ:
@@ -325,6 +358,10 @@ func _spawn_staff_agent(staff_id: String) -> void:
     var role_id: String = String(StaffManager.find(staff_id).get("role", ""))
     var role_def: Dictionary = StaffRoleCatalog.get_def(role_id)
     agent.character_model_path = String(role_def.get("character_model", ""))
+    var pool: Array[String] = []
+    for entry: Variant in (role_def.get("character_model_pool", []) as Array):
+        pool.append(String(entry))
+    agent.character_model_pool = pool
     agent.rng.randomize()
     agent.position = Vector3(randf_range(-6.0, 6.0), 0.0, randf_range(-4.0, 4.0))
     add_child(agent)

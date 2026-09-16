@@ -66,6 +66,13 @@ var _visual_phase: float = 0.0
 ## member's role (StaffRoleCatalog.character_model) before this node
 ## enters the tree.
 var character_model_path: String = ""
+## Optional same-role alternative meshes (StaffRoleCatalog.
+## character_model_pool, mega-asset-pack pass) — _build_visual() picks
+## one of [character_model_path] + this pool per agent, deterministically
+## by rng, for real mesh variety on top of the existing skin/hair tint
+## variation. Empty by default (old pack roles with no pool behave
+## exactly as before).
+var character_model_pool: Array[String] = []
 
 func _ready() -> void:
     _nav_agent = NavigationAgent3D.new()
@@ -98,9 +105,12 @@ func _ready() -> void:
 ## above for why the raw meshes can't just be rotated directly).
 func _build_visual() -> void:
     _visual_phase = rng.randf_range(0.0, TAU)
-    var packed: PackedScene = load(character_model_path)
+    var candidates: Array[String] = [character_model_path]
+    candidates.append_array(character_model_pool)
+    var chosen_path: String = candidates[rng.randi() % candidates.size()]
+    var packed: PackedScene = load(chosen_path)
     if packed == null:
-        push_error("StaffAgent: could not load character model '%s'" % character_model_path)
+        push_error("StaffAgent: could not load character model '%s'" % chosen_path)
         return
     var model: Node3D = packed.instantiate()
     add_child(model)
@@ -127,16 +137,22 @@ func _build_visual() -> void:
     var limb_names: Array[String] = ["leg_l", "leg_r", "arm_l", "arm_r"]
     for child in world_node.get_children().duplicate():
         var mesh_inst: Node3D = child
-        if limb_names.has(String(mesh_inst.name)):
+        # Godot's glTF importer suffixes every node with its sibling index
+        # on import ("leg_l" -> "leg_l_0") — seen on the mega-asset-pack's
+        # characters but not the original pack's (bare "leg_l"). Matched by
+        # prefix, not equality, so both naming styles work identically;
+        # never assumed from one pack alone again.
+        var limb_name: String = _matching_limb_prefix(String(mesh_inst.name), limb_names)
+        if not limb_name.is_empty():
             var pivot: Node3D = Node3D.new()
-            pivot.name = "%s_pivot" % mesh_inst.name
+            pivot.name = "%s_pivot" % limb_name
             var joint_z: float = _joint_z(mesh_inst)
             pivot.position = Vector3(0.0, 0.0, joint_z)
             world_node.remove_child(mesh_inst)
             visual_root.add_child(pivot)
             pivot.add_child(mesh_inst)
             mesh_inst.position = Vector3(0.0, 0.0, -joint_z)
-            match String(mesh_inst.name):
+            match limb_name:
                 "leg_l": _leg_l_pivot = pivot
                 "leg_r": _leg_r_pivot = pivot
                 "arm_l": _arm_l_pivot = pivot
@@ -146,6 +162,23 @@ func _build_visual() -> void:
             _bob_group.add_child(mesh_inst)
     model.queue_free()
     _apply_variation()
+
+func _matching_limb_prefix(node_name: String, limb_names: Array[String]) -> String:
+    for limb_name: String in limb_names:
+        if node_name == limb_name or node_name.begins_with(limb_name + "_"):
+            return limb_name
+    return ""
+
+## Same import-suffix quirk as the limb matching above — "head"/"hair"
+## may be "head_5"/"hair_6" depending on the source pack, so this finds
+## the first child whose name matches that prefix instead of an exact
+## get_node_or_null() lookup.
+func _find_child_by_prefix(parent: Node, prefix: String) -> Node:
+    for child in parent.get_children():
+        var name_str: String = String(child.name)
+        if name_str == prefix or name_str.begins_with(prefix + "_"):
+            return child
+    return null
 
 ## Finalization pack visual-rework brief: "que 10-20 NPCs en pantalla no
 ## se sientan idénticos." The pack ships one fixed material per part per
@@ -163,7 +196,7 @@ const HAIR_COLORS: Array[Color] = [
     Color("d9c9a3"), Color("8a8580"), Color("1c1c1e"), Color("7a3b2e"),
 ]
 func _apply_variation() -> void:
-    var head: MeshInstance3D = _bob_group.get_node_or_null("head")
+    var head: MeshInstance3D = _find_child_by_prefix(_bob_group, "head") as MeshInstance3D
     if head != null and head.mesh != null:
         var skin_mat: StandardMaterial3D = head.mesh.surface_get_material(0)
         if skin_mat != null:
@@ -175,7 +208,7 @@ func _apply_variation() -> void:
                 clampf(skin_variant.albedo_color.b + skin_shift * 0.7, 0.0, 1.0),
             )
             head.set_surface_override_material(0, skin_variant)
-    var hair: MeshInstance3D = _bob_group.get_node_or_null("hair")
+    var hair: MeshInstance3D = _find_child_by_prefix(_bob_group, "hair") as MeshInstance3D
     if hair != null and hair.mesh != null:
         var hair_mat: StandardMaterial3D = hair.mesh.surface_get_material(0)
         if hair_mat != null:

@@ -3572,6 +3572,48 @@ func _initialize() -> void:
         return
     print("SMOKE_OK: every staff agent builds a complete, role-appropriate character model with animatable limb pivots")
 
+    # MEGA_ASSET_PACK pass: character_model_pool gives StaffAgent extra
+    # same-role meshes to pick from. The pack's node-naming convention
+    # differs from the original pack's (Godot's glTF importer suffixed
+    # every node with its sibling index — "leg_l_0" instead of "leg_l"),
+    # so this specifically proves the prefix-based matching handles that,
+    # not just that a pool entry loads without erroring.
+    var mega_role_def: Dictionary = StaffRoleCatalog.get_def("researcher")
+    var mega_pool: Array = mega_role_def.get("character_model_pool", [])
+    if mega_pool.size() < 3:
+        push_error("researcher's character_model_pool should have at least 3 real mega-pack entries (got %d)" % mega_pool.size())
+        quit(1)
+        return
+    for i in 12:
+        var mega_agent: Node3D = load("res://src/world/staff_agent.gd").new()
+        mega_agent.coordinator = p40_coordinator
+        mega_agent.rng.seed = 5000 + i
+        mega_agent.character_model_path = String(mega_role_def.get("character_model", ""))
+        var mega_typed_pool: Array[String] = []
+        for entry: Variant in mega_pool:
+            mega_typed_pool.append(String(entry))
+        mega_agent.character_model_pool = mega_typed_pool
+        get_root().add_child(mega_agent)
+        await process_frame
+        if mega_agent.get("_leg_l_pivot") == null or mega_agent.get("_leg_r_pivot") == null \
+                or mega_agent.get("_arm_l_pivot") == null or mega_agent.get("_arm_r_pivot") == null:
+            push_error("A mega-pack character_model_pool pick should still build all 4 limb pivots despite suffixed node names (seed %d)" % (5000 + i))
+            quit(1)
+            return
+        var mega_bob_group: Node3D = mega_agent.get("_bob_group")
+        var mega_found_head: bool = false
+        if mega_bob_group != null:
+            for child in mega_bob_group.get_children():
+                if child is MeshInstance3D and String(child.name).begins_with("head"):
+                    mega_found_head = true
+        if not mega_found_head:
+            push_error("A mega-pack character_model_pool pick should still find its 'head_N'-suffixed mesh for skin-tone variation (seed %d)" % (5000 + i))
+            quit(1)
+            return
+        mega_agent.queue_free()
+    await process_frame
+    print("SMOKE_OK: character_model_pool picks (mega-asset-pack, suffixed node names) build complete pivots/head lookups exactly like the original pack")
+
     var p40_start_ms: int = Time.get_ticks_msec()
     for i in 900:
         await physics_frame

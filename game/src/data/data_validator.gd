@@ -538,6 +538,21 @@ static func _validate_staff_role_record(path: String, record: Variant, index: in
         elif not ResourceLoader.exists(character_model):
             issues.append(Issue.new(path, id_label, "'character_model' points to a file that doesn't exist: %s" % character_model))
 
+    # Mega-asset-pack pass: extra same-role model variants StaffAgent
+    # picks from alongside character_model, for visual variety beyond
+    # material tinting. Same validation as character_model itself.
+    if entry.has("character_model_pool"):
+        var pool: Variant = entry.get("character_model_pool")
+        if not (pool is Array):
+            issues.append(Issue.new(path, id_label, "'character_model_pool' must be an array"))
+        else:
+            for pool_entry: Variant in (pool as Array):
+                var pool_path: String = str(pool_entry)
+                if pool_path.is_empty() or not pool_path.ends_with(".glb"):
+                    issues.append(Issue.new(path, id_label, "'character_model_pool' entries must be non-empty paths to .glb files"))
+                elif not ResourceLoader.exists(pool_path):
+                    issues.append(Issue.new(path, id_label, "'character_model_pool' references a file that doesn't exist: %s" % pool_path))
+
     return issues
 
 static func validate_staff_trait_file(path: String) -> Array[Issue]:
