@@ -312,16 +312,42 @@ func _build_ambient_decoration() -> void:
     _static_prop("res://assets/models/props/plant.glb", Vector3(-8.4, 0.0, 2.5))
     _static_prop("res://assets/models/props/water_dispenser.glb", Vector3(-3.5, 0.0, -6.4))
     _static_prop("res://assets/models/props/trash_bin.glb", Vector3(3.5, 0.0, -6.4))
+    _build_break_room()
 
-func _static_prop(model_path: String, pos: Vector3) -> void:
+## Production-kit pass: a break-room corner staff can actually walk to
+## (see BREAK_SPOT / StaffAgent.break_spot), unlike every other ambient
+## prop above — those live in the unwalkable margin outside the navmesh
+## on purpose (KNOWN_ISSUES.md), which also makes them impossible to use
+## as a real destination. BuildGrid.ROUTE_ROW (world z in [0,2], the full
+## east-west aisle every staff member must already be able to cross) is
+## the one strip of floor guaranteed walkable and guaranteed never
+## buildable regardless of tier — placed in its western end so the rest
+## of the aisle stays clear. Tier-agnostic like the rest of this
+## function: every office, not just the garage, gets a break corner.
+const BREAK_SPOT: Vector3 = Vector3(-6.1, 0.0, 1.0)
+func _build_break_room() -> void:
+    _static_prop("res://assets/models/mega/kitchen/fridge.glb", Vector3(-7.6, 0.0, 0.35), 90.0)
+    _static_prop("res://assets/models/mega/kitchen/vending_machine.glb", Vector3(-7.6, 0.0, 1.7), -90.0)
+    _static_prop("res://assets/models/mega/kitchen/coffee_machine.glb", Vector3(-6.6, 0.0, 1.75), 180.0)
+    _static_prop("res://assets/models/mega/kitchen/table.glb", Vector3(-5.6, 0.0, 1.0), 0.0)
+    _static_prop("res://assets/models/mega/kitchen/chair.glb", Vector3(-5.6, 0.0, 0.25), 180.0)
+
+## y_rot_deg gets its own outer wrapper node around the pack's standard
+## -90 X correction, same reason _office_model() does this instead of one
+## combined Euler triple (see that function's doc comment) — confirmed
+## necessary again here, not just assumed to carry over.
+func _static_prop(model_path: String, pos: Vector3, y_rot_deg: float = 0.0) -> void:
     var packed: PackedScene = load(model_path)
     if packed == null:
         push_error("Campaign: could not load decorative prop '%s'" % model_path)
         return
+    var facing: Node3D = Node3D.new()
+    facing.position = pos
+    facing.rotation_degrees = Vector3(0.0, y_rot_deg, 0.0)
+    add_child(facing)
     var inst: Node3D = packed.instantiate()
     inst.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
-    inst.position = pos
-    add_child(inst)
+    facing.add_child(inst)
 
 func _build_camera() -> void:
     camera_controller = CameraController.new()
@@ -381,6 +407,8 @@ func _spawn_staff_agent(staff_id: String) -> void:
     agent.coordinator = nav_coordinator
     agent.bounds_min = Vector2(-7.0, -5.0)
     agent.bounds_max = Vector2(7.0, 5.0)
+    agent.has_break_spot = true
+    agent.break_spot = BREAK_SPOT
     var role_id: String = String(StaffManager.find(staff_id).get("role", ""))
     var role_def: Dictionary = StaffRoleCatalog.get_def(role_id)
     agent.character_model_path = String(role_def.get("character_model", ""))

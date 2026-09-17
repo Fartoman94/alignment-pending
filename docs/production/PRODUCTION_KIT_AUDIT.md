@@ -73,11 +73,12 @@ The project's landing page is a published Claude Artifact (`ASSET_PROVENANCE.md`
 ## Done this pass
 
 - **Garage art pass** (`69ca19e`): 8 new clutter props wired, verified by rendering (see `docs/legal/ASSET_PROVENANCE.md`).
+- **Break-room + purposeful NPC movement**: real break-room corner (5 of 7 new kitchen models) placed in `BuildGrid.ROUTE_ROW`; `StaffAgent` idle wander now has a 30% chance to head there instead of a uniform-random point. Verified behaviorally (a real agent reaches the spot in a scripted real-campaign run), not just by code review. See `docs/legal/ASSET_PROVENANCE.md`'s "Break-room + purposeful NPC movement" note for the full honest-scope statement.
 
 ## Recommended next priorities (highest value / best-scoped first)
 
-1. **NPC purposeful movement** (kit's non-negotiable goal #3: *"NPCs never wander randomly"*) — real gap today: `StaffAgent._try_start_moving()` picks a uniformly random point in bounds when idle. Scoped fix: replace the random destination pool with a small set of tagged ambient destinations (idle-at-desk, break spot) — not a full needs/hunger simulation (that's a bigger, separate system the kit's own `NPCBrain`/`NPCNeeds` templates sketch but this repo's design deliberately keeps gameplay simulation in the explicit work-order system, not autonomous NPC AI).
-2. Kitchen/break-room prop pass (feeds directly into #1 — need a real "break spot" to walk to).
+1. ~~NPC purposeful movement~~ — **done**, see above.
+2. ~~Kitchen/break-room prop pass~~ — **done**, see above.
 3. SVG icon audit against `hud.gd`'s current iconography.
 4. Office-tier architecture pass (columns/glass/carpet) for non-garage tiers, mirroring the garage art pass's pattern.
 5. City layer + character-variant mesh pool — largest, least-scoped items; deferred until 1-4 are solid, per the kit's own master prompt gating ("do not continue until the garage vertical slice actually resembles the target").

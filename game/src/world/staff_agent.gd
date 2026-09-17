@@ -24,6 +24,22 @@ var bounds_max: Vector2 = Vector2(7.0, 5.0)
 var coordinator: NavCoordinator
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
+## Production-kit pass ("NPCs never wander randomly"): an optional real
+## destination (Campaign.BREAK_SPOT, the break-room corner) an idle agent
+## sometimes heads for instead of a uniformly random point in bounds — a
+## deliberately modest, honest scope: one shared tagged destination on top
+## of the existing random-wander fallback, not a full needs/schedule
+## simulation (see docs/production/PRODUCTION_KIT_AUDIT.md's "NPC
+## purposeful movement" note for why that bigger system is out of scope
+## here). Unset by default; only real campaign-spawned agents get one
+## (Campaign._spawn_staff_agent()) — dev/showcase scenes keep pure random
+## wander unless they opt in too.
+var has_break_spot: bool = false
+var break_spot: Vector3 = Vector3.ZERO
+## Rolled once per idle-to-moving transition, not per frame — see
+## _try_start_moving().
+const BREAK_CHANCE: float = 0.3
+
 var state: State = State.IDLE
 var total_distance_traveled: float = 0.0
 var destinations_reached: int = 0
@@ -297,6 +313,12 @@ func _animate_visual(delta: float) -> void:
             _bob_group.rotation.y = sin(idle_t * 0.35) * 0.12
 
 func _try_start_moving() -> void:
+    if has_break_spot and rng.randf() < BREAK_CHANCE and coordinator != null and coordinator.try_reserve(break_spot):
+        _current_reservation = break_spot
+        _has_reservation = true
+        _nav_agent.target_position = break_spot
+        state = State.MOVING
+        return
     for attempt in MAX_RESERVE_ATTEMPTS:
         var candidate: Vector3 = Vector3(
             rng.randf_range(bounds_min.x, bounds_max.x), 0.0,
