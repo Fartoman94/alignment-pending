@@ -33,6 +33,7 @@
     "cost": 15000,
     "refund_ratio": 0.3,
     "color": "3a6ea5",
-    "height": 1.3
+    "height": 1.3,
+    "model": "res://assets/models/mega/research/research_terminal.glb"
   }
 ]
