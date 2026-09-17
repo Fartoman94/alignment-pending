@@ -28,7 +28,9 @@ These new characters are structured completely differently — a real `Rig`/`Ske
 2. `StaffAgent.State` (`IDLE`/`MOVING`/`WORKING`) maps to the baked animation names (`idle`/`walk`/`typing` or `sit`) via `AnimationPlayer.play()`.
 3. `_apply_variation()`'s skin/hair-tint lookup moves to search `Head`/`Hair` directly under `Skeleton3D` instead of the `_bob_group` reparenting target it uses today — skinned meshes can't be reparented into a pivot group without breaking their skin binding, so that step doesn't apply to this hierarchy.
 
-Real, bounded, already-understood work (points 1-3 above are the actual spec for it) — deliberately not rushed into the one system every scene in this project depends on, this late in an already long pass, without the room to test it as thoroughly as everything else this session.
+4. **Scale correction.** Rendered a generated character next to an existing `desk_single.glb` and the existing StaffAgent character side by side, same camera, same depth (`docs/art/screenshots/generated_humanoid_scale_check.png`) — the new characters are visibly bigger and bulkier than the existing ones, the same "orthogonal-camera has no distance-based size cue" scale-authoring mismatch already hit and fixed once this session for the city-backdrop buildings. Needs a measured `model_scale` correction (empirically tuned against the desk, the same way the building fix was) before mixing new and old characters in the same scene would look consistent.
+
+Real, bounded, already-understood work (points 1-4 above are the actual spec for it) — deliberately not rushed into the one system every scene in this project depends on, this late in an already long pass, without the room to test it as thoroughly as everything else this session.
 
 ## Role mapping for whenever this gets wired in
 
