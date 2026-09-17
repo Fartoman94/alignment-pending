@@ -196,6 +196,17 @@ func _build_environment() -> void:
     env.ssil_enabled = true
     env.ssil_radius = 3.0
     env.ssil_intensity = 1.4
+    # CLAUDE_VISUAL_EXECUTION_MASTERPACK Phase 4 ("fog sutil"): first
+    # attempt at 0.008 was rendered and rejected — in this small enclosed
+    # room (14x10 units) it visibly washed out the SSAO contact shadows
+    # and desaturated the whole floor into flat gray (confirmed by a
+    # direct before/after pixel comparison, not eyeballed). 0.0015 is the
+    # value that actually reads as "atmosphere" rather than "smoke" at
+    # the same camera distance. Color/energy tracked by _update_time_of_
+    # day() alongside ambient, same day-night reactivity.
+    env.fog_enabled = true
+    env.fog_density = 0.0015
+    env.fog_sun_scatter = 0.03
     world_env.environment = env
     add_child(world_env)
     _environment = env
@@ -259,6 +270,7 @@ func _update_time_of_day() -> void:
     _environment.ambient_light_energy = lerpf(0.1, 0.4, day_t)
     _environment.ambient_light_color = Color("8c95a8").lerp(Color("232838"), 1.0 - day_t)
     _environment.tonemap_exposure = lerpf(0.62, 0.85, day_t)
+    _environment.fog_light_color = Color("8c95a8").lerp(Color("161a26"), 1.0 - day_t)
     # The window panels' only light cue was a fixed "always daytime" glow
     # (see _office_window()) — scaled by day_t too so the outside world
     # visibly goes dark along with the sun instead of staying a static
@@ -418,6 +430,15 @@ func _build_exterior() -> void:
     _spawn_traffic(Vector3(-9.0, 0.15, 9.3), Vector3(9.0, 0.15, 9.3), 2.6, "res://assets/models/mega/architecture/city/car_blue.glb", ext)
     _spawn_traffic(Vector3(7.0, 0.15, 10.5), Vector3(-8.0, 0.15, 10.5), 3.4, "res://assets/models/mega/architecture/city/car_orange.glb", ext)
     _spawn_traffic(Vector3(-4.0, 0.15, 11.7), Vector3(6.0, 0.15, 11.7), 2.1, "res://assets/models/mega/architecture/city/delivery_van.glb", ext)
+    # CLAUDE_VISUAL_EXECUTION_MASTERPACK Phase 5 ("autos estacionados",
+    # distinct from "autos/van en movimiento" above): 2 real, static
+    # (non-moving, no TrafficVehicle) cars along the far curb, past the
+    # 3 traffic lanes and in front of the background buildings — the
+    # pack ships no dedicated "parked car" model, so these reuse the
+    # same car_blue/car_orange meshes the moving lanes already use, just
+    # placed once and never animated.
+    _ext_model.call(city + "car_blue.glb", Vector3(-2.5, 0.15, 13.0), 90.0)
+    _ext_model.call(city + "car_orange.glb", Vector3(2.0, 0.15, 13.0), -90.0)
 
 func _spawn_traffic(from_pos: Vector3, to_pos: Vector3, speed: float, model_path: String, parent: Node3D) -> void:
     var vehicle := TrafficVehicle.new()
@@ -526,6 +547,17 @@ func _rebuild_office_visuals() -> void:
         _office_model("res://assets/models/mega/props/cardboard_box.glb", "StorageBox3", Vector3(-6.3, 0.0, -3.6), 0.0)
         _office_model("res://assets/models/mega/architecture/garage/extension_cord.glb", "GarageExtensionCord", Vector3(0.5, 0.02, -6.6), 0.0)
         _office_model("res://assets/models/mega/architecture/garage/broom.glb", "GarageBroom", Vector3(-8.6, 0.0, 2.8), 15.0)
+        # CLAUDE_VISUAL_EXECUTION_MASTERPACK Phase 1 ("ductos/pipes/breaker"
+        # and "posters/señalética" were the two checklist items this
+        # garage genuinely didn't have yet — every other item was already
+        # covered by prior passes, confirmed by cross-checking the real
+        # render against the phase's own composition list before adding
+        # anything). Real, previously-unused pack assets, same fixed-spot
+        # set-dressing discipline as the rest of this block.
+        _office_model("res://assets/models/mega/architecture/garage/air_duct.glb", "GarageAirDuct", Vector3(4.0, 3.0, -6.8), 0.0, true)
+        _office_model("res://assets/models/mega/architecture/garage/wall_pipe.glb", "GarageWallPipe", Vector3(-8.85, 0.0, -1.5), 90.0)
+        _office_model("res://assets/models/mega/props/pinboard.glb", "GaragePinboard", Vector3(3.5, 1.6, -6.85), 0.0, true)
+        _office_model("res://assets/models/mega/props/fire_extinguisher.glb", "GarageFireExtinguisher", Vector3(-8.7, 0.0, 3.6), 0.0)
     elif tier == "small_office" or tier == "medium_office":
         # Closes a real gap: garage/garage_plus and premium_office/
         # hq_building both got real entrance geometry (garage door, then
@@ -703,6 +735,13 @@ const BREAK_SPOT: Vector3 = Vector3(-6.1, 0.0, 1.0)
 ## tier-agnostic) — wired directly where garage-tier staff get their
 ## ambient_destinations list, below.
 const WHITEBOARD_SPOT: Vector3 = Vector3(-6.5, 0.0, -3.2)
+## CLAUDE_VISUAL_EXECUTION_MASTERPACK Phase 2/3: a third real ambient
+## destination, right in front of the garage-tier lounge sofa
+## (`LoungeSofa`, Vector3(6.0, 0.0, 1.5) below) — tagged "lounge" so
+## StaffAgent plays its real "sit" clip there instead of "talk", and one
+## more real anchor point reducing how often idle agents fall back to
+## pure random wandering (see AMBIENT_DESTINATION_CHANCE's doc comment).
+const LOUNGE_SPOT: Vector3 = Vector3(6.0, 0.0, 0.6)
 func _build_break_room() -> void:
     _static_prop("res://assets/models/mega/kitchen/fridge.glb", Vector3(-7.6, 0.0, 0.35), 90.0)
     _static_prop("res://assets/models/mega/kitchen/vending_machine.glb", Vector3(-7.6, 0.0, 1.7), -90.0)
@@ -791,6 +830,8 @@ func _spawn_staff_agent(staff_id: String) -> void:
     if current_tier == "garage" or current_tier == "garage_plus":
         ambient.append(WHITEBOARD_SPOT)
         ambient_tags.append("whiteboard")
+        ambient.append(LOUNGE_SPOT)
+        ambient_tags.append("lounge")
     agent.ambient_destinations = ambient
     agent.ambient_activity_tags = ambient_tags
     var role_id: String = String(StaffManager.find(staff_id).get("role", ""))

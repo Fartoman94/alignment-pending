@@ -50,7 +50,15 @@ var _ambient_activity: String = ""
 var _pending_ambient_activity: String = ""
 ## Rolled once per idle-to-moving transition, not per frame — see
 ## _try_start_moving().
-const AMBIENT_DESTINATION_CHANCE: float = 0.3
+## CLAUDE_VISUAL_EXECUTION_MASTERPACK Phase 2 ("no caminar al azar"):
+## raised from 0.3 — at the old value, most idle wandering was still a
+## uniform-random point in the room bounds (the fallback in
+## _try_start_moving() below), which is exactly the "muñecos caminando al
+## azar" the phase calls out. Still not zero (a real needs/schedule AI is
+## out of scope — see the class doc comment above), but a real, tagged
+## destination (break room / whiteboard / lounge) is now the common case
+## instead of the exception.
+const AMBIENT_DESTINATION_CHANCE: float = 0.65
 
 var state: State = State.IDLE
 var total_distance_traveled: float = 0.0
@@ -304,11 +312,19 @@ func _animate_visual_skeletal(_delta: float) -> void:
         State.IDLE:
             # Baked clip set is idle/walk/typing/talk/sit (see
             # _build_visual_skeletal()'s doc comment) — no dedicated
-            # "drink" clip, so both the break-room and whiteboard ambient
-            # spots use "talk" (chatting over coffee / discussing at the
-            # board reads the same at isometric distance), documented
-            # rather than silently reusing plain idle.
-            target = "talk" if not _ambient_activity.is_empty() else "idle"
+            # "drink" clip, so the break-room/whiteboard ambient spots use
+            # "talk" (chatting over coffee / discussing at the board reads
+            # the same at isometric distance); "lounge" (CLAUDE_VISUAL_
+            # EXECUTION_MASTERPACK Phase 2/3, Campaign.LOUNGE_SPOT) uses
+            # the real "sit" clip instead, since that one actually has a
+            # matching authored pose.
+            match _ambient_activity:
+                "lounge":
+                    target = "sit"
+                "":
+                    target = "idle"
+                _:
+                    target = "talk"
     if target != _current_anim and _anim_player.has_animation(target):
         _anim_player.play(target)
         _current_anim = target
@@ -365,6 +381,59 @@ func _apply_variation() -> void:
             var hair_variant: StandardMaterial3D = hair_mat.duplicate()
             hair_variant.albedo_color = HAIR_COLORS[rng.randi() % HAIR_COLORS.size()]
             hair.set_surface_override_material(0, hair_variant)
+    if head != null:
+        _add_face_details(head)
+
+## CLAUDE_VISUAL_EXECUTION_MASTERPACK Phase 2 ("cara con ojos/nariz/boca/
+## pelo"): the original flat-mesh pack's head is a bare cube — no eyes,
+## nose, or mouth geometry at all (confirmed by dumping ceo.glb's node
+## tree and rendering a close-up: a featureless skin-colored blob). Only
+## `ceo`/`cfo` still use this pack — the other 8 roles were migrated to
+## the real generated-humanoid pipeline (see class doc comment above),
+## which already has proper face geometry from `_build_visual_skeletal()`
+## and doesn't go through this function at all. Rather than pull in
+## Blender (not installed in this environment, and installing/downloading
+## a new toolchain for 2 roles is disproportionate), this adds the same
+## simple primitive face features `tools/blender_generators/
+## generate_humanoids.py` bakes for the other roles, built directly with
+## Godot's own `ProceduralMeshFactory` instead — same visual language
+## (flat-shaded low-poly boxes), no new asset files or dependencies.
+## Coordinates are relative to `head`'s own local space, derived from its
+## real mesh AABB (center (0,0,1.8), half-extent 0.3) — not guessed: this
+## pack's "front" is -Y in a part's local space (derived from the tie
+## mesh's known position and the class doc comment's "necktie is visible
+## from +Z" *after* the VisualRoot's -90°-X correction, which maps
+## local -Y to final +Z).
+const _FACE_EYE_WHITE: Color = Color("f7f7f5")
+const _FACE_PUPIL: Color = Color("14120f")
+const _FACE_MOUTH: Color = Color("8a4a45")
+func _add_face_details(head: MeshInstance3D) -> void:
+    if head.get_node_or_null("FaceDetails") != null:
+        return  # Pooled/reused agents shouldn't stack a second set.
+    var group := Node3D.new()
+    group.name = "FaceDetails"
+    head.add_child(group)
+    for side in [1.0, -1.0]:
+        # CapsuleMesh requires height >= 2*radius (Godot clamps otherwise);
+        # using exactly that minimum makes it read as a small sphere.
+        var eye := ProceduralMeshFactory.make_capsule(
+            "Eye", 0.028, 0.056, _FACE_EYE_WHITE, 0.3)
+        eye.position = Vector3(0.11 * side, -0.30, 1.87)
+        eye.rotation_degrees = Vector3(90.0, 0.0, 0.0)
+        group.add_child(eye)
+        var pupil := ProceduralMeshFactory.make_capsule(
+            "Pupil", 0.012, 0.024, _FACE_PUPIL, 0.2)
+        pupil.position = Vector3(0.11 * side, -0.315, 1.87)
+        pupil.rotation_degrees = Vector3(90.0, 0.0, 0.0)
+        group.add_child(pupil)
+    var nose := ProceduralMeshFactory.make_box(
+        "Nose", Vector3(0.035, 0.045, 0.05), head.mesh.surface_get_material(0).albedo_color if head.mesh.surface_get_material(0) else Color("e0b596"))
+    nose.position = Vector3(0.0, -0.32, 1.81)
+    group.add_child(nose)
+    var mouth := ProceduralMeshFactory.make_box(
+        "Mouth", Vector3(0.09, 0.015, 0.025), _FACE_MOUTH)
+    mouth.position = Vector3(0.0, -0.30, 1.71)
+    group.add_child(mouth)
 
 ## The joint a limb hangs/pivots from — the top of its local Z-range
 ## (hip for a leg, shoulder for an arm) — read directly from the mesh's

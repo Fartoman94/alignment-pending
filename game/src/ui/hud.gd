@@ -278,29 +278,45 @@ func _on_section_pressed(section_name: String) -> void:
     AudioManager.play_sfx("ui_click")
     if section_name == "Build":
         _show_build_palette()
-        return
-    if section_name == "Staff":
+    elif section_name == "Staff":
         _show_staff_panel()
-        return
-    if section_name == "Research":
+    elif section_name == "Research":
         _show_research_panel()
-        return
-    if section_name == "Models":
+    elif section_name == "Models":
         _show_models_panel()
-        return
-    if section_name == "Company":
+    elif section_name == "Company":
         _show_company_panel()
-        return
-    if section_name == "World":
+    elif section_name == "World":
         _show_world_panel()
-        return
-    if section_name == "Glossary":
+    elif section_name == "Glossary":
         _show_glossary_panel()
+    else:
+        EventBus.build_tool_changed.emit("")
+        _clear_dynamic_content()
+        _inspector_title.text = section_name
+        _inspector_body.text = LocalizationManager.tr_text("%s is not implemented yet.") % section_name
+    _fade_in_dynamic_content()
+
+## CLAUDE_VISUAL_EXECUTION_MASTERPACK Phase 6 ("transitions 120-180ms"):
+## every bottom-nav tab switch used to swap RightPanel content instantly
+## (_clear_dynamic_content() + rebuild, no animation at all) — this fades
+## the new panel in instead. Hooked once here rather than in each of the
+## 7 _show_*_panel() functions since every one of them is reached through
+## this single dispatch point when triggered from the nav bar (the most
+## visible, most frequent transition); a few narrower internal refreshes
+## reached by other call sites (e.g. returning to the staff list after a
+## hire) weren't individually retrofitted — see docs/visual-progress/
+## phase-06-report.md for the honest scope note. Skipped under reduced
+## motion, same accessibility gate the rest of the project already uses
+## (see main_menu.gd's terminal cursor).
+const PANEL_FADE_SECONDS: float = 0.15
+func _fade_in_dynamic_content() -> void:
+    if SettingsManager.reduced_motion:
+        _dynamic_content.modulate.a = 1.0
         return
-    EventBus.build_tool_changed.emit("")
-    _clear_dynamic_content()
-    _inspector_title.text = section_name
-    _inspector_body.text = LocalizationManager.tr_text("%s is not implemented yet.") % section_name
+    _dynamic_content.modulate.a = 0.0
+    var tween: Tween = create_tween()
+    tween.tween_property(_dynamic_content, "modulate:a", 1.0, PANEL_FADE_SECONDS)
 
 func _refresh_inspector_empty() -> void:
     _clear_dynamic_content()
