@@ -96,6 +96,12 @@ Every item above was checked in isolation (a standalone render, a scripted scene
 
 Everything in this kit that could be integrated **safely and non-destructively** — without regressing a documented architectural decision (procedural audio, procedural/no-image UI) or duplicating an existing, tested, better-integrated system (NPC AI, HUD, real estate, staff/incident data) — is done: garage art pass, break-room + purposeful NPC movement, the `safety_lab` model gap, office-tier architecture for the top two tiers, 30 character variants, and a clean performance re-profile. 7 commits, each independently verified and bootstrap-green.
 
+## small_office/medium_office entrance gap (closed after user follow-up)
+
+Asked directly "is there really nothing left?" — checked, and found a real one: `small_office`/`medium_office` had zero entrance geometry (garage and premium/hq both got a real door, the two tiers in between didn't), confirmed by rendering both tiers, not just by reading the code. Closed with a plain `office_door.glb` (original `MEGA_ASSET_PACK`, unwired until now) at the same fixed entrance spot every tier uses — deliberately plain, not the glass door, so premium/hq's upgrade still reads as one. Full note in `docs/legal/ASSET_PROVENANCE.md`'s "Office-tier architecture pass" follow-up.
+
+Still open, lower value, not chased further this pass: `small_office` and `medium_office` share the exact same palette (`_office_palette()`'s `_:` default case) and now the same door — the two tiers are visually identical to each other, just numerically different (capacity/rent). A real fix would need its own palette step and isn't just "add a missing prop" the way the entrance gap was.
+
 ## City backdrop (added after user approval)
 
 The city layer above was initially deferred as a product decision needing explicit sign-off ("is real estate becoming a literal explorable city?"). Asked, and the answer was: proceed, but scoped to what the kit's own brief actually asked for — "decorative, low-cost" — not a full explorable spatial city (which is still a separate, bigger undertaking, see below). Shipped as `CityBackdrop`: a baked (render-once, not per-frame) street scene visible through the office windows, denser at higher real-estate tiers. Full writeup in `docs/legal/ASSET_PROVENANCE.md`'s "City backdrop" note, including two real bugs found and fixed by rendering (a `SubViewport` world-sharing bug that leaked city geometry into the real office, and a window-material overexposure bug).

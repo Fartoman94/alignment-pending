@@ -238,6 +238,16 @@ func _rebuild_office_visuals() -> void:
         _office_model("res://assets/models/mega/architecture/garage/fan.glb", "GarageFan", Vector3(2.5, 0.0, -6.6), 0.0)
         _office_model("res://assets/models/mega/architecture/garage/extension_cord.glb", "GarageExtensionCord", Vector3(0.5, 0.02, -6.6), 0.0)
         _office_model("res://assets/models/mega/architecture/garage/broom.glb", "GarageBroom", Vector3(-8.6, 0.0, 2.8), 15.0)
+    elif tier == "small_office" or tier == "medium_office":
+        # Closes a real gap: garage/garage_plus and premium_office/
+        # hq_building both got real entrance geometry (garage door, then
+        # glass door + reception), but these two middle tiers had nothing
+        # at all at this wall — a plain empty box with a palette change,
+        # no unmistakable "you moved somewhere real" signal. A plain
+        # office door (not the glass one premium/hq earn later) at the
+        # same fixed spot the door has occupied at every other tier —
+        # modest on purpose, matching "first real office, not fancy yet."
+        _office_model("res://assets/models/mega/architecture/office/office_door.glb", "OfficeEntrance", Vector3(-8.85, 0.0, 4.5), 90.0)
     elif tier == "premium_office" or tier == "hq_building":
         # Production-kit office art pass: the Art Bible's "cheap converted
         # office -> corporate building" progression, same fixed-margin-band
