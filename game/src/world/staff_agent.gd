@@ -567,17 +567,19 @@ func _apply_variation() -> void:
 ## CLAUDE_VISUAL_EXECUTION_MASTERPACK Phase 2 ("cara con ojos/nariz/boca/
 ## pelo"): the original flat-mesh pack's head is a bare cube — no eyes,
 ## nose, or mouth geometry at all (confirmed by dumping ceo.glb's node
-## tree and rendering a close-up: a featureless skin-colored blob). Only
-## `ceo`/`cfo` still use this pack — the other 8 roles were migrated to
-## the real generated-humanoid pipeline (see class doc comment above),
-## which already has proper face geometry from `_build_visual_skeletal()`
-## and doesn't go through this function at all. Rather than pull in
-## Blender (not installed in this environment, and installing/downloading
-## a new toolchain for 2 roles is disproportionate), this adds the same
-## simple primitive face features `tools/blender_generators/
-## generate_humanoids.py` bakes for the other roles, built directly with
-## Godot's own `ProceduralMeshFactory` instead — same visual language
-## (flat-shaded low-poly boxes), no new asset files or dependencies.
+## tree and rendering a close-up: a featureless skin-colored blob). Added
+## as a stopgap while `ceo`/`cfo` were still the only 2 roles on this
+## pack and Blender wasn't available in this environment to regenerate
+## them through the real pipeline. Blender is now installed and both
+## roles were regenerated through `tools/blender_generators/
+## generate_humanoids.py` (see `data/staff_roles.json`) — every one of
+## the 10 roles now goes through `_build_visual_skeletal()`'s real face
+## geometry instead. This function is unreachable from any current
+## `staff_roles.json` entry, but stays: `asset_gallery.tscn`/
+## `garage_showcase.tscn` and the dedicated mega-pack smoke-test block
+## still instantiate this pack's characters directly by path for asset
+## preview/regression coverage, independent of staff_roles.json, so it's
+## still a real, tested code path, not dead code.
 ## Coordinates are relative to `head`'s own local space, derived from its
 ## real mesh AABB (center (0,0,1.8), half-extent 0.3) — not guessed: this
 ## pack's "front" is -Y in a part's local space (derived from the tie
