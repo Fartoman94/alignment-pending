@@ -191,6 +191,92 @@ func _build_office() -> void:
     add_child(_office_visuals)
     _rebuild_office_visuals()
     _build_ambient_decoration()
+    _build_exterior()
+
+## World+NPC overhaul pass: the room only ever built two of its four
+## walls (BackWall at z=-7, LeftWall at x=-9 — the other two sides were
+## always open, on purpose, so the isometric camera could see in). That
+## meant looking past those open sides, or over the low walls' top edge,
+## showed nothing but the flat WorldEnvironment background color — "el
+## alrededor del garage no puede ser negro vacío" per the brief. A real
+## exterior set (sidewalk, street, trees, lamps, a couple of building
+## silhouettes, a few cars driving a simple back-and-forth loop) placed
+## just past the floor's own edge (|x|>9 or z>7) — not a spatial city to
+## explore, a backdrop to look at, same "decorative, low-cost" scope the
+## earlier CityBackdrop window pass used. Tier-independent (built once,
+## never rebuilt on a real-estate move) since it's not part of the
+## office itself.
+func _build_exterior() -> void:
+    var ext := Node3D.new()
+    ext.name = "Exterior"
+    add_child(ext)
+    var city := "res://assets/models/mega/architecture/city/"
+    # The city pack's building-exterior models are authored at a much
+    # bigger scale than the room-scale furniture pack everything else in
+    # this scene uses — confirmed by pulling a real perspective camera
+    # back far enough to compare them side by side with the office box:
+    # unscaled, a single building dwarfed the whole room. The game's
+    # camera is orthogonal (no perspective falloff with distance), so
+    # placing them further away doesn't shrink them on screen the way it
+    # would with a normal 3D camera — scale is the only lever that works.
+    var _ext_model := func(path: String, pos: Vector3, y_rot: float = 0.0, model_scale: float = 1.0) -> void:
+        var packed: PackedScene = load(path)
+        if packed == null:
+            push_error("Campaign: could not load exterior model '%s'" % path)
+            return
+        var facing := Node3D.new()
+        facing.position = pos
+        facing.rotation_degrees = Vector3(0.0, y_rot, 0.0)
+        ext.add_child(facing)
+        var inst: Node3D = packed.instantiate()
+        inst.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+        inst.scale = Vector3.ONE * model_scale
+        facing.add_child(inst)
+
+    # Sidewalk running the width of the building just past the open
+    # front edge (z=7), then a street beyond that, both spanning the
+    # same x range the floor does.
+    for i in 9:
+        var sx: float = -8.0 + float(i) * 2.0
+        _ext_model.call(city + "sidewalk_tile.glb", Vector3(sx, 0.0, 8.0), 0.0)
+        _ext_model.call(city + "road_straight.glb", Vector3(sx, 0.0, 10.0), 0.0)
+    # Trees and lamp posts along the sidewalk, alternating so it doesn't
+    # read as a single repeated prop.
+    _ext_model.call(city + "tree_city.glb", Vector3(-7.0, 0.0, 8.3), 0.0)
+    _ext_model.call(city + "lamp_post.glb", Vector3(-3.5, 0.0, 8.3), 0.0)
+    _ext_model.call(city + "tree_city.glb", Vector3(0.0, 0.0, 8.3), 0.0)
+    _ext_model.call(city + "lamp_post.glb", Vector3(3.5, 0.0, 8.3), 0.0)
+    _ext_model.call(city + "tree_city.glb", Vector3(7.0, 0.0, 8.3), 0.0)
+    _ext_model.call(city + "park_bench.glb", Vector3(-5.0, 0.0, 8.3), 90.0)
+    # A small skyline set back across the street — enough to read as "a
+    # real block", not a single flat backdrop card. Scaled down ~4-5x
+    # from native (see _ext_model's doc comment) — verified by rendering
+    # a real perspective overview alongside the office box before
+    # picking this factor, not guessed.
+    _ext_model.call(city + "small_building_exterior.glb", Vector3(-6.0, 0.0, 13.0), 0.0, 0.22)
+    _ext_model.call(city + "mid_building_exterior.glb", Vector3(-1.5, 0.0, 13.5), 0.0, 0.22)
+    _ext_model.call(city + "small_building_exterior.glb", Vector3(3.5, 0.0, 13.0), 0.0, 0.22)
+    _ext_model.call(city + "tower.glb", Vector3(7.5, 0.0, 13.5), 0.0, 0.22)
+
+    # 3 cars on a simple loop along the street, staggered start
+    # positions/speeds so they don't move in lockstep.
+    _spawn_traffic(Vector3(-9.0, 0.15, 10.0), Vector3(9.0, 0.15, 10.0), 2.6, "res://assets/models/mega/architecture/city/car_blue.glb", ext)
+    _spawn_traffic(Vector3(7.0, 0.15, 10.0), Vector3(-8.0, 0.15, 10.0), 3.4, "res://assets/models/mega/architecture/city/car_orange.glb", ext)
+    _spawn_traffic(Vector3(-4.0, 0.15, 10.0), Vector3(6.0, 0.15, 10.0), 2.1, "res://assets/models/mega/architecture/city/delivery_van.glb", ext)
+
+func _spawn_traffic(from_pos: Vector3, to_pos: Vector3, speed: float, model_path: String, parent: Node3D) -> void:
+    var vehicle := TrafficVehicle.new()
+    vehicle.start_pos = from_pos
+    vehicle.end_pos = to_pos
+    vehicle.speed = speed
+    var packed: PackedScene = load(model_path)
+    if packed == null:
+        push_error("Campaign: could not load traffic model '%s'" % model_path)
+        return
+    var inst: Node3D = packed.instantiate()
+    inst.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+    vehicle.add_child(inst)
+    parent.add_child(vehicle)
 
 ## Rebuildable subset (walls/trim/windows/garage-door) — everything that
 ## changes per real-estate tier lives under _office_visuals so a move can
