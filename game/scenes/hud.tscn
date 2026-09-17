@@ -1,6 +1,16 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource path="res://src/ui/hud.gd" type="Script" id="1"]
+[ext_resource path="res://assets/ui/icons/icon_cash.svg" type="Texture2D" id="2"]
+[ext_resource path="res://assets/ui/icons/icon_compute.svg" type="Texture2D" id="3"]
+[ext_resource path="res://assets/ui/icons/icon_power.svg" type="Texture2D" id="4"]
+[ext_resource path="res://assets/ui/icons/icon_trust.svg" type="Texture2D" id="5"]
+[ext_resource path="res://assets/ui/icons/icon_safety.svg" type="Texture2D" id="6"]
+[ext_resource path="res://assets/ui/icons/icon_employees.svg" type="Texture2D" id="7"]
+[ext_resource path="res://assets/ui/icons/icon_research.svg" type="Texture2D" id="8"]
+[ext_resource path="res://assets/ui/icons/icon_models.svg" type="Texture2D" id="9"]
+[ext_resource path="res://assets/ui/icons/icon_world.svg" type="Texture2D" id="10"]
+[ext_resource path="res://assets/ui/icons/icon_office.svg" type="Texture2D" id="11"]
 
 [sub_resource type="ButtonGroup" id="SpeedGroup"]
 
@@ -45,7 +55,18 @@ theme_override_constants/separation = 18
 [node name="CashChip" type="PanelContainer" parent="TopBar/Margin/VBox/ResourceRow"]
 layout_mode = 2
 
-[node name="CashLabel" type="Label" parent="TopBar/Margin/VBox/ResourceRow/CashChip"]
+[node name="HBox" type="HBoxContainer" parent="TopBar/Margin/VBox/ResourceRow/CashChip"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Icon" type="TextureRect" parent="TopBar/Margin/VBox/ResourceRow/CashChip/HBox"]
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+texture = ExtResource("2")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="CashLabel" type="Label" parent="TopBar/Margin/VBox/ResourceRow/CashChip/HBox"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "$0"
@@ -53,7 +74,18 @@ text = "$0"
 [node name="ComputeChip" type="PanelContainer" parent="TopBar/Margin/VBox/ResourceRow"]
 layout_mode = 2
 
-[node name="ComputeLabel" type="Label" parent="TopBar/Margin/VBox/ResourceRow/ComputeChip"]
+[node name="HBox" type="HBoxContainer" parent="TopBar/Margin/VBox/ResourceRow/ComputeChip"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Icon" type="TextureRect" parent="TopBar/Margin/VBox/ResourceRow/ComputeChip/HBox"]
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+texture = ExtResource("3")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="ComputeLabel" type="Label" parent="TopBar/Margin/VBox/ResourceRow/ComputeChip/HBox"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
 text = "COMPUTE 0%"
@@ -61,7 +93,18 @@ text = "COMPUTE 0%"
 [node name="PowerChip" type="PanelContainer" parent="TopBar/Margin/VBox/ResourceRow"]
 layout_mode = 2
 
-[node name="PowerLabel" type="Label" parent="TopBar/Margin/VBox/ResourceRow/PowerChip"]
+[node name="HBox" type="HBoxContainer" parent="TopBar/Margin/VBox/ResourceRow/PowerChip"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Icon" type="TextureRect" parent="TopBar/Margin/VBox/ResourceRow/PowerChip/HBox"]
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+texture = ExtResource("4")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="PowerLabel" type="Label" parent="TopBar/Margin/VBox/ResourceRow/PowerChip/HBox"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
 text = "POWER 0%"
@@ -77,7 +120,18 @@ text = "HEAT 0%"
 [node name="TrustChip" type="PanelContainer" parent="TopBar/Margin/VBox/ResourceRow"]
 layout_mode = 2
 
-[node name="TrustLabel" type="Label" parent="TopBar/Margin/VBox/ResourceRow/TrustChip"]
+[node name="HBox" type="HBoxContainer" parent="TopBar/Margin/VBox/ResourceRow/TrustChip"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Icon" type="TextureRect" parent="TopBar/Margin/VBox/ResourceRow/TrustChip/HBox"]
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+texture = ExtResource("5")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="TrustLabel" type="Label" parent="TopBar/Margin/VBox/ResourceRow/TrustChip/HBox"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
 text = "TRUST 0"
@@ -85,7 +139,18 @@ text = "TRUST 0"
 [node name="SafetyDebtChip" type="PanelContainer" parent="TopBar/Margin/VBox/ResourceRow"]
 layout_mode = 2
 
-[node name="SafetyDebtLabel" type="Label" parent="TopBar/Margin/VBox/ResourceRow/SafetyDebtChip"]
+[node name="HBox" type="HBoxContainer" parent="TopBar/Margin/VBox/ResourceRow/SafetyDebtChip"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Icon" type="TextureRect" parent="TopBar/Margin/VBox/ResourceRow/SafetyDebtChip/HBox"]
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+texture = ExtResource("6")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="SafetyDebtLabel" type="Label" parent="TopBar/Margin/VBox/ResourceRow/SafetyDebtChip/HBox"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
 text = "SAFETY DEBT 0"
@@ -253,6 +318,8 @@ custom_minimum_size = Vector2(0, 56)
 toggle_mode = true
 button_group = SubResource("SectionGroup")
 text = "Staff"
+icon = ExtResource("7")
+theme_override_constants/icon_max_width = 20
 
 [node name="ResearchButton" type="Button" parent="BottomBar/Margin/HBox"]
 layout_mode = 2
@@ -260,6 +327,8 @@ custom_minimum_size = Vector2(0, 56)
 toggle_mode = true
 button_group = SubResource("SectionGroup")
 text = "Research"
+icon = ExtResource("8")
+theme_override_constants/icon_max_width = 20
 
 [node name="ModelsButton" type="Button" parent="BottomBar/Margin/HBox"]
 layout_mode = 2
@@ -267,6 +336,8 @@ custom_minimum_size = Vector2(0, 56)
 toggle_mode = true
 button_group = SubResource("SectionGroup")
 text = "Models"
+icon = ExtResource("9")
+theme_override_constants/icon_max_width = 20
 
 [node name="DeploymentsButton" type="Button" parent="BottomBar/Margin/HBox"]
 layout_mode = 2
@@ -281,6 +352,8 @@ custom_minimum_size = Vector2(0, 56)
 toggle_mode = true
 button_group = SubResource("SectionGroup")
 text = "Company"
+icon = ExtResource("11")
+theme_override_constants/icon_max_width = 20
 
 [node name="WorldButton" type="Button" parent="BottomBar/Margin/HBox"]
 layout_mode = 2
@@ -288,6 +361,8 @@ custom_minimum_size = Vector2(0, 56)
 toggle_mode = true
 button_group = SubResource("SectionGroup")
 text = "World"
+icon = ExtResource("10")
+theme_override_constants/icon_max_width = 20
 
 [node name="GlossaryButton" type="Button" parent="BottomBar/Margin/HBox"]
 layout_mode = 2

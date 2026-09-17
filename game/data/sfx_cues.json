@@ -58,5 +58,45 @@
     "attack_sec": 0.01,
     "decay_sec": 0.25,
     "gain_db": -6.0
+  },
+  {
+    "id": "ui_hover",
+    "bus": "UI",
+    "waveform": "sine",
+    "base_freq": 660.0,
+    "duration_sec": 0.035,
+    "attack_sec": 0.003,
+    "decay_sec": 0.02,
+    "gain_db": -20.0
+  },
+  {
+    "id": "confirm",
+    "bus": "UI",
+    "waveform": "triangle",
+    "base_freq": 520.0,
+    "duration_sec": 0.12,
+    "attack_sec": 0.005,
+    "decay_sec": 0.08,
+    "gain_db": -10.0
+  },
+  {
+    "id": "cancel",
+    "bus": "UI",
+    "waveform": "triangle",
+    "base_freq": 320.0,
+    "duration_sec": 0.1,
+    "attack_sec": 0.005,
+    "decay_sec": 0.07,
+    "gain_db": -10.0
+  },
+  {
+    "id": "notification",
+    "bus": "SFX",
+    "waveform": "sine",
+    "base_freq": 740.0,
+    "duration_sec": 0.16,
+    "attack_sec": 0.008,
+    "decay_sec": 0.11,
+    "gain_db": -9.0
   }
 ]

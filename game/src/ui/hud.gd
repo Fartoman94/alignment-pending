@@ -35,11 +35,15 @@ const STAFF_QUOTES: Dictionary = {
 }
 const STAFF_QUOTE_FALLBACK: Array[String] = ["Just here to build something that works."]
 
-@onready var _cash_label: Label = $TopBar/Margin/VBox/ResourceRow/CashChip/CashLabel
-@onready var _compute_label: Label = $TopBar/Margin/VBox/ResourceRow/ComputeChip/ComputeLabel
-@onready var _power_label: Label = $TopBar/Margin/VBox/ResourceRow/PowerChip/PowerLabel
-@onready var _trust_label: Label = $TopBar/Margin/VBox/ResourceRow/TrustChip/TrustLabel
-@onready var _safety_label: Label = $TopBar/Margin/VBox/ResourceRow/SafetyDebtChip/SafetyDebtLabel
+## Total-visual-rework/GIGA_GRAPHICS pass: each resource chip's Label now
+## sits inside an HBox alongside a real vector icon (TopBar/.../HBox),
+## not a direct PanelContainer child — HeatChip has no matching icon
+## (no icon_heat in the authored set) so it keeps its original flat path.
+@onready var _cash_label: Label = $TopBar/Margin/VBox/ResourceRow/CashChip/HBox/CashLabel
+@onready var _compute_label: Label = $TopBar/Margin/VBox/ResourceRow/ComputeChip/HBox/ComputeLabel
+@onready var _power_label: Label = $TopBar/Margin/VBox/ResourceRow/PowerChip/HBox/PowerLabel
+@onready var _trust_label: Label = $TopBar/Margin/VBox/ResourceRow/TrustChip/HBox/TrustLabel
+@onready var _safety_label: Label = $TopBar/Margin/VBox/ResourceRow/SafetyDebtChip/HBox/SafetyDebtLabel
 @onready var _heat_label: Label = $TopBar/Margin/VBox/ResourceRow/HeatChip/HeatLabel
 @onready var _date_label: Label = $TopBar/Margin/VBox/MetaRow/DateLabel
 @onready var _act_label: Label = $TopBar/Margin/VBox/MetaRow/ActLabel
@@ -115,6 +119,10 @@ func _ready() -> void:
         # pressed() branches on this string, so it must stay the source
         # id, never the pseudo-localized display text.
         btn.pressed.connect(_on_section_pressed.bind(btn.text))
+        # GIGA_GRAPHICS pass: real hover feedback on the main navigation
+        # tabs — a new "ui_hover" cue (data/sfx_cues.json), quiet and
+        # short by design so it doesn't compete with ui_click on press.
+        btn.mouse_entered.connect(func() -> void: AudioManager.play_sfx("ui_hover"))
     EventBus.selection_changed.connect(_on_selection_changed)
     EventBus.simulation_pause_changed.connect(_on_pause_changed)
     EventBus.incident_raised.connect(_on_incident_raised)
@@ -155,33 +163,21 @@ func _style_chip(chip: PanelContainer, accent: Color) -> void:
     style.content_margin_bottom = 4
     chip.add_theme_stylebox_override("panel", style)
 
-## Reference-visual brief ("icon-based, not text-only" resource bar): a
-## small solid-color dot in the chip's own semantic color, inserted before
-## its Label. Built programmatically (wraps the chip's existing Label in a
-## new HBoxContainer) rather than hand-edited into hud.tscn's 6 near-
-## identical chip blocks — one function, no risk of the 6 copies drifting
-## out of sync. No external icon image/font glyph (avoids both an asset
-## dependency and Unicode-coverage risk in the default theme font) —
-## just a StyleBoxFlat circle, same "procedurally generated, not
-## imported" discipline as ProceduralMeshFactory's 3D geometry.
+## Reference-visual brief ("icon-based, not text-only" resource bar):
+## GIGA_GRAPHICS pass replaced the original plain colored dot (a
+## StyleBoxFlat circle, no real iconography) with a real per-resource
+## vector icon — hud.tscn now authors a static HBox/Icon TextureRect
+## ahead of each chip's Label directly (5 of 6 chips; HeatChip has no
+## icon_heat asset, so it keeps its original flat Label-only layout).
+## This function's job shrinks to tinting that icon in the chip's own
+## semantic accent color, matching what the dot used to do — chip.
+## get_child(0) is now the HBox, not the Label, so re-parenting the
+## Label at runtime (the old approach) would have crashed against the
+## new static structure; tinting an existing node is the safe fit.
 func _add_chip_icon(chip: PanelContainer, accent: Color) -> void:
-    var label: Label = chip.get_child(0)
-    chip.remove_child(label)
-    var row: HBoxContainer = HBoxContainer.new()
-    row.add_theme_constant_override("separation", 6)
-    var dot: PanelContainer = PanelContainer.new()
-    dot.custom_minimum_size = Vector2(10, 10)
-    dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-    var dot_style: StyleBoxFlat = StyleBoxFlat.new()
-    dot_style.bg_color = accent
-    dot_style.corner_radius_top_left = 5
-    dot_style.corner_radius_top_right = 5
-    dot_style.corner_radius_bottom_left = 5
-    dot_style.corner_radius_bottom_right = 5
-    dot.add_theme_stylebox_override("panel", dot_style)
-    row.add_child(dot)
-    row.add_child(label)
-    chip.add_child(row)
+    var icon: TextureRect = chip.get_node_or_null("HBox/Icon")
+    if icon != null:
+        icon.modulate = accent
 
 func _process(delta: float) -> void:
     _refresh_accumulator += delta

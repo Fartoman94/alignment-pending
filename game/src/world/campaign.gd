@@ -2,6 +2,14 @@ extends Node3D
 
 const AUTOSAVE_INTERVAL_SECONDS: float = 60.0
 
+## GIGA_GRAPHICS pass: a real glowing-screen material for any prop mesh
+## part named "display_*" (monitor.glb/laptop.glb's convention, confirmed
+## by inspecting their node trees — a separate mesh from the bezel/base
+## parts). One shared ShaderMaterial instance, safe to reuse everywhere
+## since nothing overrides its uniforms per-instance.
+const _SCREEN_SHADER: Shader = preload("res://src/shaders/screen_emission.gdshader")
+var _screen_glow_material: ShaderMaterial
+
 var camera_controller: CameraController
 var hud: Hud
 var build_grid: BuildGrid
@@ -445,6 +453,31 @@ func _office_model(path: String, name_: String, pos: Vector3, y_rot_deg: float =
     if not flat_wall_mount:
         inst.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
     facing.add_child(inst)
+    _apply_screen_glow(inst)
+
+## Recurses into a just-instantiated prop looking for mesh parts named
+## "display"/"display_N" and "screen"/"screen_N" (the mega-pack's
+## glTF-import suffixing convention, same pattern StaffAgent._find_child_
+## by_prefix() already handles for characters). "display" is the actual
+## screen surface and gets the emissive glow material; "screen" turned
+## out, confirmed by rendering both ways, to be a second, larger opaque
+## front panel that fully occludes "display" from the camera — hiding it
+## is what actually makes the glow visible, not a cosmetic extra. A
+## no-op for every prop without either part, so this is safe to call
+## unconditionally from _office_model() rather than needing a per-call
+## opt-in flag.
+func _apply_screen_glow(n: Node) -> void:
+    if n is MeshInstance3D:
+        var mesh_name: String = String(n.name)
+        if mesh_name.begins_with("display"):
+            if _screen_glow_material == null:
+                _screen_glow_material = ShaderMaterial.new()
+                _screen_glow_material.shader = _SCREEN_SHADER
+            (n as MeshInstance3D).set_surface_override_material(0, _screen_glow_material)
+        elif mesh_name.begins_with("screen"):
+            n.visible = false
+    for c in n.get_children():
+        _apply_screen_glow(c)
 
 ## Garage: grungy concrete, no brand polish. Small/medium office: today's
 ## established warm-charcoal baseline (visual-overhaul pass). Premium/HQ:
