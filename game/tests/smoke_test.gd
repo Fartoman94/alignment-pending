@@ -3595,21 +3595,31 @@ func _initialize() -> void:
         mega_agent.character_model_pool = mega_typed_pool
         get_root().add_child(mega_agent)
         await process_frame
-        if mega_agent.get("_leg_l_pivot") == null or mega_agent.get("_leg_r_pivot") == null \
-                or mega_agent.get("_arm_l_pivot") == null or mega_agent.get("_arm_r_pivot") == null:
-            push_error("A mega-pack character_model_pool pick should still build all 4 limb pivots despite suffixed node names (seed %d)" % (5000 + i))
-            quit(1)
-            return
-        var mega_bob_group: Node3D = mega_agent.get("_bob_group")
-        var mega_found_head: bool = false
-        if mega_bob_group != null:
-            for child in mega_bob_group.get_children():
-                if child is MeshInstance3D and String(child.name).begins_with("head"):
-                    mega_found_head = true
-        if not mega_found_head:
-            push_error("A mega-pack character_model_pool pick should still find its 'head_N'-suffixed mesh for skin-tone variation (seed %d)" % (5000 + i))
-            quit(1)
-            return
+        # P-REWORK-02: the pool now also holds real rigged/animated
+        # generated_humanoids entries, which route through the skeletal
+        # (Skeleton3D + AnimationPlayer) path instead of building the
+        # flat-mesh pack's 4 limb pivots — both are valid, complete builds.
+        if mega_agent.get("_is_skeletal"):
+            if mega_agent.get("_anim_player") == null:
+                push_error("A generated-humanoid character_model_pool pick should build a real AnimationPlayer (seed %d)" % (5000 + i))
+                quit(1)
+                return
+        else:
+            if mega_agent.get("_leg_l_pivot") == null or mega_agent.get("_leg_r_pivot") == null \
+                    or mega_agent.get("_arm_l_pivot") == null or mega_agent.get("_arm_r_pivot") == null:
+                push_error("A mega-pack character_model_pool pick should still build all 4 limb pivots despite suffixed node names (seed %d)" % (5000 + i))
+                quit(1)
+                return
+            var mega_bob_group: Node3D = mega_agent.get("_bob_group")
+            var mega_found_head: bool = false
+            if mega_bob_group != null:
+                for child in mega_bob_group.get_children():
+                    if child is MeshInstance3D and String(child.name).begins_with("head"):
+                        mega_found_head = true
+            if not mega_found_head:
+                push_error("A mega-pack character_model_pool pick should still find its 'head_N'-suffixed mesh for skin-tone variation (seed %d)" % (5000 + i))
+                quit(1)
+                return
         mega_agent.queue_free()
     await process_frame
     print("SMOKE_OK: character_model_pool picks (mega-asset-pack, suffixed node names) build complete pivots/head lookups exactly like the original pack")

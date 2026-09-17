@@ -96,6 +96,22 @@ var character_model_path: String = ""
 ## exactly as before).
 var character_model_pool: Array[String] = []
 
+## Total-visual-rework pass: a second, real character pipeline for the
+## Blender-generated humanoids (game/tools/blender_generators/
+## generate_humanoids.py) — a genuine Skeleton3D + AnimationPlayer with
+## 5 baked clips (idle/walk/typing/talk/sit), not this file's usual flat
+## unskinned-mesh + manual-pivot approach. Detected per-instance in
+## _build_visual() (does the loaded model have a Skeleton3D?), not a
+## separate agent type — a crowd can mix both kinds of character freely.
+## Skinned meshes can't be reparented into _bob_group without breaking
+## their skin binding, so none of the pivot/bob machinery above applies
+## to this path; _animate_visual_skeletal() below is the whole animation
+## story for these agents, real AnimationPlayer.play() calls instead of
+## per-frame trig.
+var _is_skeletal: bool = false
+var _anim_player: AnimationPlayer
+var _current_anim: String = ""
+
 func _ready() -> void:
     _nav_agent = NavigationAgent3D.new()
     _nav_agent.radius = 0.3
@@ -136,6 +152,12 @@ func _build_visual() -> void:
         return
     var model: Node3D = packed.instantiate()
     add_child(model)
+
+    var found_anim_player: AnimationPlayer = _find_animation_player(model)
+    if found_anim_player != null:
+        _build_visual_skeletal(model, found_anim_player)
+        return
+
     var world_node: Node = model.get_node_or_null("world")
     if world_node == null:
         push_error("StaffAgent: character model '%s' has no 'world' root node" % character_model_path)
@@ -184,6 +206,95 @@ func _build_visual() -> void:
             _bob_group.add_child(mesh_inst)
     model.queue_free()
     _apply_variation()
+
+func _find_animation_player(n: Node) -> AnimationPlayer:
+    if n is AnimationPlayer:
+        return n
+    for c in n.get_children():
+        var found: AnimationPlayer = _find_animation_player(c)
+        if found != null:
+            return found
+    return null
+
+func _find_skeleton(n: Node) -> Skeleton3D:
+    if n is Skeleton3D:
+        return n
+    for c in n.get_children():
+        var found: Skeleton3D = _find_skeleton(c)
+        if found != null:
+            return found
+    return null
+
+## Confirmed by rendering (4 cardinal angles, same discipline as every
+## other facing/orientation check in this project): these models' front
+## already faces local +Z at rotation.y == 0, the same convention every
+## other character pack in this project already uses — no corrective
+## rotation needed here, unlike the flat-mesh path's -90° X fix for the
+## other packs' Z-up authoring.
+func _build_visual_skeletal(model: Node3D, anim_player: AnimationPlayer) -> void:
+    _is_skeletal = true
+    _anim_player = anim_player
+    # The generator bakes clips with no explicit loop mode, which
+    # defaults to "play once and hold the last frame" — confirmed by
+    # rendering "walk" and watching it freeze mid-stride instead of
+    # cycling. Every clip here (idle/walk/typing/talk/sit) is meant to
+    # cycle continuously, so this is set for all of them, not guessed at
+    # per-clip.
+    for anim_name: StringName in _anim_player.get_animation_list():
+        var anim: Animation = _anim_player.get_animation(anim_name)
+        if anim != null:
+            anim.loop_mode = Animation.LOOP_LINEAR
+    var skeleton: Skeleton3D = _find_skeleton(model)
+    if skeleton != null:
+        _apply_variation_skeletal(skeleton)
+
+## Same per-instance skin/hair tint variation _apply_variation() already
+## does for the flat-mesh pack, adapted for this hierarchy: the parts
+## are direct children of the Skeleton3D (never reparented — a skinned
+## mesh's "skeleton" reference is a NodePath that would break if moved),
+## and named "Head"/"Hair" (capitalized, the generator's own convention)
+## instead of "head"/"hair".
+func _apply_variation_skeletal(skeleton: Skeleton3D) -> void:
+    var head: MeshInstance3D = _find_child_by_prefix(skeleton, "Head") as MeshInstance3D
+    if head != null and head.mesh != null:
+        var skin_mat: StandardMaterial3D = head.mesh.surface_get_material(0)
+        if skin_mat != null:
+            var skin_variant: StandardMaterial3D = skin_mat.duplicate()
+            var skin_shift: float = rng.randf_range(-0.08, 0.08)
+            skin_variant.albedo_color = Color(
+                clampf(skin_variant.albedo_color.r + skin_shift, 0.0, 1.0),
+                clampf(skin_variant.albedo_color.g + skin_shift * 0.85, 0.0, 1.0),
+                clampf(skin_variant.albedo_color.b + skin_shift * 0.7, 0.0, 1.0),
+            )
+            head.set_surface_override_material(0, skin_variant)
+    var hair: MeshInstance3D = _find_child_by_prefix(skeleton, "Hair") as MeshInstance3D
+    if hair != null and hair.mesh != null:
+        var hair_mat: StandardMaterial3D = hair.mesh.surface_get_material(0)
+        if hair_mat != null:
+            var hair_variant: StandardMaterial3D = hair_mat.duplicate()
+            hair_variant.albedo_color = HAIR_COLORS[rng.randi() % HAIR_COLORS.size()]
+            hair.set_surface_override_material(0, hair_variant)
+
+## Real AnimationPlayer.play() per state, instead of _animate_visual()'s
+## trig-pivot math — the whole animation story for a skeletal agent.
+## Only calls .play() when the target clip actually changes, not every
+## frame, so it doesn't restart the same animation from frame 0
+## constantly (confirmed by rendering: calling .play() every physics
+## frame visibly froze the character instead of animating it).
+func _animate_visual_skeletal(_delta: float) -> void:
+    if _anim_player == null:
+        return
+    var target: String = "idle"
+    match state:
+        State.MOVING:
+            target = "walk"
+        State.WORKING:
+            target = "typing"
+        State.IDLE:
+            target = "idle"
+    if target != _current_anim and _anim_player.has_animation(target):
+        _anim_player.play(target)
+        _current_anim = target
 
 func _matching_limb_prefix(node_name: String, limb_names: Array[String]) -> String:
     for limb_name: String in limb_names:
@@ -272,6 +383,9 @@ func _physics_process(delta: float) -> void:
 ## WORKING, so a player can tell what a staff member is doing at a glance
 ## even at isometric distance.
 func _animate_visual(delta: float) -> void:
+    if _is_skeletal:
+        _animate_visual_skeletal(delta)
+        return
     if _leg_l_pivot == null:
         return  # _build_visual() failed to load a model — nothing to animate.
     _visual_time += delta
