@@ -77,6 +77,7 @@ The project's landing page is a published Claude Artifact (`ASSET_PROVENANCE.md`
 - **Safety lab model**: `research_terminal.glb` wired to the `safety_lab` buildable, closing a gap flagged since the original 3D asset pack integration.
 - **Office-tier architecture pass**: real glass entrance + reception wall + flanking support columns for `premium_office`/`hq_building`, replacing the palette-only treatment those tiers had.
 - **Character-variant pool expansion**: 30 new mesh variants (10 roles × 3) wired into `character_model_pool`, including `data_ops`'s first-ever variants (previously a single fixed model, no variety at all).
+- **Performance re-profile**: real GPU profile re-run after all of the above; no meaningful regression (see `docs/performance/REAL_GPU_PROFILE.md`'s new "production-kit integration pass" section).
 
 ## Recommended next priorities (highest value / best-scoped first)
 
@@ -87,6 +88,19 @@ The project's landing page is a published Claude Artifact (`ASSET_PROVENANCE.md`
 5. ~~SVG icon audit~~ — **checked, not integrated, by design**: both candidate spots (`hud.gd`'s resource-chip icons AND its employee-card avatar) turned out to be the same deliberate, consistently-applied choice — procedurally styled (a colored dot / a colored circle-plus-initial), explicitly documented as "no external icon image/font glyph... same 'procedurally generated, not imported' discipline as ProceduralMeshFactory's 3D geometry." Forcing the kit's SVGs into either would regress that decision the same way the static-audio pack would have. No non-conflicting UI integration point found this pass; the 52 SVGs stay available but unused, same honest-gap treatment as everything else in this ledger.
 6. City layer + character-variant mesh pool — largest, least-scoped items remaining; the kit's own master prompt gates further large work on the vertical slice already being solid, which items 1-4 above now establish.
 
-## Honest scope statement
+## Final holistic verification
 
-This kit is a multi-week production program condensed into 22 numbered prompts, not a single-pass task. Each item above gets the same treatment already established in this repo's history: real implementation, verified by actual rendering (not just "it imports"), a written report, and its own commit — never a bulk unverified dump of 250 assets. Items not listed as "Done" are open, tracked here, not silently dropped.
+Every item above was checked in isolation (a standalone render, a scripted scene load). Before closing this pass, ran the actual player-facing flow end to end — `scenes/main_menu.tscn` real "New Campaign" button (`MainMenu._on_new_campaign_pressed()`, invoked exactly as a click would, not a re-implementation of its logic), then 10 real simulated seconds — to confirm everything integrated this session coexists correctly through the real entry point, not just via synthetic `GameState` pokes: the dressed garage (door/beam/shelf/breaker panel/clock/toolbox/pallet/fan/cord/broom), the break-room corner, three real staff agents animating and (per the purposeful-movement change) walking toward it, the real HUD, all rendering together with no errors. Confirms the master prompt's non-negotiable goal #1 ("New Game always starts in a believable garage") holds for real, not just in a unit-test sense.
+
+## Session status
+
+Everything in this kit that could be integrated **safely and non-destructively** — without regressing a documented architectural decision (procedural audio, procedural/no-image UI) or duplicating an existing, tested, better-integrated system (NPC AI, HUD, real estate, staff/incident data) — is done: garage art pass, break-room + purposeful NPC movement, the `safety_lab` model gap, office-tier architecture for the top two tiers, 30 character variants, and a clean performance re-profile. 7 commits, each independently verified and bootstrap-green.
+
+What's left is not unfinished pieces of this pass — it's genuinely separate, larger undertakings that need their own scoping decision before starting, not just more asset-copying:
+
+- **A city/exterior layer** — `RealEstateManager` is deliberately an abstract management screen today, the same design choice already documented for `DatacenterManager`. Making real estate a literal explorable city is a product decision (new scene type, new navigation, new scope for what "moving offices" means), not an asset-integration task.
+- **A UI redesign toward the kit's light-theme rounded-card mockup** — the current dark, procedurally-styled HUD is tested, shipped, and consistent; swapping visual language is a deliberate design call, not something to do unilaterally while "integrating assets."
+- **New incident/finance/staff data schemas** — the kit's JSON packs cover ground the repo's own `events_seed.json`/`company_tiers.json`/`staff_roles.json` already cover, with a different, less-integrated schema. Worth a **content** mining pass (more incident variety, etc.) at some point, not a schema replacement.
+- **Static WAV audio** — stays un-integrated on purpose; regresses the documented P47 decision.
+
+This is where a competent handoff point is: not "100% of 250 files copied in," but everything that could be done well, done and verified, with the rest named and reasoned about rather than silently dropped or force-fit.
