@@ -402,15 +402,23 @@ func _build_exterior() -> void:
     _ext_model.call(city + "tree_city.glb", Vector3(0.0, 0.0, 8.3), 0.0)
     _ext_model.call(city + "lamp_post.glb", Vector3(3.5, 0.0, 8.3), 0.0)
     _ext_model.call(city + "tree_city.glb", Vector3(7.0, 0.0, 8.3), 0.0)
-    _ext_model.call(city + "park_bench.glb", Vector3(-5.0, 0.0, 8.3), 90.0)
+    # generated_city/park_bench.glb: this pass's smooth-geometry
+    # replacement (tools/blender_generators/generate_city_buildings.py),
+    # same "cuadrado" fix already applied to characters/interior
+    # furniture — exported yup=False like the desk, to match _ext_model's
+    # own unconditional -90°-X correction (no per-call opt-out here).
+    _ext_model.call("res://assets/models/generated_city/park_bench.glb", Vector3(-5.0, 0.0, 8.3), 90.0)
     # A small skyline set back across the street — enough to read as "a
     # real block", not a single flat backdrop card. Scaled down ~4-5x
     # from native (see _ext_model's doc comment) — verified by rendering
     # a real perspective overview alongside the office box before
-    # picking this factor, not guessed.
-    _ext_model.call(city + "small_building_exterior.glb", Vector3(-6.0, 0.0, 14.0), 0.0, 0.22)
-    _ext_model.call(city + "mid_building_exterior.glb", Vector3(-1.5, 0.0, 14.5), 0.0, 0.22)
-    _ext_model.call(city + "small_building_exterior.glb", Vector3(3.5, 0.0, 14.0), 0.0, 0.22)
+    # picking this factor, not guessed. generated_city/*_building_
+    # exterior.glb: this pass's replacement for the mega_pack's sharp-
+    # edged originals — same 0.22 scale factor still applies, confirmed
+    # by rendering both together before wiring this in.
+    _ext_model.call("res://assets/models/generated_city/small_building_exterior.glb", Vector3(-6.0, 0.0, 14.0), 0.0, 0.22)
+    _ext_model.call("res://assets/models/generated_city/mid_building_exterior.glb", Vector3(-1.5, 0.0, 14.5), 0.0, 0.22)
+    _ext_model.call("res://assets/models/generated_city/small_building_exterior.glb", Vector3(3.5, 0.0, 14.0), 0.0, 0.22)
     # tower.glb removed here (audit pass): at the same 0.22 scale every
     # other exterior building uses, it rendered as a massive, flat,
     # incorrectly-shaded gray shape filling most of the screen from the
