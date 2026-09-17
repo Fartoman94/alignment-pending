@@ -224,6 +224,18 @@ func _rebuild_office_visuals() -> void:
         _office_model("res://assets/models/mega/architecture/garage/fan.glb", "GarageFan", Vector3(2.5, 0.0, -6.6), 0.0)
         _office_model("res://assets/models/mega/architecture/garage/extension_cord.glb", "GarageExtensionCord", Vector3(0.5, 0.02, -6.6), 0.0)
         _office_model("res://assets/models/mega/architecture/garage/broom.glb", "GarageBroom", Vector3(-8.6, 0.0, 2.8), 15.0)
+    elif tier == "premium_office" or tier == "hq_building":
+        # Production-kit office art pass: the Art Bible's "cheap converted
+        # office -> corporate building" progression, same fixed-margin-band
+        # dressing pattern the garage tier above uses, now for the top two
+        # tiers — a real glass entrance (replacing the garage door's old
+        # spot, same wall/position, so the entrance stays in the same
+        # place across the whole progression), a lobby partition wall just
+        # inside it, and two support columns flanking the back wall.
+        _office_model("res://assets/models/mega/architecture/office/door_glass.glb", "OfficeEntrance", Vector3(-8.85, 0.0, 4.5), 90.0)
+        _office_model("res://assets/models/mega/architecture/office/reception_wall.glb", "ReceptionWall", Vector3(-8.6, 0.0, 0.0), 90.0)
+        _office_model("res://assets/models/mega/architecture/office/support_column.glb", "ColumnL", Vector3(-4.0, 0.0, -6.5), 0.0)
+        _office_model("res://assets/models/mega/architecture/office/support_column.glb", "ColumnR", Vector3(4.0, 0.0, -6.5), 0.0)
 
 func _on_real_estate_moved(_building_id: String, _bought: bool) -> void:
     _rebuild_office_visuals()
