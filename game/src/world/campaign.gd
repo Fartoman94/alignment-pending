@@ -252,6 +252,36 @@ func _rebuild_office_visuals() -> void:
         _office_model("res://assets/models/mega/architecture/garage/pallet.glb", "GaragePallet", Vector3(7.5, 0.0, -3.2), 0.0)
         _office_model("res://assets/models/mega/architecture/garage/file_box.glb", "GarageFileBox", Vector3(7.7, 0.0, 5.6), 0.0)
         _office_model("res://assets/models/mega/architecture/garage/fan.glb", "GarageFan", Vector3(2.5, 0.0, -6.6), 0.0)
+        # Garage vertical-slice recovery pass ("garage debe ocupar ~70%
+        # del área jugable, no colocar objetos al azar — cada objeto debe
+        # tener función visual o narrativa"): dressing around the 3 real
+        # starter desks (MainMenu._seed_starting_workstations(), grid
+        # cells (2,1)/(3,1)/(4,1) = world x -3/-1/1, z -3) — a chair,
+        # monitor and mug at each, a desktop tower at two of the three
+        # and a laptop at the third for variety, a whiteboard "planning
+        # wall" near the back-left corner, and a sofa+coffee table "mini
+        # lounge" at the opposite end of the route row from the existing
+        # break room. Purely decorative like the rest of this block (not
+        # registered in BuildGrid._occupied) — same scope boundary
+        # KNOWN_ISSUES.md already documents for ambient decoration.
+        _office_model("res://assets/models/mega/furniture/office_chair.glb", "Desk1Chair", Vector3(-3.0, 0.0, -2.3), 180.0)
+        _office_model("res://assets/models/mega/computers/monitor.glb", "Desk1Monitor", Vector3(-3.0, 0.75, -3.3), 180.0)
+        _office_model("res://assets/models/mega/computers/desktop_tower.glb", "Desk1Tower", Vector3(-3.5, 0.0, -3.0), 0.0)
+        _office_model("res://assets/models/mega/props/mug.glb", "Desk1Mug", Vector3(-2.6, 0.75, -3.3), 0.0)
+        _office_model("res://assets/models/mega/furniture/office_chair.glb", "Desk2Chair", Vector3(-1.0, 0.0, -2.3), 180.0)
+        _office_model("res://assets/models/mega/computers/monitor.glb", "Desk2Monitor", Vector3(-1.0, 0.75, -3.3), 180.0)
+        _office_model("res://assets/models/mega/computers/laptop.glb", "Desk2Laptop", Vector3(-0.5, 0.75, -3.3), 180.0)
+        _office_model("res://assets/models/mega/furniture/office_chair.glb", "Desk3Chair", Vector3(1.0, 0.0, -2.3), 180.0)
+        _office_model("res://assets/models/mega/computers/monitor.glb", "Desk3Monitor", Vector3(1.0, 0.75, -3.3), 180.0)
+        _office_model("res://assets/models/mega/computers/desktop_tower.glb", "Desk3Tower", Vector3(1.5, 0.0, -3.0), 0.0)
+        _office_model("res://assets/models/mega/props/mug.glb", "Desk3Mug", Vector3(1.4, 0.75, -3.3), 0.0)
+        _office_model("res://assets/models/mega/furniture/whiteboard_stand.glb", "PlanningWhiteboard", Vector3(-7.0, 0.0, -4.5), 90.0)
+        _office_model("res://assets/models/mega/furniture/sofa_two_seat.glb", "LoungeSofa", Vector3(6.0, 0.0, 1.5), 180.0)
+        _office_model("res://assets/models/mega/furniture/coffee_table.glb", "LoungeTable", Vector3(6.0, 0.0, 0.3), 0.0)
+        _office_model("res://assets/models/mega/props/pizza_box.glb", "LoungePizzaBox", Vector3(6.0, 0.35, 0.3), 15.0)
+        _office_model("res://assets/models/mega/props/cardboard_box.glb", "StorageBox1", Vector3(6.8, 0.0, -5.0), 0.0)
+        _office_model("res://assets/models/mega/props/cardboard_box.glb", "StorageBox2", Vector3(7.4, 0.0, -4.6), 25.0)
+        _office_model("res://assets/models/mega/props/cardboard_box.glb", "StorageBox3", Vector3(-6.3, 0.0, -3.6), 0.0)
         _office_model("res://assets/models/mega/architecture/garage/extension_cord.glb", "GarageExtensionCord", Vector3(0.5, 0.02, -6.6), 0.0)
         _office_model("res://assets/models/mega/architecture/garage/broom.glb", "GarageBroom", Vector3(-8.6, 0.0, 2.8), 15.0)
     elif tier == "small_office" or tier == "medium_office":
