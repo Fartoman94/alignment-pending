@@ -3554,6 +3554,14 @@ func _initialize() -> void:
     var agents_missing_pivots: int = 0
     var agents_missing_head: int = 0
     for a in p40_agents:
+        # P-GIGA-03: 8 of 10 roles now default to a real skeletal
+        # (Skeleton3D + AnimationPlayer) generated_humanoids model instead
+        # of the flat-mesh pack — those never build limb pivots by design
+        # (see the mega-pack pool-pick test above for the same branch).
+        if a.get("_is_skeletal"):
+            if a.get("_anim_player") == null:
+                agents_missing_pivots += 1
+            continue
         if a.get("_leg_l_pivot") == null or a.get("_leg_r_pivot") == null \
                 or a.get("_arm_l_pivot") == null or a.get("_arm_r_pivot") == null:
             agents_missing_pivots += 1

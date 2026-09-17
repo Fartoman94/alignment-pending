@@ -82,7 +82,7 @@ def make(role,idx):
     bpy.ops.object.select_all(action="SELECT");bpy.ops.object.delete(use_global=False)
     skin=mat("Skin",SKINS[idx%len(SKINS)],.45);hair=mat("Hair",HAIRS[idx%len(HAIRS)],.78);cloth=mat("Cloth",ROLE[role],.72)
     pants=mat("Pants",(.05,.07,.1,1),.8);white=mat("EyeWhite",(.98,.98,.98,1),.35);iris=mat("Iris",(.06,.25,.38,1),.3)
-    pupil=mat("Pupil",(.005,.005,.005,1),.25);mouth=mat("Mouth",(.35,.05,.06,1),.5);shoe=mat("Shoe",(.02,.02,.025,1),.7)
+    pupil=mat("Pupil",(.005,.005,.005,1),.25);mouth=mat("Mouth",(.55,.33,.31,1),.55);shoe=mat("Shoe",(.02,.02,.025,1),.7)
 
     parts=[]  # (object, bone_name) pairs, bound after the armature exists.
     torso=cube("Torso",(0,0,1.15),(.28,.16,.34),cloth,.09);parts.append((torso,"chest"))
@@ -105,14 +105,14 @@ def make(role,idx):
         brow=cube("Brow."+side,(.085*s,-.218,1.885),(.06,.008,.012),hair,.008);parts.append((brow,"head"))
     bpy.ops.mesh.primitive_cone_add(vertices=12,radius1=.045,radius2=.015,depth=.10,location=(0,-.235,1.76),rotation=(math.radians(90),0,0))
     nose=bpy.context.object;nose.name="Nose";nose.data.materials.append(skin);parts.append((nose,"head"))
-    mouth_o=cube("Mouth",(0,-.22,1.685),(.07,.008,.012),mouth,.008);parts.append((mouth_o,"head"))
+    mouth_o=cube("Mouth",(0,-.22,1.685),(.045,.008,.01),mouth,.008);parts.append((mouth_o,"head"))
     hair_o=sphere("Hair",(0,.035,1.94),(.245,.215,.13),hair);parts.append((hair_o,"head"))
     if role=="safety":
         helmet=sphere("Helmet",(0,.02,2.02),(.26,.22,.09),mat("Helmet",(.95,.65,.04,1),.5));parts.append((helmet,"head"))
     if role in ("engineer","researcher"):
-        g=mat("Glasses",(.02,.02,.025,1),.4)
+        g=mat("Glasses",(.32,.36,.42,1),.2)
         for side,s in [("L",1),("R",-1)]:
-            gl=cube("Glasses."+side,(.085*s,-.232,1.82),(.065,.008,.045),g,.01);parts.append((gl,"head"))
+            gl=cube("Glasses."+side,(.085*s,-.232,1.82),(.055,.007,.032),g,.008);parts.append((gl,"head"))
     if role=="team_leader":
         tie=cube("Tie",(0,-.17,1.23),(.035,.012,.14),mat("Tie",(.55,.05,.04,1),.65),.01);parts.append((tie,"chest"))
 
