@@ -26,7 +26,7 @@ The kit's live `03_ASSETS_3D/` (excluding `_previous_pack/`) has 152 `.glb` file
 | `kitchen/*` (coffee machine, fridge, microwave, sink, table, chair, vending machine) | 7 | Not started — current ambient decoration has `water_dispenser`+`trash_bin`+plants only, no real break-room corner |
 | `research/*` (lab bench, oscilloscope, research terminal, GPU test rig, whiteboard, tablet) | 5 (1 name-dupe) | **Done (partial)** — `research_terminal` wired to `safety_lab` (closed the documented procedural-box-fallback gap); the other 5 imported, orientation-verified, not yet wired (no second research buildable exists yet) |
 | `vehicles/*` | 4 | Not started — depends on the city layer existing first |
-| `characters/variants/*_{1,2,3}.glb` (10 roles × 3) | 30 | Not started — current variety comes from `_apply_variation()`'s runtime skin/hair tint, not swapped meshes; would need `StaffRoleCatalog.character_model_pool` entries, same mechanism `mega/characters/variants` already uses |
+| `characters/variants/*_{1,2,3}.glb` (10 roles × 3) | 30 | **Done** — all 30 wired into `StaffRoleCatalog.character_model_pool`, verified through the real `StaffAgent` pipeline |
 | `rooms/*_complete.glb` (3 pre-built rooms) | 3 | **Not recommended as-is** — a monolithic pre-dressed room mesh conflicts with the existing per-tier, per-prop, data-driven office system (`Campaign._rebuild_office_visuals()`); adopting it would mean maintaining two competing ways to build a room. Kept available as a visual reference only. |
 | `computers/*`, `datacenter/*`, `furniture/*`, `props/*` | ~30 | Same status as the original 2019-era pack: importable, but no per-desk decoration or general prop-placement system exists to place most of them (`ASSET_PROVENANCE.md` line 25) — unchanged gap, not this kit's to fix alone |
 
@@ -76,6 +76,7 @@ The project's landing page is a published Claude Artifact (`ASSET_PROVENANCE.md`
 - **Break-room + purposeful NPC movement**: real break-room corner (5 of 7 new kitchen models) placed in `BuildGrid.ROUTE_ROW`; `StaffAgent` idle wander now has a 30% chance to head there instead of a uniform-random point. Verified behaviorally (a real agent reaches the spot in a scripted real-campaign run), not just by code review. See `docs/legal/ASSET_PROVENANCE.md`'s "Break-room + purposeful NPC movement" note for the full honest-scope statement.
 - **Safety lab model**: `research_terminal.glb` wired to the `safety_lab` buildable, closing a gap flagged since the original 3D asset pack integration.
 - **Office-tier architecture pass**: real glass entrance + reception wall + flanking support columns for `premium_office`/`hq_building`, replacing the palette-only treatment those tiers had.
+- **Character-variant pool expansion**: 30 new mesh variants (10 roles × 3) wired into `character_model_pool`, including `data_ops`'s first-ever variants (previously a single fixed model, no variety at all).
 
 ## Recommended next priorities (highest value / best-scoped first)
 
@@ -83,7 +84,7 @@ The project's landing page is a published Claude Artifact (`ASSET_PROVENANCE.md`
 2. ~~Kitchen/break-room prop pass~~ — **done**, see above.
 3. ~~Research lab asset~~ — **done**, `research_terminal` wired to `safety_lab`.
 4. ~~Office-tier architecture pass~~ — **done**, entrance/reception/columns for `premium_office`/`hq_building`.
-5. **SVG icon audit against `hud.gd`'s current iconography** — real conflict found, not a straightforward swap-in: `hud.gd`'s resource-chip icons are a deliberate architectural choice ("No external icon image/font glyph... same 'procedurally generated, not imported' discipline as ProceduralMeshFactory's 3D geometry" — see that function's own doc comment). Forcing the kit's SVGs into the HUD chips would regress that decision the same way the static-audio pack would. Non-conflicting uses instead: role portraits (`04_ASSETS_VECTOR/portraits/*.svg`) for the Staff screen/employee card, which likely still uses a plain color swatch — worth checking.
+5. ~~SVG icon audit~~ — **checked, not integrated, by design**: both candidate spots (`hud.gd`'s resource-chip icons AND its employee-card avatar) turned out to be the same deliberate, consistently-applied choice — procedurally styled (a colored dot / a colored circle-plus-initial), explicitly documented as "no external icon image/font glyph... same 'procedurally generated, not imported' discipline as ProceduralMeshFactory's 3D geometry." Forcing the kit's SVGs into either would regress that decision the same way the static-audio pack would have. No non-conflicting UI integration point found this pass; the 52 SVGs stay available but unused, same honest-gap treatment as everything else in this ledger.
 6. City layer + character-variant mesh pool — largest, least-scoped items remaining; the kit's own master prompt gates further large work on the vertical slice already being solid, which items 1-4 above now establish.
 
 ## Honest scope statement
