@@ -500,16 +500,25 @@ func _build_ambient_decoration() -> void:
     _build_break_room()
 
 ## Production-kit pass: a break-room corner staff can actually walk to
-## (see BREAK_SPOT / StaffAgent.break_spot), unlike every other ambient
-## prop above — those live in the unwalkable margin outside the navmesh
-## on purpose (KNOWN_ISSUES.md), which also makes them impossible to use
-## as a real destination. BuildGrid.ROUTE_ROW (world z in [0,2], the full
-## east-west aisle every staff member must already be able to cross) is
-## the one strip of floor guaranteed walkable and guaranteed never
-## buildable regardless of tier — placed in its western end so the rest
-## of the aisle stays clear. Tier-agnostic like the rest of this
+## (see BREAK_SPOT / StaffAgent.ambient_destinations), unlike every other
+## ambient prop above — those live in the unwalkable margin outside the
+## navmesh on purpose (KNOWN_ISSUES.md), which also makes them impossible
+## to use as a real destination. BuildGrid.ROUTE_ROW (world z in [0,2],
+## the full east-west aisle every staff member must already be able to
+## cross) is the one strip of floor guaranteed walkable and guaranteed
+## never buildable regardless of tier — placed in its western end so the
+## rest of the aisle stays clear. Tier-agnostic like the rest of this
 ## function: every office, not just the garage, gets a break corner.
 const BREAK_SPOT: Vector3 = Vector3(-6.1, 0.0, 1.0)
+## World+NPC overhaul pass ("van a... whiteboard según tarea"): a second
+## real ambient destination, a step in front of the garage-tier planning
+## whiteboard (Vector3(-7.0, 0.0, -4.5) in _rebuild_office_visuals()) —
+## offset into the room so an agent stands facing the board instead of
+## walking into the wall it's mounted on. Garage-only like the whiteboard
+## prop itself (not added to _build_ambient_decoration(), which is
+## tier-agnostic) — wired directly where garage-tier staff get their
+## ambient_destinations list, below.
+const WHITEBOARD_SPOT: Vector3 = Vector3(-6.5, 0.0, -3.2)
 func _build_break_room() -> void:
     _static_prop("res://assets/models/mega/kitchen/fridge.glb", Vector3(-7.6, 0.0, 0.35), 90.0)
     _static_prop("res://assets/models/mega/kitchen/vending_machine.glb", Vector3(-7.6, 0.0, 1.7), -90.0)
@@ -592,8 +601,11 @@ func _spawn_staff_agent(staff_id: String) -> void:
     agent.coordinator = nav_coordinator
     agent.bounds_min = Vector2(-7.0, -5.0)
     agent.bounds_max = Vector2(7.0, 5.0)
-    agent.has_break_spot = true
-    agent.break_spot = BREAK_SPOT
+    var ambient: Array[Vector3] = [BREAK_SPOT]
+    var current_tier: String = String(RealEstateManager.current_company_tier_def().get("id", "garage"))
+    if current_tier == "garage" or current_tier == "garage_plus":
+        ambient.append(WHITEBOARD_SPOT)
+    agent.ambient_destinations = ambient
     var role_id: String = String(StaffManager.find(staff_id).get("role", ""))
     var role_def: Dictionary = StaffRoleCatalog.get_def(role_id)
     agent.character_model_path = String(role_def.get("character_model", ""))
