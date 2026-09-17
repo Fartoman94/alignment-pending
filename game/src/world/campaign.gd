@@ -207,6 +207,23 @@ func _rebuild_office_visuals() -> void:
         # not a system).
         _office_model("res://assets/models/mega/architecture/garage/steel_beam.glb", "SteelBeam", Vector3(-6.0, 0.0, -5.5), 0.0)
         _office_model("res://assets/models/mega/architecture/garage/storage_shelf.glb", "GarageStorageShelf", Vector3(8.3, 0.0, -6.6), 180.0)
+        # Production-kit garage art pass: small "someone actually works
+        # here" clutter in the same fixed-margin band the door/beam/shelf
+        # above already use — a breaker panel and wall clock mounted on
+        # the back wall, a toolbox next to the steel beam, a pallet and
+        # stacked file boxes near the storage shelf, a standing fan and
+        # trailing extension cord along the back wall, and a broom leaned
+        # in the corner by the garage door. Garage/garage_plus only, same
+        # as the rest of this block — cleared automatically on the next
+        # _rebuild_office_visuals() call when the company moves out.
+        _office_model("res://assets/models/mega/architecture/garage/breaker_panel.glb", "BreakerPanel", Vector3(6.5, 1.4, -6.85), 0.0)
+        _office_model("res://assets/models/mega/architecture/garage/wall_clock.glb", "WallClock", Vector3(-2.0, 2.3, -6.85), 0.0, true)
+        _office_model("res://assets/models/mega/architecture/garage/toolbox.glb", "GarageToolbox", Vector3(-6.9, 0.0, -6.0), 20.0)
+        _office_model("res://assets/models/mega/architecture/garage/pallet.glb", "GaragePallet", Vector3(7.5, 0.0, -3.2), 0.0)
+        _office_model("res://assets/models/mega/architecture/garage/file_box.glb", "GarageFileBox", Vector3(7.7, 0.0, 5.6), 0.0)
+        _office_model("res://assets/models/mega/architecture/garage/fan.glb", "GarageFan", Vector3(2.5, 0.0, -6.6), 0.0)
+        _office_model("res://assets/models/mega/architecture/garage/extension_cord.glb", "GarageExtensionCord", Vector3(0.5, 0.02, -6.6), 0.0)
+        _office_model("res://assets/models/mega/architecture/garage/broom.glb", "GarageBroom", Vector3(-8.6, 0.0, 2.8), 15.0)
 
 func _on_real_estate_moved(_building_id: String, _bought: bool) -> void:
     _rebuild_office_visuals()
@@ -227,7 +244,15 @@ func _office_box(name_: String, pos: Vector3, size: Vector3, color: Color) -> vo
 ## garage door instead of just turning it to face into the room), so
 ## each rotation gets its own node, same nested-transform discipline
 ## StaffAgent's VisualRoot already uses for its own correction.
-func _office_model(path: String, name_: String, pos: Vector3, y_rot_deg: float = 0.0) -> void:
+## flat_wall_mount: most mega-asset-pack pieces are authored to stand on
+## the floor (local Z-up, corrected to Y-up by the standard -90° X below),
+## but a handful of flat wall-mounted pieces (confirmed by rendering:
+## wall_clock) are authored lying face-up instead, like a disc on a
+## table — the standard correction rotates their face to point at the
+## ceiling, not into the room. Those need no correction at all: their
+## local +Z (face normal) and +Y (in-face "up") already match world Z/Y
+## once placed with no rotation.
+func _office_model(path: String, name_: String, pos: Vector3, y_rot_deg: float = 0.0, flat_wall_mount: bool = false) -> void:
     var packed: PackedScene = load(path)
     if packed == null:
         push_error("Campaign: could not load office model '%s'" % path)
@@ -238,7 +263,8 @@ func _office_model(path: String, name_: String, pos: Vector3, y_rot_deg: float =
     facing.rotation_degrees = Vector3(0.0, y_rot_deg, 0.0)
     _office_visuals.add_child(facing)
     var inst: Node3D = packed.instantiate()
-    inst.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+    if not flat_wall_mount:
+        inst.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
     facing.add_child(inst)
 
 ## Garage: grungy concrete, no brand polish. Small/medium office: today's
