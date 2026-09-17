@@ -118,6 +118,25 @@ func _clear_staff_work(staff_id: String) -> void:
 ## instead of one flat gray wash — measured with a before/after GPU
 ## profile (docs/performance/REAL_GPU_PROFILE.md) to confirm the extra
 ## light doesn't cost anything worth trading the improvement away for.
+## GIGA_GRAPHICS pass ("se ve demasiado mal, mejorá los gráficos y los
+## colores" — direct user feedback on a real screenshot of the live
+## build): the previous settings used Godot's default TONE_MAPPER_LINEAR
+## with no exposure control, which has no highlight rolloff — stacked
+## with 3 light sources (ambient + key + fill) all landing in the same
+## bright range, every mid-to-light material (the mega-pack furniture's
+## own albedos are legitimately light — confirmed by dumping desk_single/
+## office_chair's actual StandardMaterial3D.albedo_color, not guessed —
+## a warm tan desktop at (0.85, 0.73, 0.59), a blue-gray chair at
+## (0.50, 0.54, 0.60)) got pushed toward flat, undifferentiated white.
+## Switching to TONE_MAPPER_FILMIC (smooth highlight compression instead
+## of hard clipping) + a lower tonemap_exposure + a real saturation/
+## contrast boost via adjustment_* recovers the color separation that
+## was already in the materials but not surviving the render pipeline.
+## Confirmed by rendering 3 variants (lower ambient alone; + glow; +
+## tuned exposure/key color) side by side before picking this one — the
+## final version visibly shows staff role-color clothing, a warm brown
+## floor against cool gray walls, and real contact shadows under desks/
+## characters that were nearly invisible before.
 func _build_environment() -> void:
     var world_env := WorldEnvironment.new()
     var env := Environment.new()
@@ -125,12 +144,23 @@ func _build_environment() -> void:
     env.background_color = Color("11151b")
     env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
     env.ambient_light_color = Color("8c95a8")
-    # Garage vertical-slice recovery pass: 0.55 read as murky/underlit at
-    # the closer camera zoom this pass also added — a real render showed
-    # rooms and characters harder to read, not more atmospheric. Raised
-    # just enough to keep depth (still real directional shadows below,
-    # not flat) without washing anything toward "blancos quemados."
-    env.ambient_light_energy = 0.7
+    env.ambient_light_energy = 0.4
+    env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+    env.tonemap_exposure = 0.85
+    env.adjustment_enabled = true
+    env.adjustment_saturation = 1.35
+    env.adjustment_contrast = 1.15
+    env.adjustment_brightness = 1.0
+    # A soft, cheap bloom on emissive surfaces (monitor/laptop screens,
+    # the office windows' city-backdrop glow) — confirmed to render
+    # correctly under this project's gl_compatibility renderer (not a
+    # given; SSAO/SSR are Forward+/Mobile-only in Godot 4, but glow
+    # isn't, verified by actually rendering it, not assumed).
+    env.glow_enabled = true
+    env.glow_intensity = 0.6
+    env.glow_bloom = 0.08
+    env.glow_strength = 1.0
+    env.glow_hdr_threshold = 1.0
     world_env.environment = env
     add_child(world_env)
     # Natural key light — cool/blueish, as if daylight through the
@@ -138,8 +168,8 @@ func _build_environment() -> void:
     var key_light := DirectionalLight3D.new()
     key_light.name = "KeyLight"
     key_light.rotation_degrees = Vector3(-55, -35, 0)
-    key_light.light_color = Color("d8e4ff")
-    key_light.light_energy = 1.2
+    key_light.light_color = Color("f0e8ff")
+    key_light.light_energy = 1.35
     key_light.shadow_enabled = true
     add_child(key_light)
     # Warm interior fill — a soft amber counter-light from roughly where
@@ -153,7 +183,7 @@ func _build_environment() -> void:
     fill_light.name = "FillLight"
     fill_light.rotation_degrees = Vector3(-70, 140, 0)
     fill_light.light_color = Color("ffc98a")
-    fill_light.light_energy = 0.55
+    fill_light.light_energy = 0.5
     add_child(fill_light)
 
 ## Visual overhaul pass: the original shell was three blue-gray boxes
