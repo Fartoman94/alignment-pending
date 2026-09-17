@@ -8,7 +8,7 @@
     "refund_ratio": 0.5,
     "color": "b4875d",
     "height": 1.1,
-    "model": "res://assets/models/furniture/desk_single.glb"
+    "model": "res://assets/models/generated_furniture/desk_single.glb"
   },
   {
     "id": "server_rack",

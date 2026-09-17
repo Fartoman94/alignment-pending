@@ -527,18 +527,27 @@ func _rebuild_office_visuals() -> void:
         # break room. Purely decorative like the rest of this block (not
         # registered in BuildGrid._occupied) — same scope boundary
         # KNOWN_ISSUES.md already documents for ambient decoration.
-        _office_model("res://assets/models/mega/furniture/office_chair.glb", "Desk1Chair", Vector3(-3.0, 0.0, -2.3), 180.0)
-        _office_model("res://assets/models/mega/computers/monitor.glb", "Desk1Monitor", Vector3(-3.0, 0.75, -3.3), 180.0)
+        # Chair/monitor/whiteboard/sofa/coffee-table below are this pass's
+        # generated_furniture replacements (tools/blender_generators/
+        # generate_furniture.py) — same "cuadrado" complaint as the
+        # character geometry, same fix (heavy bevel, baked + smooth-
+        # shaded). Their glTF export is already Y-up (Blender's default
+        # axis conversion, unlike the mega_pack's Z-up-in-Y-up-clothing
+        # files), so flat_wall_mount=true is passed to skip _office_
+        # model()'s -90°-X correction — confirmed by rendering: without
+        # this they land on their side.
+        _office_model("res://assets/models/generated_furniture/office_chair.glb", "Desk1Chair", Vector3(-3.0, 0.0, -2.3), 180.0, true)
+        _office_model("res://assets/models/generated_furniture/monitor.glb", "Desk1Monitor", Vector3(-3.0, 0.75, -3.3), 180.0, true)
         _office_model("res://assets/models/mega/computers/desktop_tower.glb", "Desk1Tower", Vector3(-3.5, 0.0, -3.0), 0.0)
         _office_model("res://assets/models/mega/props/mug.glb", "Desk1Mug", Vector3(-2.6, 0.75, -3.3), 0.0)
-        _office_model("res://assets/models/mega/furniture/office_chair.glb", "Desk2Chair", Vector3(-1.0, 0.0, -2.3), 180.0)
-        _office_model("res://assets/models/mega/computers/monitor.glb", "Desk2Monitor", Vector3(-1.0, 0.75, -3.3), 180.0)
+        _office_model("res://assets/models/generated_furniture/office_chair.glb", "Desk2Chair", Vector3(-1.0, 0.0, -2.3), 180.0, true)
+        _office_model("res://assets/models/generated_furniture/monitor.glb", "Desk2Monitor", Vector3(-1.0, 0.75, -3.3), 180.0, true)
         _office_model("res://assets/models/mega/computers/laptop.glb", "Desk2Laptop", Vector3(-0.5, 0.75, -3.3), 180.0)
-        _office_model("res://assets/models/mega/furniture/office_chair.glb", "Desk3Chair", Vector3(1.0, 0.0, -2.3), 180.0)
-        _office_model("res://assets/models/mega/computers/monitor.glb", "Desk3Monitor", Vector3(1.0, 0.75, -3.3), 180.0)
+        _office_model("res://assets/models/generated_furniture/office_chair.glb", "Desk3Chair", Vector3(1.0, 0.0, -2.3), 180.0, true)
+        _office_model("res://assets/models/generated_furniture/monitor.glb", "Desk3Monitor", Vector3(1.0, 0.75, -3.3), 180.0, true)
         _office_model("res://assets/models/mega/computers/desktop_tower.glb", "Desk3Tower", Vector3(1.5, 0.0, -3.0), 0.0)
         _office_model("res://assets/models/mega/props/mug.glb", "Desk3Mug", Vector3(1.4, 0.75, -3.3), 0.0)
-        _office_model("res://assets/models/mega/furniture/whiteboard_stand.glb", "PlanningWhiteboard", Vector3(-7.0, 0.0, -4.5), 90.0, false, 0.5)
+        _office_model("res://assets/models/generated_furniture/whiteboard_stand.glb", "PlanningWhiteboard", Vector3(-7.0, 0.0, -4.5), 90.0, true, 0.5)
         # Radii checked against LOUNGE_SPOT (Vector3(6.0, 0.0, 0.6),
         # below) by distance MINUS the nav agent's own radius (0.3, see
         # StaffAgent._ready()) — the first pass at these numbers only
@@ -550,8 +559,8 @@ func _rebuild_office_visuals() -> void:
         # 0.3 from the spot by design (the agent is meant to end up right
         # next to it) — too close for any obstacle at all, so it gets
         # none, same as before this pass.
-        _office_model("res://assets/models/mega/furniture/sofa_two_seat.glb", "LoungeSofa", Vector3(6.0, 0.0, 1.5), 180.0, false, 0.45)
-        _office_model("res://assets/models/mega/furniture/coffee_table.glb", "LoungeTable", Vector3(6.0, 0.0, 0.3), 0.0)
+        _office_model("res://assets/models/generated_furniture/sofa_two_seat.glb", "LoungeSofa", Vector3(6.0, 0.0, 1.5), 180.0, true, 0.45)
+        _office_model("res://assets/models/generated_furniture/coffee_table.glb", "LoungeTable", Vector3(6.0, 0.0, 0.3), 0.0, true)
         _office_model("res://assets/models/mega/props/pizza_box.glb", "LoungePizzaBox", Vector3(6.0, 0.35, 0.3), 15.0)
         _office_model("res://assets/models/mega/props/cardboard_box.glb", "StorageBox1", Vector3(6.8, 0.0, -5.0), 0.0)
         _office_model("res://assets/models/mega/props/cardboard_box.glb", "StorageBox2", Vector3(7.4, 0.0, -4.6), 25.0)
