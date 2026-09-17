@@ -102,7 +102,14 @@ func _build_street(richness: String) -> void:
         "dense":
             _place("mid_building_exterior", Vector3(-4.5, 0, -6.0))
             _place("hq_building_exterior", Vector3(0.0, 0, -7.0))
-            _place("tower", Vector3(4.5, 0, -6.5))
+            # tower.glb removed here (audit pass, same as Campaign._build_
+            # exterior()'s identical fix): at native scale (this function
+            # places everything at 1.0, no scale param) it's 12 local units
+            # tall — with this SubViewport's close 6-unit camera and 55°
+            # fov, it dominated/clipped through the whole frame, confirmed
+            # by rendering the baked texture directly (get_texture().get_
+            # image()) before and after removing it. hq_building_exterior +
+            # mid_building_exterior already read as a real skyline without it.
             _place("lamp_post", Vector3(3.0, 0, 1.0))
             _place("lamp_post", Vector3(-3.0, 0, 1.0))
             _place("tree_city", Vector3(-4.2, 0, -0.5))

@@ -1100,6 +1100,7 @@ func _build_real_estate_section() -> void:
             int(bdef.get("capacity", 0)), int(bdef.get("purchase_cost", 0)), int(bdef.get("rent_cost_per_day", 0)),
             int(bdistrict.get("prestige", 0)), int(bdistrict.get("talent", 0)), int(bdistrict.get("regulation", 0)),
         ]
+        info_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
         info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
         listing.add_child(info_label)
         var actions_row: HBoxContainer = HBoxContainer.new()
@@ -1204,6 +1205,8 @@ func _show_world_panel() -> void:
 
     var world_state_header: Label = Label.new()
     world_state_header.text = LocalizationManager.tr_text("World state — cycles that affect the company, independent of anything you do")
+    world_state_header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    world_state_header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     _dynamic_content.add_child(world_state_header)
     for variable_id: String in WorldVariableCatalog.ordered_ids():
         var variable_def: Dictionary = WorldVariableCatalog.get_def(variable_id)

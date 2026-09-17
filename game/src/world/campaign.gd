@@ -302,7 +302,16 @@ func _build_exterior() -> void:
     _ext_model.call(city + "small_building_exterior.glb", Vector3(-6.0, 0.0, 14.0), 0.0, 0.22)
     _ext_model.call(city + "mid_building_exterior.glb", Vector3(-1.5, 0.0, 14.5), 0.0, 0.22)
     _ext_model.call(city + "small_building_exterior.glb", Vector3(3.5, 0.0, 14.0), 0.0, 0.22)
-    _ext_model.call(city + "tower.glb", Vector3(7.5, 0.0, 14.5), 0.0, 0.22)
+    # tower.glb removed here (audit pass): at the same 0.22 scale every
+    # other exterior building uses, it rendered as a massive, flat,
+    # incorrectly-shaded gray shape filling most of the screen from the
+    # real default gameplay camera — confirmed by isolating it (removing
+    # just this one placement made the artifact disappear entirely, nothing
+    # else changed) and by checking its raw AABB against the other 3
+    # buildings (size/pivot both look structurally normal, so this isn't a
+    # simple scale-or-pivot miscalculation this pass could safely re-tune
+    # blind). hq_building_exterior + 2x small + mid already read as a full
+    # block without it — see docs/production/KNOWN_ISSUES.md.
 
     # One vehicle per lane, own dedicated line each — guarantees no two
     # ever occupy the same line, unlike the single-shared-line version
