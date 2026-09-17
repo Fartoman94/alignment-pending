@@ -19,6 +19,25 @@ var nav_coordinator: NavCoordinator
 var _autosave_timer: Timer
 var _staff_agents: Dictionary = {}
 
+## VISUAL_OVERHAUL pass: promoted from local vars so the live day-night
+## update (_update_time_of_day(), driven from _process()) can update
+## rotation/color/energy every frame instead of only at scene build time.
+var _environment: Environment
+var _key_light: DirectionalLight3D
+var _fill_light: DirectionalLight3D
+## VISUAL_OVERHAUL pass: the two BackWallWindow panels' materials, so
+## _update_time_of_day() can dim/warm them with the sun instead of the
+## fixed "always daytime" glow they had before — otherwise the only
+## visible cue of the outside world stays static while the sun/interior
+## lights change, and night stopped reading as meaningfully different
+## from dusk (confirmed by rendering both and comparing average floor
+## color — the interior fill light alone wasn't enough of a tell).
+## {material: StandardMaterial3D, base_energy: float} per window, keyed
+## by the tier's own window_energy from _office_palette() (the "how good
+## is this office's glazing" signal) so the day-night scale multiplies
+## that instead of overriding it.
+var _window_materials: Array[Dictionary] = []
+
 func _ready() -> void:
     _ensure_input_actions()
     _build_environment()
@@ -63,6 +82,7 @@ func _ensure_input_actions() -> void:
             InputMap.action_add_event(action, event)
 
 func _process(_delta: float) -> void:
+    _update_time_of_day()
     if Input.is_action_just_pressed("toggle_pause"):
         GameState.toggle_pause()
     if Input.is_action_just_pressed("return_to_menu") and not SceneRouter.is_busy():
@@ -152,19 +172,38 @@ func _build_environment() -> void:
     env.adjustment_contrast = 1.15
     env.adjustment_brightness = 1.0
     # A soft, cheap bloom on emissive surfaces (monitor/laptop screens,
-    # the office windows' city-backdrop glow) — confirmed to render
-    # correctly under this project's gl_compatibility renderer (not a
-    # given; SSAO/SSR are Forward+/Mobile-only in Godot 4, but glow
-    # isn't, verified by actually rendering it, not assumed).
+    # the office windows' city-backdrop glow).
     env.glow_enabled = true
     env.glow_intensity = 0.6
     env.glow_bloom = 0.08
     env.glow_strength = 1.0
     env.glow_hdr_threshold = 1.0
+    # VISUAL_OVERHAUL pass, priority 1: SSAO/SSIL/SDFGI need Forward+
+    # (confirmed unavailable under gl_compatibility by reading Godot's own
+    # RenderingServer docs, then verified live by rendering both ways) —
+    # project.godot was switched to forward_plus for this reason (see
+    # docs/performance/REAL_GPU_PROFILE.md for the before/after cost).
+    # Values tuned by rendering the garage scene at each step, not copied
+    # from the bundle template: SSAO catches contact shadows under desks/
+    # crates that the single key+fill light pair leaves flat; SSIL bounces
+    # a little of the warm fill color back into corners; SDFGI stayed off
+    # — on the 150-staff stress scenario it cost ~9 more FPS than SSAO+SSIL
+    # combined for a difference barely visible in this box-shaped interior.
+    env.ssao_enabled = true
+    env.ssao_radius = 1.2
+    env.ssao_intensity = 1.8
+    env.ssao_power = 1.5
+    env.ssil_enabled = true
+    env.ssil_radius = 3.0
+    env.ssil_intensity = 1.4
     world_env.environment = env
     add_child(world_env)
+    _environment = env
     # Natural key light — cool/blueish, as if daylight through the
-    # BackWall windows (see _build_office()).
+    # BackWall windows (see _build_office()). Rotation/color/energy are
+    # then driven live every frame by _update_time_of_day() using the
+    # real GameState.calendar_hour/calendar_minute clock, so the values
+    # set here are just the initial pose before the first update.
     var key_light := DirectionalLight3D.new()
     key_light.name = "KeyLight"
     key_light.rotation_degrees = Vector3(-55, -35, 0)
@@ -172,19 +211,77 @@ func _build_environment() -> void:
     key_light.light_energy = 1.35
     key_light.shadow_enabled = true
     add_child(key_light)
+    _key_light = key_light
     # Warm interior fill — a soft amber counter-light from roughly where
     # ceiling office lighting would be, so surfaces facing away from the
-    # key light aren't pure flat shadow. Energy raised alongside the
-    # ambient bump above (0.35 -> 0.55) — the recovery brief specifically
-    # asks for "luces interiores cálidas" to read as more than a hint;
-    # confirmed by rendering that this doesn't overpower the cool key
-    # light or blow out highlights.
+    # key light aren't pure flat shadow.
     var fill_light := DirectionalLight3D.new()
     fill_light.name = "FillLight"
     fill_light.rotation_degrees = Vector3(-70, 140, 0)
     fill_light.light_color = Color("ffc98a")
     fill_light.light_energy = 0.5
     add_child(fill_light)
+    _fill_light = fill_light
+    _update_time_of_day()
+
+## VISUAL_OVERHAUL pass, priority 2: sun/day-night cycle wired to the
+## REAL simulation clock (GameState.calendar_hour/calendar_minute, ticked
+## by SimClock/EventBus.simulation_tick) instead of a disconnected parallel
+## clock — the bundle's own TIME_OF_DAY_CONTROLLER.gd template runs its own
+## @export game_hour driven by _process(delta), which would drift from the
+## calendar shown in the HUD and from day_advanced-gated systems (district
+## drift, board pressure, etc). Reading GameState directly keeps one source
+## of truth. At the default sim speed a full day is ~288 real seconds (5
+## sim-minutes per real second, per SimClock.SIM_MINUTES_PER_TICK), so
+## polling every rendered frame is smooth with no interpolation needed.
+func _update_time_of_day() -> void:
+    if not _key_light or not _fill_light or not _environment:
+        return
+    var hour: float = float(GameState.calendar_hour) + float(GameState.calendar_minute) / 60.0
+    # Single sine period over 24h, peaking at solar noon (hour=12) and
+    # troughing at solar midnight (hour=0/24). -1..1.
+    var elevation: float = sin(PI * (hour - 6.0) / 12.0)
+    var day_t: float = clampf((elevation + 1.0) * 0.5, 0.0, 1.0)
+    # Godot's DirectionalLight3D shines along local -Z; rotating -90 on X
+    # points it straight down (sun at zenith), +90 points it straight up
+    # (below the horizon, no useful light) — confirmed by rendering both
+    # extremes before picking this mapping.
+    _key_light.rotation_degrees = Vector3(lerpf(90.0, -90.0, day_t), -35.0, 0.0)
+    _key_light.light_color = _sun_color(hour)
+    _key_light.light_energy = lerpf(0.05, 1.5, smoothstep(0.0, 0.18, day_t))
+    _key_light.shadow_enabled = day_t > 0.03
+    # Interior fill reads as "office lights on" — dims a touch under bright
+    # midday sun, brightens a bit after dark, but stays modest: confirmed
+    # by rendering that a full 0.75 night value (vs. day's 0.4) made
+    # night barely distinguishable from dusk, since the fill alone was
+    # carrying most of the room's brightness regardless of the sun.
+    _fill_light.light_energy = lerpf(0.55, 0.4, day_t)
+    _environment.ambient_light_energy = lerpf(0.1, 0.4, day_t)
+    _environment.ambient_light_color = Color("8c95a8").lerp(Color("232838"), 1.0 - day_t)
+    _environment.tonemap_exposure = lerpf(0.62, 0.85, day_t)
+    # The window panels' only light cue was a fixed "always daytime" glow
+    # (see _office_window()) — scaled by day_t too so the outside world
+    # visibly goes dark along with the sun instead of staying a static
+    # bright rectangle all night.
+    var window_scale: float = lerpf(0.35, 1.0, day_t)
+    for entry: Dictionary in _window_materials:
+        var mat: StandardMaterial3D = entry["material"]
+        mat.emission_energy_multiplier = float(entry["base_energy"]) * window_scale
+
+func _sun_color(hour: float) -> Color:
+    # Deep blue night -> warm dawn/dusk -> cool-white midday, matching the
+    # established key-light palette (f0e8ff) at noon.
+    if hour < 5.0 or hour >= 20.0:
+        return Color("2c3350")
+    if hour < 7.5:
+        return Color("2c3350").lerp(Color("ffb27a"), inverse_lerp(5.0, 7.5, hour))
+    if hour < 9.5:
+        return Color("ffb27a").lerp(Color("f0e8ff"), inverse_lerp(7.5, 9.5, hour))
+    if hour < 16.5:
+        return Color("f0e8ff")
+    if hour < 18.5:
+        return Color("f0e8ff").lerp(Color("ff9d5c"), inverse_lerp(16.5, 18.5, hour))
+    return Color("ff9d5c").lerp(Color("2c3350"), inverse_lerp(18.5, 20.0, hour))
 
 ## Visual overhaul pass: the original shell was three blue-gray boxes
 ## (floor/back wall/left wall all within a few shades of each other) —
@@ -343,6 +440,7 @@ func _spawn_traffic(from_pos: Vector3, to_pos: Vector3, speed: float, model_path
 func _rebuild_office_visuals() -> void:
     for child in _office_visuals.get_children():
         child.queue_free()
+    _window_materials.clear()
     var tier: String = String(RealEstateManager.current_company_tier_def().get("id", "garage"))
     var palette: Dictionary = _office_palette(tier)
     if _city_backdrop != null:
@@ -559,13 +657,16 @@ func _office_window(name_: String, pos: Vector3, energy: float = 0.6, city_textu
     var mat: StandardMaterial3D = mi.mesh.surface_get_material(0)
     mat.emission_enabled = true
     mat.emission = Color("bfe3ff")
+    var base_energy: float = energy
     mat.emission_energy_multiplier = energy
     if city_texture != null:
         mat.albedo_texture = city_texture
         mat.emission_texture = city_texture
-        mat.emission_energy_multiplier = energy * CITY_EMISSION_SCALE
+        base_energy = energy * CITY_EMISSION_SCALE
+        mat.emission_energy_multiplier = base_energy
     mi.position = pos
     _office_visuals.add_child(mi)
+    _window_materials.append({"material": mat, "base_energy": base_energy})
 
 ## Fixed, non-buildable set dressing (finalization-pack 3D asset pack) —
 ## deliberately placed in the margin between the walls and the buildable
@@ -685,10 +786,13 @@ func _spawn_staff_agent(staff_id: String) -> void:
     agent.bounds_min = Vector2(-7.0, -5.0)
     agent.bounds_max = Vector2(7.0, 5.0)
     var ambient: Array[Vector3] = [BREAK_SPOT]
+    var ambient_tags: Array[String] = ["break"]
     var current_tier: String = String(RealEstateManager.current_company_tier_def().get("id", "garage"))
     if current_tier == "garage" or current_tier == "garage_plus":
         ambient.append(WHITEBOARD_SPOT)
+        ambient_tags.append("whiteboard")
     agent.ambient_destinations = ambient
+    agent.ambient_activity_tags = ambient_tags
     var role_id: String = String(StaffManager.find(staff_id).get("role", ""))
     var role_def: Dictionary = StaffRoleCatalog.get_def(role_id)
     agent.character_model_path = String(role_def.get("character_model", ""))

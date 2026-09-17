@@ -37,6 +37,17 @@ var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 ## campaign-spawned agents get any (Campaign._spawn_staff_agent()) —
 ## dev/showcase scenes keep pure random wander unless they opt in too.
 var ambient_destinations: Array[Vector3] = []
+## VISUAL_OVERHAUL pass, priority 4 ("NPCs que usan objetos reales"):
+## parallel to ambient_destinations by index — what an agent is doing once
+## it arrives, so the coffee machine/whiteboard read as more than just a
+## walk target. Empty entries (or an index with no tag) fall back to plain
+## idle, same as before this pass.
+var ambient_activity_tags: Array[String] = []
+## Set on arrival at a tagged ambient destination (see _finish_move()),
+## cleared the moment the agent starts any new move (wander, ambient, or
+## assigned work) — see _try_start_moving()/assign_work().
+var _ambient_activity: String = ""
+var _pending_ambient_activity: String = ""
 ## Rolled once per idle-to-moving transition, not per frame — see
 ## _try_start_moving().
 const AMBIENT_DESTINATION_CHANCE: float = 0.3
@@ -291,7 +302,13 @@ func _animate_visual_skeletal(_delta: float) -> void:
         State.WORKING:
             target = "typing"
         State.IDLE:
-            target = "idle"
+            # Baked clip set is idle/walk/typing/talk/sit (see
+            # _build_visual_skeletal()'s doc comment) — no dedicated
+            # "drink" clip, so both the break-room and whiteboard ambient
+            # spots use "talk" (chatting over coffee / discussing at the
+            # board reads the same at isometric distance), documented
+            # rather than silently reusing plain idle.
+            target = "talk" if not _ambient_activity.is_empty() else "idle"
     if target != _current_anim and _anim_player.has_animation(target):
         _anim_player.play(target)
         _current_anim = target
@@ -419,22 +436,40 @@ func _animate_visual(delta: float) -> void:
             var idle_t: float = _visual_time * 1.5 + _visual_phase
             _leg_l_pivot.rotation.x = 0.0
             _leg_r_pivot.rotation.x = 0.0
-            _arm_l_pivot.rotation.x = sin(idle_t * 0.7) * 0.04
-            _arm_r_pivot.rotation.x = sin(idle_t * 0.7 + 0.6) * 0.04
-            _bob_group.position.z = sin(idle_t) * 0.015
-            # A slow head-turn/weight-shift ("mirar alrededor" from the
-            # brief) — a full body yaw is a much cheaper, still-readable
-            # stand-in for a separate neck joint the geometry doesn't have.
-            _bob_group.rotation.y = sin(idle_t * 0.35) * 0.12
+            if not _ambient_activity.is_empty():
+                # VISUAL_OVERHAUL pass, priority 4: a distinct "engaged
+                # with the object" pose for the flat-mesh pack (no
+                # skeleton here to play a real "talk" clip on) — one arm
+                # raised roughly to chest/mouth height and held, instead
+                # of the loose idle sway, so a coffee-machine or
+                # whiteboard visit reads differently from just standing
+                # around at isometric distance.
+                var talk_t: float = _visual_time * 3.0 + _visual_phase
+                _arm_r_pivot.rotation.x = -1.0 + sin(talk_t) * 0.08
+                _arm_l_pivot.rotation.x = sin(idle_t * 0.7) * 0.04
+                _bob_group.position.z = sin(idle_t) * 0.01
+                _bob_group.rotation.y = sin(idle_t * 0.25) * 0.08
+            else:
+                _arm_l_pivot.rotation.x = sin(idle_t * 0.7) * 0.04
+                _arm_r_pivot.rotation.x = sin(idle_t * 0.7 + 0.6) * 0.04
+                _bob_group.position.z = sin(idle_t) * 0.015
+                # A slow head-turn/weight-shift ("mirar alrededor" from the
+                # brief) — a full body yaw is a much cheaper, still-readable
+                # stand-in for a separate neck joint the geometry doesn't have.
+                _bob_group.rotation.y = sin(idle_t * 0.35) * 0.12
 
 func _try_start_moving() -> void:
+    _pending_ambient_activity = ""
     if not ambient_destinations.is_empty() and rng.randf() < AMBIENT_DESTINATION_CHANCE and coordinator != null:
-        var pick: Vector3 = ambient_destinations[rng.randi() % ambient_destinations.size()]
+        var pick_index: int = rng.randi() % ambient_destinations.size()
+        var pick: Vector3 = ambient_destinations[pick_index]
         if coordinator.try_reserve(pick):
             _current_reservation = pick
             _has_reservation = true
             _nav_agent.target_position = pick
             state = State.MOVING
+            if pick_index < ambient_activity_tags.size():
+                _pending_ambient_activity = ambient_activity_tags[pick_index]
             return
     for attempt in MAX_RESERVE_ATTEMPTS:
         var candidate: Vector3 = Vector3(
@@ -495,8 +530,10 @@ func _finish_move() -> void:
     _has_reservation = false
     destinations_reached += 1
     if _has_work_target:
+        _ambient_activity = ""
         state = State.WORKING
     else:
+        _ambient_activity = _pending_ambient_activity
         state = State.IDLE
         _idle_timer = rng.randf_range(IDLE_MIN_SECONDS, IDLE_MAX_SECONDS)
 
@@ -505,6 +542,8 @@ func _finish_move() -> void:
 ## wander-destination reservation immediately.
 func assign_work(target: Vector3) -> void:
     _has_work_target = true
+    _ambient_activity = ""
+    _pending_ambient_activity = ""
     if _has_reservation and coordinator != null:
         coordinator.release(_current_reservation)
         _has_reservation = false
