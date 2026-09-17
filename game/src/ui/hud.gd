@@ -1379,6 +1379,43 @@ func _build_staff_card(member: Dictionary, staff_id: String) -> void:
     quote_panel.add_child(quote_label)
     _dynamic_content.add_child(quote_panel)
 
+## SERIOUS_REWORK_MASTER pass: this "Status:" line used to hard-default to
+## a flat "Idle" whenever the staff member had no assigned TaskManager
+## work order — true even while that person's real 3D agent was visibly
+## walking to the coffee machine, chatting at the whiteboard, or sitting
+## on the lounge sofa (the needs/personality-driven behavior this pass
+## added — see StaffAgent's class doc comment). Reads the live agent
+## instance instead so the panel actually reflects what's happening in
+## the scene, not just whether a mechanical task is assigned. Hud is
+## always a direct child of Campaign (Campaign._build_hud()) except in
+## isolated dev/test scenes that never call this function, so the
+## get_parent() duck-typing below degrades to the old "Idle" safely
+## rather than erroring if that ever isn't true.
+func _live_activity_label(staff_id: String) -> String:
+    var campaign_node: Node = get_parent()
+    if campaign_node == null:
+        return LocalizationManager.tr_text("Idle")
+    var agents: Variant = campaign_node.get("_staff_agents")
+    if not (agents is Dictionary):
+        return LocalizationManager.tr_text("Idle")
+    var agent: StaffAgent = (agents as Dictionary).get(staff_id) as StaffAgent
+    if agent == null:
+        return LocalizationManager.tr_text("Idle")
+    match agent.state:
+        StaffAgent.State.WORKING:
+            return LocalizationManager.tr_text("At their desk")
+        StaffAgent.State.MOVING:
+            return LocalizationManager.tr_text("Walking")
+        StaffAgent.State.IDLE:
+            match agent._ambient_activity:
+                "break":
+                    return LocalizationManager.tr_text("Coffee break")
+                "whiteboard":
+                    return LocalizationManager.tr_text("At the whiteboard")
+                "lounge":
+                    return LocalizationManager.tr_text("Relaxing")
+    return LocalizationManager.tr_text("Idle")
+
 func _show_staff_detail(staff_id: String) -> void:
     var member: Dictionary = StaffManager.find(staff_id)
     if member.is_empty():
@@ -1391,7 +1428,7 @@ func _show_staff_detail(staff_id: String) -> void:
     var skill_parts: PackedStringArray = []
     for key: String in skills:
         skill_parts.append("%s %d" % [String(key).capitalize(), int(skills[key])])
-    var status_line: String = "Idle"
+    var status_line: String = _live_activity_label(staff_id)
     var assigned_task: String = String(member.get("assigned_task", ""))
     if not assigned_task.is_empty():
         var order: Dictionary = TaskManager.find_order_for_staff(staff_id)

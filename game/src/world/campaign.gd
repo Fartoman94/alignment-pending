@@ -498,8 +498,8 @@ func _rebuild_office_visuals() -> void:
         # from the same pack, garage-only sizing/placement (KNOWN_ISSUES.md's
         # "not a general prop-placement system" still applies: fixed spots,
         # not a system).
-        _office_model("res://assets/models/mega/architecture/garage/steel_beam.glb", "SteelBeam", Vector3(-6.0, 0.0, -5.5), 0.0)
-        _office_model("res://assets/models/mega/architecture/garage/storage_shelf.glb", "GarageStorageShelf", Vector3(8.3, 0.0, -6.6), 180.0)
+        _office_model("res://assets/models/mega/architecture/garage/steel_beam.glb", "SteelBeam", Vector3(-6.0, 0.0, -5.5), 0.0, false, 0.35)
+        _office_model("res://assets/models/mega/architecture/garage/storage_shelf.glb", "GarageStorageShelf", Vector3(8.3, 0.0, -6.6), 180.0, false, 0.9)
         # Production-kit garage art pass: small "someone actually works
         # here" clutter in the same fixed-margin band the door/beam/shelf
         # above already use — a breaker panel and wall clock mounted on
@@ -538,8 +538,19 @@ func _rebuild_office_visuals() -> void:
         _office_model("res://assets/models/mega/computers/monitor.glb", "Desk3Monitor", Vector3(1.0, 0.75, -3.3), 180.0)
         _office_model("res://assets/models/mega/computers/desktop_tower.glb", "Desk3Tower", Vector3(1.5, 0.0, -3.0), 0.0)
         _office_model("res://assets/models/mega/props/mug.glb", "Desk3Mug", Vector3(1.4, 0.75, -3.3), 0.0)
-        _office_model("res://assets/models/mega/furniture/whiteboard_stand.glb", "PlanningWhiteboard", Vector3(-7.0, 0.0, -4.5), 90.0)
-        _office_model("res://assets/models/mega/furniture/sofa_two_seat.glb", "LoungeSofa", Vector3(6.0, 0.0, 1.5), 180.0)
+        _office_model("res://assets/models/mega/furniture/whiteboard_stand.glb", "PlanningWhiteboard", Vector3(-7.0, 0.0, -4.5), 90.0, false, 0.5)
+        # Radii checked against LOUNGE_SPOT (Vector3(6.0, 0.0, 0.6),
+        # below) by distance MINUS the nav agent's own radius (0.3, see
+        # StaffAgent._ready()) — the first pass at these numbers only
+        # checked raw distance-to-obstacle-center and missed that the
+        # agent's own body also needs clearance, which made LOUNGE_SPOT
+        # literally unreachable (caught by a real instrumented run: the
+        # agent stalled 0.35 units short of the target forever, just
+        # outside its own 0.3 arrival tolerance). LoungeTable sits only
+        # 0.3 from the spot by design (the agent is meant to end up right
+        # next to it) — too close for any obstacle at all, so it gets
+        # none, same as before this pass.
+        _office_model("res://assets/models/mega/furniture/sofa_two_seat.glb", "LoungeSofa", Vector3(6.0, 0.0, 1.5), 180.0, false, 0.45)
         _office_model("res://assets/models/mega/furniture/coffee_table.glb", "LoungeTable", Vector3(6.0, 0.0, 0.3), 0.0)
         _office_model("res://assets/models/mega/props/pizza_box.glb", "LoungePizzaBox", Vector3(6.0, 0.35, 0.3), 15.0)
         _office_model("res://assets/models/mega/props/cardboard_box.glb", "StorageBox1", Vector3(6.8, 0.0, -5.0), 0.0)
@@ -608,7 +619,17 @@ func _office_box(name_: String, pos: Vector3, size: Vector3, color: Color) -> vo
 ## ceiling, not into the room. Those need no correction at all: their
 ## local +Z (face normal) and +Y (in-face "up") already match world Z/Y
 ## once placed with no rotation.
-func _office_model(path: String, name_: String, pos: Vector3, y_rot_deg: float = 0.0, flat_wall_mount: bool = false) -> void:
+## SERIOUS_REWORK_MASTER pass ("0 atravesando furniture"): obstacle_radius
+## adds a real NavigationObstacle3D (same technique BuildController
+## already uses for placed buildings, see its own _add_obstacle()) —
+## previously 0.0/none for every ambient decorative prop this function
+## places, which meant an idle-wander path could cross straight through
+## large furniture like the lounge sofa or the storage shelf since it's
+## outside BuildGrid's own placed-building obstacle coverage. Left 0.0
+## (no change) for small/thin/wall-mounted props where this was never a
+## real problem — only large floor-standing furniture in the middle of
+## walkable floor gets one.
+func _office_model(path: String, name_: String, pos: Vector3, y_rot_deg: float = 0.0, flat_wall_mount: bool = false, obstacle_radius: float = 0.0) -> void:
     var packed: PackedScene = load(path)
     if packed == null:
         push_error("Campaign: could not load office model '%s'" % path)
@@ -623,6 +644,12 @@ func _office_model(path: String, name_: String, pos: Vector3, y_rot_deg: float =
         inst.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
     facing.add_child(inst)
     _apply_screen_glow(inst)
+    if obstacle_radius > 0.0:
+        var obstacle: NavigationObstacle3D = NavigationObstacle3D.new()
+        obstacle.radius = obstacle_radius
+        obstacle.height = 1.2
+        obstacle.avoidance_enabled = true
+        facing.add_child(obstacle)
 
 ## Recurses into a just-instantiated prop looking for mesh parts named
 ## "display"/"display_N" and "screen"/"screen_N" (the mega-pack's
@@ -743,17 +770,29 @@ const WHITEBOARD_SPOT: Vector3 = Vector3(-6.5, 0.0, -3.2)
 ## pure random wandering (see AMBIENT_DESTINATION_CHANCE's doc comment).
 const LOUNGE_SPOT: Vector3 = Vector3(6.0, 0.0, 0.6)
 func _build_break_room() -> void:
-    _static_prop("res://assets/models/mega/kitchen/fridge.glb", Vector3(-7.6, 0.0, 0.35), 90.0)
-    _static_prop("res://assets/models/mega/kitchen/vending_machine.glb", Vector3(-7.6, 0.0, 1.7), -90.0)
-    _static_prop("res://assets/models/mega/kitchen/coffee_machine.glb", Vector3(-6.6, 0.0, 1.75), 180.0)
+    # SERIOUS_REWORK_MASTER pass: obstacle radii checked by real distance
+    # against BREAK_SPOT (Vector3(-6.1, 0.0, 1.0)) MINUS the nav agent's
+    # own radius (0.3, StaffAgent._ready()) plus a small margin — the
+    # first pass at this only checked raw distance-to-obstacle-center,
+    # which is wrong: the agent's own body also needs clearance to
+    # stand at the target. Caught by an instrumented run showing the
+    # equivalent lounge-table mistake stalling an agent 0.35 units short
+    # of its target forever. `table` sits only 0.5 from the spot by
+    # design (the agent ends up right next to it) — under the ~0.5
+    # ceiling this margin leaves for it, so it keeps a token radius
+    # rather than none.
+    _static_prop("res://assets/models/mega/kitchen/fridge.glb", Vector3(-7.6, 0.0, 0.35), 90.0, 0.4)
+    _static_prop("res://assets/models/mega/kitchen/vending_machine.glb", Vector3(-7.6, 0.0, 1.7), -90.0, 0.4)
+    _static_prop("res://assets/models/mega/kitchen/coffee_machine.glb", Vector3(-6.6, 0.0, 1.75), 180.0, 0.35)
     _static_prop("res://assets/models/mega/kitchen/table.glb", Vector3(-5.6, 0.0, 1.0), 0.0)
-    _static_prop("res://assets/models/mega/kitchen/chair.glb", Vector3(-5.6, 0.0, 0.25), 180.0)
+    _static_prop("res://assets/models/mega/kitchen/chair.glb", Vector3(-5.6, 0.0, 0.25), 180.0, 0.2)
 
 ## y_rot_deg gets its own outer wrapper node around the pack's standard
 ## -90 X correction, same reason _office_model() does this instead of one
 ## combined Euler triple (see that function's doc comment) — confirmed
-## necessary again here, not just assumed to carry over.
-func _static_prop(model_path: String, pos: Vector3, y_rot_deg: float = 0.0) -> void:
+## necessary again here, not just assumed to carry over. obstacle_radius:
+## see _office_model()'s matching parameter doc comment.
+func _static_prop(model_path: String, pos: Vector3, y_rot_deg: float = 0.0, obstacle_radius: float = 0.0) -> void:
     var packed: PackedScene = load(model_path)
     if packed == null:
         push_error("Campaign: could not load decorative prop '%s'" % model_path)
@@ -765,6 +804,12 @@ func _static_prop(model_path: String, pos: Vector3, y_rot_deg: float = 0.0) -> v
     var inst: Node3D = packed.instantiate()
     inst.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
     facing.add_child(inst)
+    if obstacle_radius > 0.0:
+        var obstacle: NavigationObstacle3D = NavigationObstacle3D.new()
+        obstacle.radius = obstacle_radius
+        obstacle.height = 1.2
+        obstacle.avoidance_enabled = true
+        facing.add_child(obstacle)
 
 func _build_camera() -> void:
     camera_controller = CameraController.new()
@@ -835,6 +880,7 @@ func _spawn_staff_agent(staff_id: String) -> void:
     agent.ambient_destinations = ambient
     agent.ambient_activity_tags = ambient_tags
     var role_id: String = String(StaffManager.find(staff_id).get("role", ""))
+    agent.role_id = role_id
     var role_def: Dictionary = StaffRoleCatalog.get_def(role_id)
     agent.character_model_path = String(role_def.get("character_model", ""))
     var pool: Array[String] = []

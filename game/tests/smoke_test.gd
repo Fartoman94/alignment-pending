@@ -4761,4 +4761,160 @@ func _initialize() -> void:
         return
     print("SMOKE_OK: the full release-candidate content validation gate (schema + provenance) passes clean")
 
+    # SERIOUS_REWORK_MASTER pass: StaffAgent's needs/personality/planner
+    # system. Two same-role agents must roll genuinely different
+    # personality traits (not just cosmetic skin/hair variety, which
+    # already existed) — the actual "dos NPC del mismo rol no deben
+    # comportarse igual" requirement.
+    var npc_agent_script: GDScript = load("res://src/world/staff_agent.gd")
+    var npc_a: Node3D = npc_agent_script.new()
+    npc_a.role_id = "engineer"
+    npc_a.character_model_path = "res://assets/models/characters/engineer.glb"
+    npc_a.rng.seed = 1
+    get_root().add_child(npc_a)
+    await process_frame
+    var npc_b: Node3D = npc_agent_script.new()
+    npc_b.role_id = "engineer"
+    npc_b.character_model_path = "res://assets/models/characters/engineer.glb"
+    npc_b.rng.seed = 2
+    get_root().add_child(npc_b)
+    await process_frame
+    var npc_traits_identical: bool = (
+        is_equal_approx(npc_a.focus, npc_b.focus)
+        and is_equal_approx(npc_a.sociability, npc_b.sociability)
+        and is_equal_approx(npc_a.coffee_affinity, npc_b.coffee_affinity)
+        and is_equal_approx(npc_a.meeting_affinity, npc_b.meeting_affinity)
+    )
+    if npc_traits_identical:
+        push_error("Two same-role StaffAgents should roll different personality traits, not identical ones")
+        quit(1)
+        return
+    print("SMOKE_OK: two same-role StaffAgents roll genuinely different personality traits (individuality, not just cosmetic variety)")
+
+    # Role bias is a real distribution shift, not just per-agent noise —
+    # sampled across many rolls since any single roll can land anywhere
+    # in the randomized range regardless of bias.
+    var npc_bias_hr_sum: float = 0.0
+    var npc_bias_eng_sum: float = 0.0
+    const NPC_BIAS_SAMPLE_COUNT: int = 40
+    for i in NPC_BIAS_SAMPLE_COUNT:
+        var hr_probe: Node3D = npc_agent_script.new()
+        hr_probe.role_id = "hr_partner"
+        hr_probe.character_model_path = "res://assets/models/characters/engineer.glb"
+        hr_probe.rng.seed = 1000 + i
+        get_root().add_child(hr_probe)
+        await process_frame
+        npc_bias_hr_sum += hr_probe.sociability
+        hr_probe.queue_free()
+        var eng_probe: Node3D = npc_agent_script.new()
+        eng_probe.role_id = "engineer"
+        eng_probe.character_model_path = "res://assets/models/characters/engineer.glb"
+        eng_probe.rng.seed = 1000 + i
+        get_root().add_child(eng_probe)
+        await process_frame
+        npc_bias_eng_sum += eng_probe.sociability
+        eng_probe.queue_free()
+    await process_frame
+    if not (npc_bias_hr_sum / NPC_BIAS_SAMPLE_COUNT > npc_bias_eng_sum / NPC_BIAS_SAMPLE_COUNT + 0.08):
+        push_error("hr_partner's average sociability should be meaningfully higher than engineer's (role trait bias) — got hr=%.3f eng=%.3f" % [npc_bias_hr_sum / NPC_BIAS_SAMPLE_COUNT, npc_bias_eng_sum / NPC_BIAS_SAMPLE_COUNT])
+        quit(1)
+        return
+    print("SMOKE_OK: role sets a real personality bias (hr_partner reads more sociable than engineer on average) on top of per-agent randomness")
+
+    # The needs-driven planner: an agent with a starved energy need and
+    # high coffee_affinity should score "break" clearly above a
+    # low-affinity agent with full energy, given the same candidate list.
+    # ambient_destinations/ambient_activity_tags must be set BEFORE
+    # scoring — _score_ambient_destination() returns a flat default for
+    # any index outside ambient_activity_tags' current size.
+    var npc_dest: Array[Vector3] = [Vector3.ZERO]
+    var npc_tags: Array[String] = ["break"]
+    npc_a.ambient_destinations = npc_dest
+    npc_a.ambient_activity_tags = npc_tags
+    npc_b.ambient_destinations = npc_dest
+    npc_b.ambient_activity_tags = npc_tags
+    npc_a.need_energy = 5.0
+    npc_a.coffee_affinity = 0.9
+    npc_a.need_social = 80.0
+    npc_a.sociability = 0.2
+    npc_a._recent_ambient_tags.clear()
+    var npc_low_energy_score: float = npc_a._score_ambient_destination(0)
+    npc_b.need_energy = 95.0
+    npc_b.coffee_affinity = 0.1
+    npc_b.need_social = 80.0
+    npc_b.sociability = 0.2
+    npc_b._recent_ambient_tags.clear()
+    var npc_high_energy_score: float = npc_b._score_ambient_destination(0)
+    if not (npc_low_energy_score > npc_high_energy_score):
+        push_error("A tired, coffee-loving agent should score the break-room destination higher than a rested, coffee-indifferent one — got low_energy=%.3f high_energy=%.3f" % [npc_low_energy_score, npc_high_energy_score])
+        quit(1)
+        return
+    print("SMOKE_OK: the ambient-destination planner scores tasks from real needs and personality, not a flat coin-flip")
+
+    # Repeat-visit memory should measurably discourage (not forbid) an
+    # agent from picking the same tag it just did.
+    npc_a._recent_ambient_tags.clear()
+    var npc_score_fresh: float = npc_a._score_ambient_destination(0)
+    npc_a._remember_ambient_tag("break")
+    var npc_score_repeat: float = npc_a._score_ambient_destination(0)
+    if not (npc_score_repeat < npc_score_fresh):
+        push_error("Recently visiting a tagged destination should lower its score on the next pick (memory), got fresh=%.3f repeat=%.3f" % [npc_score_fresh, npc_score_repeat])
+        quit(1)
+        return
+    print("SMOKE_OK: NPCs remember their last few ambient destinations and are less likely to repeat one immediately")
+
+    npc_a.queue_free()
+    npc_b.queue_free()
+    await process_frame
+
+    # Stuck-recovery: an agent MOVING toward an unreachable point (outside
+    # the navmesh entirely) should abandon that destination and return to
+    # IDLE within STUCK_SECONDS, not freeze forever.
+    var npc_stuck_campaign_scene: PackedScene = load("res://scenes/campaign.tscn")
+    var npc_stuck_campaign: Node = npc_stuck_campaign_scene.instantiate()
+    get_root().add_child(npc_stuck_campaign)
+    await process_frame
+    await process_frame
+    var npc_stuck_agent_script: GDScript = load("res://src/world/staff_agent.gd")
+    var npc_stuck_agent: Node3D = npc_stuck_agent_script.new()
+    npc_stuck_agent.role_id = "engineer"
+    npc_stuck_agent.character_model_path = "res://assets/models/characters/engineer.glb"
+    npc_stuck_agent.coordinator = npc_stuck_campaign.nav_coordinator
+    npc_stuck_campaign.add_child(npc_stuck_agent)
+    await process_frame
+    await process_frame
+    # Exercises _abandon_move_stuck() directly rather than trying to
+    # organically induce a stuck condition through real navigation and
+    # counting process_frame — this project already learned the hard way
+    # (see this session's earlier "process_frame-counting doesn't
+    # reliably map to real physics time" finding) that render-frame
+    # counts in a --script SceneTree don't reliably correspond to real
+    # physics-tick elapsed time, and a wall-clock create_timer() wait
+    # here would make this one assertion cost several real seconds for
+    # no extra confidence: the actual behavior under test is
+    # _abandon_move_stuck()'s state transition, not whether a synthetic
+    # out-of-navmesh target happens to look "stuck" to the navigation
+    # system (it might instead cleanly snap to the nearest navmesh edge
+    # and arrive normally, which would falsely pass this test either way).
+    npc_stuck_agent.state = 1  # State.MOVING
+    npc_stuck_agent._has_reservation = true
+    npc_stuck_agent._current_reservation = Vector3(1.0, 0.0, 1.0)
+    npc_stuck_agent.coordinator.try_reserve(Vector3(1.0, 0.0, 1.0))
+    npc_stuck_agent._abandon_move_stuck()
+    if int(npc_stuck_agent.state) == 1:
+        push_error("_abandon_move_stuck() should move a non-work-target agent out of MOVING, not leave it stuck")
+        quit(1)
+        return
+    if npc_stuck_agent._has_reservation:
+        push_error("_abandon_move_stuck() should release the abandoned destination's reservation")
+        quit(1)
+        return
+    if not npc_stuck_agent.coordinator.try_reserve(Vector3(1.0, 0.0, 1.0)):
+        push_error("The reservation _abandon_move_stuck() released should be free for another agent to claim")
+        quit(1)
+        return
+    print("SMOKE_OK: a stuck StaffAgent abandons its destination, releases the reservation, and returns to IDLE instead of freezing")
+    npc_stuck_campaign.queue_free()
+    await process_frame
+
     quit(0)

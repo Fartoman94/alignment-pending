@@ -98,5 +98,45 @@
     "attack_sec": 0.008,
     "decay_sec": 0.11,
     "gain_db": -9.0
+  },
+  {
+    "id": "footstep",
+    "bus": "SFX",
+    "waveform": "noise",
+    "base_freq": 140.0,
+    "duration_sec": 0.05,
+    "attack_sec": 0.002,
+    "decay_sec": 0.03,
+    "gain_db": -22.0
+  },
+  {
+    "id": "typing_click",
+    "bus": "SFX",
+    "waveform": "square",
+    "base_freq": 1800.0,
+    "duration_sec": 0.03,
+    "attack_sec": 0.001,
+    "decay_sec": 0.02,
+    "gain_db": -24.0
+  },
+  {
+    "id": "chair_creak",
+    "bus": "SFX",
+    "waveform": "triangle",
+    "base_freq": 260.0,
+    "duration_sec": 0.12,
+    "attack_sec": 0.005,
+    "decay_sec": 0.09,
+    "gain_db": -18.0
+  },
+  {
+    "id": "coffee_pour",
+    "bus": "SFX",
+    "waveform": "noise",
+    "base_freq": 420.0,
+    "duration_sec": 0.4,
+    "attack_sec": 0.03,
+    "decay_sec": 0.3,
+    "gain_db": -16.0
   }
 ]

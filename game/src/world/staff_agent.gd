@@ -23,19 +23,23 @@ var bounds_min: Vector2 = Vector2(-7.0, -5.0)
 var bounds_max: Vector2 = Vector2(7.0, 5.0)
 var coordinator: NavCoordinator
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+## Set by the spawner (Campaign._spawn_staff_agent()) alongside
+## character_model_path — SERIOUS_REWORK_MASTER pass needs the role for
+## personality biasing (_init_identity()) and role-weighted task scoring
+## (_score_ambient_destination()), neither of which existed before this
+## pass (the class only tracked the role's *model*, not its id).
+var role_id: String = ""
 
 ## Production-kit pass ("NPCs never wander randomly"), extended by the
 ## world+NPC overhaul pass ("van a coffee point / meeting / whiteboard
 ## según tarea"): a small set of real, tagged destinations (the
-## break-room corner, the planning whiteboard) an idle agent sometimes
-## heads for instead of a uniformly random point in bounds — a
-## deliberately modest, honest scope: a handful of shared destinations on
-## top of the existing random-wander fallback, not a full needs/schedule
-## simulation with per-role routing (see docs/production/
-## PRODUCTION_KIT_AUDIT.md's "NPC purposeful movement" note for why that
-## bigger system is out of scope here). Empty by default; only real
-## campaign-spawned agents get any (Campaign._spawn_staff_agent()) —
-## dev/showcase scenes keep pure random wander unless they opt in too.
+## break-room corner, the planning whiteboard) an idle agent heads for —
+## superseded by SERIOUS_REWORK_MASTER's needs/personality scoring
+## (_score_ambient_destination() below) instead of the old uniform-random
+## pick docs/production/PRODUCTION_KIT_AUDIT.md once called out of scope.
+## Empty by default; only real campaign-spawned agents get any
+## (Campaign._spawn_staff_agent()) — dev/showcase scenes keep pure random
+## wander unless they opt in too.
 var ambient_destinations: Array[Vector3] = []
 ## VISUAL_OVERHAUL pass, priority 4 ("NPCs que usan objetos reales"):
 ## parallel to ambient_destinations by index — what an agent is doing once
@@ -49,16 +53,152 @@ var ambient_activity_tags: Array[String] = []
 var _ambient_activity: String = ""
 var _pending_ambient_activity: String = ""
 ## Rolled once per idle-to-moving transition, not per frame — see
-## _try_start_moving().
-## CLAUDE_VISUAL_EXECUTION_MASTERPACK Phase 2 ("no caminar al azar"):
-## raised from 0.3 — at the old value, most idle wandering was still a
-## uniform-random point in the room bounds (the fallback in
-## _try_start_moving() below), which is exactly the "muñecos caminando al
-## azar" the phase calls out. Still not zero (a real needs/schedule AI is
-## out of scope — see the class doc comment above), but a real, tagged
-## destination (break room / whiteboard / lounge) is now the common case
-## instead of the exception.
-const AMBIENT_DESTINATION_CHANCE: float = 0.65
+## _try_start_moving(). The old flat AMBIENT_DESTINATION_CHANCE coin-flip
+## (CLAUDE_VISUAL_EXECUTION_MASTERPACK Phase 2) is gone — replaced below
+## by needs/personality scoring, see _score_ambient_destination()'s doc
+## comment for why and how.
+
+## SERIOUS_REWORK_MASTER pass ("NPCs con comportamiento único y
+## creíble"): the actual "motor de funcionamiento" ask — idle-time
+## destination choice now comes from a per-agent personality profile and
+## live needs, scored per candidate, instead of the flat RNG roll the
+## older AMBIENT_DESTINATION_CHANCE logic used. Adapted from the
+## bundle's own NPCIdentity/NPCNeeds/NPCPlanner templates (same trait
+## names/formulas) onto this project's existing StaffAgent/NavCoordinator
+## pipeline rather than swapping to the templates' separate classes —
+## same "don't replace a working, tested system" call already made for
+## the interaction pipeline (docs/visual-progress/phase-03-report.md).
+##
+## Traits are 0..1, rolled once per agent in _init_identity() (called
+## from _ready(), after the spawner's agent.rng.randomize() — same
+## non-deterministic-per-load property the existing skin/hair-tint/
+## model-pool variation already has, not a new inconsistency).
+var focus: float = 0.7
+var sociability: float = 0.5
+var patience: float = 0.6
+var diligence: float = 0.7
+var stress_tolerance: float = 0.6
+var coffee_affinity: float = 0.5
+var meeting_affinity: float = 0.5
+var autonomy: float = 0.6
+
+## Role sets a bias applied to the random 0..1 roll before clamping — an
+## engineer isn't guaranteed higher coffee_affinity than a researcher,
+## but the *distribution* differs, which is what "cada rol realiza
+## tareas propias" actually needs on top of "dos NPC del mismo rol no
+## deben comportarse igual" (both required by the same brief). Missing
+## roles (or an unrecognized role_id) fall back to no bias at all, not
+## an error — this is flavor, not a gameplay-critical lookup.
+const ROLE_TRAIT_BIAS: Dictionary = {
+    "product_manager": {"meeting_affinity": 0.28, "sociability": 0.15},
+    "engineer": {"coffee_affinity": 0.18, "focus": 0.12},
+    "researcher": {"meeting_affinity": 0.16, "focus": 0.18},
+    "support_specialist": {"sociability": 0.28},
+    "safety_analyst": {"focus": 0.20, "stress_tolerance": 0.15},
+    "legal_specialist": {"patience": 0.22},
+    "hr_partner": {"sociability": 0.28, "meeting_affinity": 0.12},
+    "data_ops": {"coffee_affinity": 0.12, "diligence": 0.16},
+}
+
+## 0..100. Ticked every physics frame by _tick_needs() — energy/focus
+## drain while WORKING (faster) or MOVING/IDLE (slower); social drains
+## unless actively at a "talk"-tagged ambient spot; stress rises while
+## WORKING and bleeds off otherwise, moderated by stress_tolerance so two
+## agents under the same workload don't recover at the same rate.
+var need_energy: float = 100.0
+var need_focus: float = 100.0
+var need_social: float = 70.0
+var need_stress: float = 10.0
+
+## Tiny rolling memory so the planner doesn't send the same agent back to
+## the same ambient spot twice in a row just because it happens to still
+## score highest — a real (if simple) stand-in for "the same coworker
+## chatting at the whiteboard forever" reading as scripted rather than
+## alive.
+var _recent_ambient_tags: Array[String] = []
+const MEMORY_SIZE: int = 3
+
+func _init_identity() -> void:
+    var bias: Dictionary = ROLE_TRAIT_BIAS.get(role_id, {})
+    focus = clampf(rng.randf_range(0.35, 0.85) + float(bias.get("focus", 0.0)), 0.0, 1.0)
+    sociability = clampf(rng.randf_range(0.25, 0.85) + float(bias.get("sociability", 0.0)), 0.0, 1.0)
+    patience = clampf(rng.randf_range(0.3, 0.85) + float(bias.get("patience", 0.0)), 0.0, 1.0)
+    diligence = clampf(rng.randf_range(0.4, 0.9) + float(bias.get("diligence", 0.0)), 0.0, 1.0)
+    stress_tolerance = clampf(rng.randf_range(0.3, 0.85) + float(bias.get("stress_tolerance", 0.0)), 0.0, 1.0)
+    coffee_affinity = clampf(rng.randf_range(0.2, 0.8) + float(bias.get("coffee_affinity", 0.0)), 0.0, 1.0)
+    meeting_affinity = clampf(rng.randf_range(0.2, 0.8) + float(bias.get("meeting_affinity", 0.0)), 0.0, 1.0)
+    autonomy = clampf(rng.randf_range(0.3, 0.85) + float(bias.get("autonomy", 0.0)), 0.0, 1.0)
+    # Needs start with a little per-agent spread too, so a freshly spawned
+    # crowd doesn't all sit at identical bars in the staff panel.
+    need_energy = rng.randf_range(70.0, 100.0)
+    need_focus = rng.randf_range(70.0, 100.0)
+    need_social = rng.randf_range(50.0, 90.0)
+    need_stress = rng.randf_range(5.0, 25.0)
+
+func _tick_needs(delta: float) -> void:
+    var working: bool = state == State.WORKING
+    var talking: bool = state == State.IDLE and not _ambient_activity.is_empty()
+    need_energy = clampf(need_energy - delta * (0.35 if working else 0.10), 0.0, 100.0)
+    need_focus = clampf(need_focus - delta * (0.25 if working else 0.05), 0.0, 100.0)
+    need_social = clampf(need_social - delta * (0.03 if talking else 0.10), 0.0, 100.0)
+    var stress_rate: float = 0.06 if working else -0.08
+    # stress_tolerance softens the climb and speeds the recovery — two
+    # agents doing the exact same task diverge over a shift instead of
+    # tracking identically.
+    stress_rate *= lerpf(1.3, 0.6, stress_tolerance) if stress_rate > 0.0 else lerpf(0.6, 1.3, stress_tolerance)
+    need_stress = clampf(need_stress + delta * stress_rate, 0.0, 100.0)
+
+func _remember_ambient_tag(tag: String) -> void:
+    if tag.is_empty():
+        return
+    _recent_ambient_tags.push_front(tag)
+    if _recent_ambient_tags.size() > MEMORY_SIZE:
+        _recent_ambient_tags.pop_back()
+
+func _recently_did(tag: String) -> bool:
+    return tag in _recent_ambient_tags
+
+## Replaces the old flat AMBIENT_DESTINATION_CHANCE coin-flip: scores
+## every tagged ambient destination against current needs/personality,
+## same shape as the bundle's own NPCPlanner.score_task() (base score +
+## need-driven bonus per tag + a trait multiplier + a repeat-visit
+## penalty + a small tie-breaking jitter), and returns the index of the
+## winner, or -1 if nothing scores above the "just wander instead"
+## threshold. autonomy (a trait with no dedicated tag-bonus of its own)
+## widens that jitter — a high-autonomy agent's choices read as more
+## self-directed/less predictable run to run, a low-autonomy one more
+## consistently need-driven.
+const AMBIENT_SCORE_THRESHOLD: float = 0.35
+func _score_ambient_destination(index: int) -> float:
+    if index >= ambient_activity_tags.size():
+        return 0.55  # Untagged destination: same modest flat score as before.
+    var tag: String = ambient_activity_tags[index]
+    var score: float = 0.55 * lerpf(0.75, 1.25, diligence)
+    match tag:
+        "break":
+            score += (100.0 - need_energy) * 0.018 * coffee_affinity
+        "whiteboard":
+            score += (100.0 - need_social) * 0.010 * sociability
+            score *= lerpf(0.55, 1.25, meeting_affinity)
+        "lounge":
+            score += (100.0 - need_social) * 0.016 * sociability
+            score += need_stress * 0.006 * (1.0 - stress_tolerance)
+    if _recently_did(tag):
+        score *= 0.45
+    score += rng.randf_range(-0.05, 0.05) * lerpf(0.6, 1.6, autonomy)
+    return score
+
+func _choose_ambient_destination() -> int:
+    if ambient_destinations.is_empty():
+        return -1
+    var best_index: int = -1
+    var best_score: float = AMBIENT_SCORE_THRESHOLD
+    for i in ambient_destinations.size():
+        var s: float = _score_ambient_destination(i)
+        if s > best_score:
+            best_score = s
+            best_index = i
+    return best_index
 
 var state: State = State.IDLE
 var total_distance_traveled: float = 0.0
@@ -70,6 +210,45 @@ var _current_reservation: Vector3
 var _has_reservation: bool = false
 var _synced: bool = false
 var _has_work_target: bool = false
+## SERIOUS_REWORK_MASTER pass ("stuck recovery a los 2.5s"): tracks real
+## displacement while MOVING, not just elapsed time, so a genuinely slow
+## avoidance detour never falsely triggers this — only actual zero
+## progress does. Abandons the current destination and reservation on
+## trip (see _process_moving()) rather than trying to force through
+## whatever's blocking it; the planner picks a fresh target next tick.
+const STUCK_SECONDS: float = 2.5
+const STUCK_MOVE_EPSILON: float = 0.03
+var _stuck_timer: float = 0.0
+var _last_stuck_check_pos: Vector3 = Vector3.ZERO
+
+## SERIOUS_REWORK_MASTER pass ("aceleración; desaceleración" — Movimiento
+## section): desired velocity used to jump straight to full SPEED the
+## instant a move started (and drop straight to zero the instant it
+## ended), every frame, with only rotation ever smoothed. Ramped over
+## ~0.3s (1.0 / MOVE_ACCEL_RATE) instead — reset to 0 at the start of
+## every fresh departure (_try_start_moving()/assign_work()), applied as
+## a multiplier on the desired-velocity magnitude in _process_moving()
+## before it reaches avoidance/_apply_velocity, so it composes with both
+## without duplicating the avoidance math.
+const MOVE_ACCEL_RATE: float = 3.3
+var _move_speed_scale: float = 0.0
+
+## SERIOUS_REWORK_MASTER pass ("audio vivo" — footsteps/typing/chair/
+## coffee): the bundle shipped real .wav files for these, which this
+## project's own audio pipeline can't use (AudioManager's whole design —
+## and a real smoke-test gate — is "everything synthesized at runtime by
+## AudioSynth, nothing imported," see docs/legal/ASSET_PROVENANCE.md).
+## Synthesized equivalents instead, added to data/sfx_cues.json. Per-
+## agent cooldowns, not per-frame triggers — with up to 150 agents in
+## the stress scenario, firing a cue every physics tick per agent would
+## be tens of thousands of AudioManager.play_sfx() calls/second for no
+## audible gain (the 6-voice pool would just be thrashed). A footstep
+## roughly every half-stride and a typing click every ~0.3s reads as
+## real activity without that cost.
+const FOOTSTEP_INTERVAL: float = 0.38
+const TYPING_CLICK_INTERVAL: float = 0.28
+var _footstep_timer: float = 0.0
+var _typing_timer: float = 0.0
 
 # P40, replaced by the finalization-pack 3D asset pack: a real, authored
 # low-poly character model (game/assets/models/characters/*.glb, one per
@@ -149,6 +328,7 @@ func _ready() -> void:
     _nav_agent.velocity_computed.connect(_on_velocity_computed)
     add_child(_nav_agent)
     _build_visual()
+    _init_identity()
     _idle_timer = rng.randf_range(IDLE_MIN_SECONDS, IDLE_MAX_SECONDS)
     # The navigation map needs at least one sync pass before path queries
     # return anything useful.
@@ -451,6 +631,7 @@ func _joint_z(mesh_inst: Node3D) -> float:
 func _physics_process(delta: float) -> void:
     if not _synced or GameState.paused:
         return
+    _tick_needs(delta)
     match state:
         State.IDLE:
             _idle_timer -= delta
@@ -458,8 +639,15 @@ func _physics_process(delta: float) -> void:
                 _try_start_moving()
         State.MOVING:
             _process_moving(delta)
+            _footstep_timer -= delta
+            if _footstep_timer <= 0.0:
+                _footstep_timer = FOOTSTEP_INTERVAL
+                AudioManager.play_sfx("footstep")
         State.WORKING:
-            pass  # stationary at the workstation until the task ends
+            _typing_timer -= delta
+            if _typing_timer <= 0.0:
+                _typing_timer = TYPING_CLICK_INTERVAL
+                AudioManager.play_sfx("typing_click")
     _animate_visual(delta)
 
 ## Procedural animation approximations (P40) — no imported skeleton/
@@ -529,8 +717,9 @@ func _animate_visual(delta: float) -> void:
 
 func _try_start_moving() -> void:
     _pending_ambient_activity = ""
-    if not ambient_destinations.is_empty() and rng.randf() < AMBIENT_DESTINATION_CHANCE and coordinator != null:
-        var pick_index: int = rng.randi() % ambient_destinations.size()
+    _move_speed_scale = 0.0
+    var pick_index: int = _choose_ambient_destination()
+    if pick_index >= 0 and coordinator != null:
         var pick: Vector3 = ambient_destinations[pick_index]
         if coordinator.try_reserve(pick):
             _current_reservation = pick
@@ -560,11 +749,20 @@ func _process_moving(delta: float) -> void:
     if _nav_agent.is_navigation_finished():
         _finish_move()
         return
+    if global_position.distance_to(_last_stuck_check_pos) < STUCK_MOVE_EPSILON:
+        _stuck_timer += delta
+        if _stuck_timer >= STUCK_SECONDS:
+            _abandon_move_stuck()
+            return
+    else:
+        _stuck_timer = 0.0
+        _last_stuck_check_pos = global_position
+    _move_speed_scale = minf(1.0, _move_speed_scale + MOVE_ACCEL_RATE * delta)
     var next_pos: Vector3 = _nav_agent.get_next_path_position()
     var desired: Vector3 = next_pos - global_position
     desired.y = 0.0
     if desired.length() > 0.001:
-        desired = desired.normalized() * SPEED
+        desired = desired.normalized() * SPEED * _move_speed_scale
         # The character model's authored front faces local +Z at rotation.y
         # == 0 (verified by rendering: the necktie is visible from +Z, the
         # bare back from -Z) — nothing turned this to face the walk
@@ -598,13 +796,47 @@ func _finish_move() -> void:
         coordinator.release(_current_reservation)
     _has_reservation = false
     destinations_reached += 1
+    _stuck_timer = 0.0
     if _has_work_target:
         _ambient_activity = ""
         state = State.WORKING
+        _typing_timer = TYPING_CLICK_INTERVAL
+        AudioManager.play_sfx("chair_creak")
     else:
         _ambient_activity = _pending_ambient_activity
+        _remember_ambient_tag(_pending_ambient_activity)
         state = State.IDLE
         _idle_timer = rng.randf_range(IDLE_MIN_SECONDS, IDLE_MAX_SECONDS)
+        if _ambient_activity == "break":
+            AudioManager.play_sfx("coffee_pour")
+
+## SERIOUS_REWORK_MASTER pass: the stuck-recovery escape hatch
+## _process_moving() calls after STUCK_SECONDS of near-zero real
+## displacement. Gives up on the current destination entirely rather
+## than nudging/teleporting through whatever's blocking it — releasing
+## the reservation lets another agent (or this one, next tick) claim it
+## instead, and going through the same IDLE→_try_start_moving() path a
+## normal arrival uses means the planner picks a fresh, freely re-scored
+## destination rather than the agent being special-cased mid-recovery.
+func _abandon_move_stuck() -> void:
+    if _has_reservation and coordinator != null:
+        coordinator.release(_current_reservation)
+    _has_reservation = false
+    _stuck_timer = 0.0
+    _pending_ambient_activity = ""
+    _ambient_activity = ""
+    if _has_work_target:
+        # A work desk should never be "given up on" the way an ambient
+        # wander spot is — TaskManager, not this agent, owns that
+        # assignment's lifecycle. Reassigning target_position forces
+        # NavigationAgent3D to discard its cached path and query a fresh
+        # one (Godot's setter always requests a repath, not just on a
+        # changed value) instead of silently dropping the work order.
+        _last_stuck_check_pos = global_position
+        _nav_agent.target_position = _nav_agent.target_position
+        return
+    state = State.IDLE
+    _idle_timer = 0.3
 
 ## Walks to target (a workstation's world position) and stays there once
 ## arrived, instead of resuming idle wandering. Cancels any pending
@@ -613,6 +845,7 @@ func assign_work(target: Vector3) -> void:
     _has_work_target = true
     _ambient_activity = ""
     _pending_ambient_activity = ""
+    _move_speed_scale = 0.0
     if _has_reservation and coordinator != null:
         coordinator.release(_current_reservation)
         _has_reservation = false
