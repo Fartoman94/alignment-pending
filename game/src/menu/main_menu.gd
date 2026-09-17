@@ -64,7 +64,40 @@ func _on_new_campaign_pressed() -> void:
     for i in STARTING_STAFF_COUNT:
         StaffManager.hire(0)
     ModelManager.seed_starting_model()
+    _seed_starting_workstations()
     await SceneRouter.go_to("res://scenes/campaign.tscn")
+
+## Garage vertical-slice recovery pass: a brand-new campaign used to start
+## in a genuinely empty room — no desks, no monitors, 3 staff with nothing
+## to do but wander (campaign.gd's own visual-overhaul-pass comment called
+## this deliberate at the time, matching the Art Bible's "cheap converted
+## office" framing literally). Confirmed by a real screenshot of the
+## actual running build that this reads as an unconvincing blockout, not
+## a "humble start" — every visual-target reference has always shown the
+## garage already staffed and working on day one. Seeds 3 real desk
+## buildings and assigns each of the 3 starting hires to a real
+## research_sprint work order at their own desk, using the exact same
+## GameState.buildings/TaskManager plumbing a save/load restore or a
+## player-driven build+assign already goes through — Campaign._spawn_
+## staff_agent()'s existing "resume an in-progress task on load" path
+## picks this up with no further changes. Desk cells sit in build grid
+## row 1 (row 3 is the reserved east-west route, never usable).
+const STARTING_DESK_CELLS: Array[Vector2i] = [Vector2i(2, 1), Vector2i(3, 1), Vector2i(4, 1)]
+func _seed_starting_workstations() -> void:
+    var desk_ids: Array[String] = []
+    for i in STARTING_DESK_CELLS.size():
+        var desk_id: String = "garage_desk_%d" % (i + 1)
+        GameState.buildings.append({
+            "id": desk_id, "buildable_id": "desk",
+            "cell_x": STARTING_DESK_CELLS[i].x, "cell_y": STARTING_DESK_CELLS[i].y,
+            "rotated": false,
+        })
+        desk_ids.append(desk_id)
+    for i in GameState.staff.size():
+        if i >= desk_ids.size():
+            break
+        var staff_id: String = String((GameState.staff[i] as Dictionary).get("id", ""))
+        TaskManager.assign(staff_id, "research_sprint", desk_ids[i])
 
 func _on_continue_pressed() -> void:
     var err: Error = SaveManager.load_newest_autosave()

@@ -24,22 +24,29 @@ var camera: Camera3D
 
 var _yaw_target: float = deg_to_rad(45.0)
 var _zoom_target: float
-var _pan_target: Vector3 = Vector3.ZERO
+## Garage vertical-slice recovery pass: a non-zero default so the closer
+## zoom_target below doesn't push the back wall/windows up behind the
+## persistent top HUD bar — recenters the frame toward the back wall
+## (less empty foreground floor, matching the brief's "evitar piso vacío
+## dominante"), confirmed by rendering, not assumed from the math alone.
+var _pan_target: Vector3 = Vector3(0.0, 0.0, -2.0)
 var _dragging: bool = false
 var _drag_last_pos: Vector2 = Vector2.ZERO
 
 func _ready() -> void:
     _ensure_input_actions()
     # Visual overhaul pass: 18.0 (unchanged default for years) left the
-    # office occupying well under half the viewport height at 1280x720 —
-    # confirmed by rendering and measuring the pixels, not just eyeballed.
-    # 13.0 was tried first and rendered too tight — it cropped the back
-    # wall/windows out of frame at the top (also caught by rendering and
-    # looking, not assumed). 15.0 is the value that actually keeps the
-    # whole room in frame while still reading as noticeably closer than
-    # the original 18.0, inside the unchanged zoom_min/zoom_max range the
-    # player can still move within.
-    _zoom_target = clampf(15.0, zoom_min, zoom_max)
+    # office occupying well under half the viewport height at 1280x720;
+    # 15.0 fixed that. Garage vertical-slice recovery pass: a real
+    # screenshot of the running build at 15.0 still read as too distant —
+    # NPCs and desks were small enough to be hard to individually parse.
+    # 13.0 was tried once before this pass and cropped the back
+    # wall/windows out of frame at the top; 13.5 re-tested this pass with
+    # the recentered pan_target_default below (not just the raw zoom
+    # number alone) keeps the whole room in frame — confirmed by
+    # rendering, not assumed to still hold just because a nearby number
+    # worked differently in the past.
+    _zoom_target = clampf(13.5, zoom_min, zoom_max)
     camera = Camera3D.new()
     camera.projection = Camera3D.PROJECTION_ORTHOGONAL
     camera.size = _zoom_target

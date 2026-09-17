@@ -117,7 +117,12 @@ func _build_environment() -> void:
     env.background_color = Color("11151b")
     env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
     env.ambient_light_color = Color("8c95a8")
-    env.ambient_light_energy = 0.55
+    # Garage vertical-slice recovery pass: 0.55 read as murky/underlit at
+    # the closer camera zoom this pass also added — a real render showed
+    # rooms and characters harder to read, not more atmospheric. Raised
+    # just enough to keep depth (still real directional shadows below,
+    # not flat) without washing anything toward "blancos quemados."
+    env.ambient_light_energy = 0.7
     world_env.environment = env
     add_child(world_env)
     # Natural key light — cool/blueish, as if daylight through the
@@ -131,23 +136,34 @@ func _build_environment() -> void:
     add_child(key_light)
     # Warm interior fill — a soft amber counter-light from roughly where
     # ceiling office lighting would be, so surfaces facing away from the
-    # key light aren't pure flat shadow.
+    # key light aren't pure flat shadow. Energy raised alongside the
+    # ambient bump above (0.35 -> 0.55) — the recovery brief specifically
+    # asks for "luces interiores cálidas" to read as more than a hint;
+    # confirmed by rendering that this doesn't overpower the cool key
+    # light or blow out highlights.
     var fill_light := DirectionalLight3D.new()
     fill_light.name = "FillLight"
     fill_light.rotation_degrees = Vector3(-70, 140, 0)
     fill_light.light_color = Color("ffc98a")
-    fill_light.light_energy = 0.35
+    fill_light.light_energy = 0.55
     add_child(fill_light)
 
 ## Visual overhaul pass: the original shell was three blue-gray boxes
 ## (floor/back wall/left wall all within a few shades of each other) —
 ## exactly the "todo gris" / no-material-variety the brief called out.
-## Same shell, same empty-until-the-player-builds-something design (an
-## empty starting office is this project's own deliberate progression,
-## docs/design/ART_BIBLE.md's "1. Cheap converted office" — not a bug to
-## fix by pre-furnishing it), but now following the Art Bible's actual
-## named palette (charcoal/warm gray/off-white base, a tech-blue and a
-## brand-orange accent) instead of one undifferentiated blue-gray.
+## Same shell, now following the Art Bible's actual named palette
+## (charcoal/warm gray/off-white base, a tech-blue and a brand-orange
+## accent) instead of one undifferentiated blue-gray. The shell itself
+## no longer starts empty — an earlier pass called that deliberate (Art
+## Bible's "cheap converted office" framing), but a real screenshot of
+## the actual running build showed it read as an unconvincing blockout,
+## not a "humble start": no desks, no monitors, staff with nothing to do.
+## MainMenu._seed_starting_workstations() now places 3 real desks and
+## assigns the 3 starting hires to them before the campaign scene ever
+## loads (garage vertical-slice recovery pass) — this function still
+## only owns the walls/palette/tier-specific set dressing below, not the
+## furniture, which is real GameState.buildings data like anything the
+## player places.
 ## Real estate progression (RealEstateManager, garage -> HQ) is presented
 ## here the same "palette + trim, not a layout change" way the visual-
 ## overhaul pass reworked office materials: the buildable grid/navmesh
