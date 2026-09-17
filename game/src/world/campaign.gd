@@ -38,6 +38,16 @@ var _fill_light: DirectionalLight3D
 ## that instead of overriding it.
 var _window_materials: Array[Dictionary] = []
 
+## Garage vertical-slice orchestrator follow-up ("los faroles deben
+## encenderse al anochecer... El fondo, cielo, sol, iluminación exterior
+## y ventanas deben acompañar mañana/tarde/noche"): street lamp
+## OmniLight3Ds (see _register_lamp()) and the exterior buildings'
+## window emissive materials (see _register_exterior_windows()), both
+## driven by day_t in _update_time_of_day() the same way the interior
+## BackWallWindow panels already are.
+var _street_lamps: Array[OmniLight3D] = []
+var _exterior_window_materials: Array[Dictionary] = []
+
 func _ready() -> void:
     _ensure_input_actions()
     _build_environment()
@@ -279,6 +289,25 @@ func _update_time_of_day() -> void:
     for entry: Dictionary in _window_materials:
         var mat: StandardMaterial3D = entry["material"]
         mat.emission_energy_multiplier = float(entry["base_energy"]) * window_scale
+    # Garage vertical-slice orchestrator follow-up: the exterior buildings'
+    # own windows get the same day-night treatment as the interior ones
+    # right above, and street lamps switch on at dusk instead of the sun
+    # changing while the neighborhood stays static. smoothstep (not a
+    # hard cutoff) so the lamps ease in/out over real dusk/dawn instead of
+    # visibly snapping on at one exact minute.
+    for entry: Dictionary in _exterior_window_materials:
+        var ext_mat: StandardMaterial3D = entry["material"]
+        ext_mat.emission_energy_multiplier = float(entry["base_energy"]) * window_scale
+    var lamp_on: float = 1.0 - smoothstep(0.15, 0.35, day_t)
+    for lamp: OmniLight3D in _street_lamps:
+        lamp.light_energy = lamp_on * 1.3
+    # The distant backdrop card (_build_backdrop_card()) is a static,
+    # baked-once-in-daylight texture — tinting it toward the same dark
+    # blue the fog/ambient shift toward at night keeps it from reading as
+    # a fixed-brightness "hole" back to daytime while the live foreground
+    # goes dark around it.
+    if _backdrop_card_material != null:
+        _backdrop_card_material.albedo_color = Color.WHITE.lerp(Color("1c2436"), 1.0 - day_t)
 
 func _sun_color(hour: float) -> Color:
     # Deep blue night -> warm dawn/dusk -> cool-white midday, matching the
@@ -331,6 +360,18 @@ var _office_visuals: Node3D
 ## its texture are created, without fighting _office_visuals' own
 ## clear-all-children loop over the same node.
 var _city_backdrop: CityBackdrop
+## Garage vertical-slice orchestrator ("garage 3D → calle/vecindario 3D →
+## fondo horneado, sin que se note un corte artificial"): before this
+## pass, CityBackdrop's bake was used *only* as the interior window
+## material — nothing gave the live exterior itself a horizon past the
+## 3 near-field buildings, which just fell off into the WorldEnvironment's
+## flat background color. Reuses the exact same baked texture (no second
+## bake, no extra render cost) on a large unshaded card placed past the
+## live buildings — same asset, two uses. Tinted by day_t in
+## _update_time_of_day() so it darkens with the rest of the scene instead
+## of staying a fixed daytime brightness while everything around it goes
+## to night.
+var _backdrop_card_material: StandardMaterial3D
 
 func _build_office() -> void:
     _office_visuals = Node3D.new()
@@ -353,6 +394,87 @@ func _build_office() -> void:
 ## earlier CityBackdrop window pass used. Tier-independent (built once,
 ## never rebuilt on a real-estate move) since it's not part of the
 ## office itself.
+## Adds a real light to a just-placed lamp post (see _build_exterior())
+## so it can actually turn on at dusk instead of only having an always-on
+## emissive material. Position matches generate_street_assets.py's own
+## "Head" placement ((.30, 0, 2.90) in the generator's Blender-authored
+## Z-up local space) — added as a child of the corrected `inst` node
+## (facing's only child), not `facing` itself, so it inherits the same
+## -90°-X correction the model's own geometry does, same technique as
+## any other exterior prop's local-space child placement.
+func _register_lamp(facing: Node3D) -> void:
+    if facing == null or facing.get_child_count() == 0:
+        return
+    var inst: Node3D = facing.get_child(0)
+    var lamp_light := OmniLight3D.new()
+    lamp_light.name = "LampLight"
+    lamp_light.position = Vector3(0.30, 0.0, 2.90)
+    lamp_light.light_color = Color("ffdf9c")
+    lamp_light.omni_range = 4.5
+    lamp_light.omni_attenuation = 1.4
+    lamp_light.light_energy = 0.0  # _update_time_of_day() turns this on at dusk.
+    inst.add_child(lamp_light)
+    _street_lamps.append(lamp_light)
+
+## Same idea as _register_lamp() but for the exterior buildings' window
+## panels: generate_city_buildings.py names every window mesh "Win_*",
+## so this just recurses the instanced model collecting their materials
+## instead of needing per-window Godot-side coordinates.
+func _register_exterior_windows(facing: Node3D) -> void:
+    if facing == null or facing.get_child_count() == 0:
+        return
+    var inst: Node3D = facing.get_child(0)
+    _collect_window_materials(inst)
+
+func _collect_window_materials(n: Node) -> void:
+    if n is MeshInstance3D and String(n.name).begins_with("Win_"):
+        var mi: MeshInstance3D = n
+        if mi.mesh != null:
+            var base_mat: StandardMaterial3D = mi.mesh.surface_get_material(0)
+            if base_mat != null:
+                var variant: StandardMaterial3D = base_mat.duplicate()
+                mi.set_surface_override_material(0, variant)
+                _exterior_window_materials.append({"material": variant, "base_energy": variant.emission_energy_multiplier})
+    for c in n.get_children():
+        _collect_window_materials(c)
+
+## See _city_backdrop's doc comment for why this exists. Placed past the
+## live buildings (z=22, vs. the buildings' own z=14-14.5) and wide/tall
+## enough to fill the gap between them and the flat WorldEnvironment
+## background — a real depth progression (garage → live street → this
+## card → flat background far beyond even that) instead of the live
+## geometry ending abruptly into a solid color.
+func _build_backdrop_card(ext: Node3D) -> void:
+    if _city_backdrop == null:
+        return
+    var mesh_inst := MeshInstance3D.new()
+    mesh_inst.name = "DistantSkylineCard"
+    var quad := QuadMesh.new()
+    # Smaller/closer than the first attempt at this (46x11 at z=22) — that
+    # version rendered as a huge, mostly blank pale-sky-colored panel:
+    # CityBackdrop's own bake reserves most of its 512x256 frame for sky
+    # above a comparatively small building strip (already a known, pre-
+    # existing content limitation — see KNOWN_ISSUES.md's "dense tier
+    # skyline doesn't read as legible"), so stretching that same texture
+    # across a huge card just stretches the empty sky, not the buildings.
+    # uv1_offset/uv1_scale crop to roughly the texture's lower half (where
+    # the buildings actually sit) instead of showing the whole frame.
+    quad.size = Vector2(20.0, 4.5)
+    var mat := StandardMaterial3D.new()
+    mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    mat.albedo_texture = _city_backdrop.get_texture()
+    mat.uv1_scale = Vector3(1.0, 0.5, 1.0)
+    mat.uv1_offset = Vector3(0.0, 0.45, 0.0)
+    quad.material = mat
+    mesh_inst.mesh = quad
+    mesh_inst.position = Vector3(0.0, 3.4, 19.0)
+    # Godot's QuadMesh faces +Z by default; the camera sits at lower Z
+    # looking toward higher Z, so the visible face needs to point back
+    # toward it — confirmed by rendering both ways, not assumed.
+    mesh_inst.rotation_degrees = Vector3(0.0, 180.0, 0.0)
+    ext.add_child(mesh_inst)
+    _backdrop_card_material = mat
+
 func _build_exterior() -> void:
     var ext := Node3D.new()
     ext.name = "Exterior"
@@ -366,11 +488,13 @@ func _build_exterior() -> void:
     # camera is orthogonal (no perspective falloff with distance), so
     # placing them further away doesn't shrink them on screen the way it
     # would with a normal 3D camera — scale is the only lever that works.
-    var _ext_model := func(path: String, pos: Vector3, y_rot: float = 0.0, model_scale: float = 1.0) -> void:
+    # Returns the wrapper ("facing") node — needed so callers like
+    # _register_lamp() below can find/attach to the real instanced model.
+    var _ext_model := func(path: String, pos: Vector3, y_rot: float = 0.0, model_scale: float = 1.0) -> Node3D:
         var packed: PackedScene = load(path)
         if packed == null:
             push_error("Campaign: could not load exterior model '%s'" % path)
-            return
+            return null
         var facing := Node3D.new()
         facing.position = pos
         facing.rotation_degrees = Vector3(0.0, y_rot, 0.0)
@@ -379,6 +503,7 @@ func _build_exterior() -> void:
         inst.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
         inst.scale = Vector3.ONE * model_scale
         facing.add_child(inst)
+        return facing
 
     # Sidewalk running the width of the building just past the open
     # front edge (z=7), then a street beyond that, both spanning the
@@ -389,19 +514,34 @@ func _build_exterior() -> void:
     # Total-rework pass ("Path3D por carril, dirección separada... sin
     # colisiones absurdas"): 3 separate lane rows, one vehicle each, so
     # no two vehicles ever share a line by construction.
+    # generated_street/*: this pass's smooth-geometry replacements
+    # (tools/blender_generators/generate_street_assets.py) for the
+    # mega_pack's road/sidewalk/tree/lamp_post — confirmed by rendering
+    # the originals in isolation that they were the crudest placeholders
+    # in the whole pack (a flat gradient plane for the road, one blob
+    # "cloud" for a tree, a bare pole with a white rectangle for a lamp).
+    # Real volume (raised curb, lane paint), a layered multi-sphere
+    # canopy, and a real base/pole/arm/head lamp fixture instead.
+    var street := "res://assets/models/generated_street/"
     for i in 9:
         var sx: float = -8.0 + float(i) * 2.0
-        _ext_model.call(city + "sidewalk_tile.glb", Vector3(sx, 0.0, 8.0), 0.0)
-        _ext_model.call(city + "road_straight.glb", Vector3(sx, 0.0, 9.3), 0.0)
-        _ext_model.call(city + "road_straight.glb", Vector3(sx, 0.0, 10.5), 0.0)
-        _ext_model.call(city + "road_straight.glb", Vector3(sx, 0.0, 11.7), 0.0)
+        _ext_model.call(street + "sidewalk_tile.glb", Vector3(sx, 0.0, 8.0), 0.0)
+        _ext_model.call(street + "road_straight.glb", Vector3(sx, 0.0, 9.3), 0.0)
+        _ext_model.call(street + "road_straight.glb", Vector3(sx, 0.0, 10.5), 0.0)
+        _ext_model.call(street + "road_straight.glb", Vector3(sx, 0.0, 11.7), 0.0)
+        _ext_model.call(street + "road_straight.glb", Vector3(sx, 0.0, 12.9), 0.0)
     # Trees and lamp posts along the sidewalk, alternating so it doesn't
-    # read as a single repeated prop.
-    _ext_model.call(city + "tree_city.glb", Vector3(-7.0, 0.0, 8.3), 0.0)
-    _ext_model.call(city + "lamp_post.glb", Vector3(-3.5, 0.0, 8.3), 0.0)
-    _ext_model.call(city + "tree_city.glb", Vector3(0.0, 0.0, 8.3), 0.0)
-    _ext_model.call(city + "lamp_post.glb", Vector3(3.5, 0.0, 8.3), 0.0)
-    _ext_model.call(city + "tree_city.glb", Vector3(7.0, 0.0, 8.3), 0.0)
+    # read as a single repeated prop. Lamp posts are also registered in
+    # _street_lamps so _update_time_of_day() can turn their real light on
+    # at dusk (see that function) — "los faroles deben encenderse al
+    # anochecer" was a direct, explicit ask, not an assumption this
+    # mattered.
+    _ext_model.call(street + "tree_city.glb", Vector3(-7.0, 0.0, 8.3), 0.0)
+    _register_lamp(_ext_model.call(street + "lamp_post.glb", Vector3(-3.5, 0.0, 8.3), 0.0))
+    _ext_model.call(street + "tree_city.glb", Vector3(0.0, 0.0, 8.3), 0.0)
+    _register_lamp(_ext_model.call(street + "lamp_post.glb", Vector3(3.5, 0.0, 8.3), 0.0))
+    _ext_model.call(street + "tree_city.glb", Vector3(7.0, 0.0, 8.3), 0.0)
+    _register_lamp(_ext_model.call(street + "lamp_post.glb", Vector3(-8.5, 0.0, 12.5), 90.0))
     # generated_city/park_bench.glb: this pass's smooth-geometry
     # replacement (tools/blender_generators/generate_city_buildings.py),
     # same "cuadrado" fix already applied to characters/interior
@@ -416,9 +556,9 @@ func _build_exterior() -> void:
     # exterior.glb: this pass's replacement for the mega_pack's sharp-
     # edged originals — same 0.22 scale factor still applies, confirmed
     # by rendering both together before wiring this in.
-    _ext_model.call("res://assets/models/generated_city/small_building_exterior.glb", Vector3(-6.0, 0.0, 14.0), 0.0, 0.22)
-    _ext_model.call("res://assets/models/generated_city/mid_building_exterior.glb", Vector3(-1.5, 0.0, 14.5), 0.0, 0.22)
-    _ext_model.call("res://assets/models/generated_city/small_building_exterior.glb", Vector3(3.5, 0.0, 14.0), 0.0, 0.22)
+    _register_exterior_windows(_ext_model.call("res://assets/models/generated_city/small_building_exterior.glb", Vector3(-6.0, 0.0, 14.0), 0.0, 0.22))
+    _register_exterior_windows(_ext_model.call("res://assets/models/generated_city/mid_building_exterior.glb", Vector3(-1.5, 0.0, 14.5), 0.0, 0.22))
+    _register_exterior_windows(_ext_model.call("res://assets/models/generated_city/small_building_exterior.glb", Vector3(3.5, 0.0, 14.0), 0.0, 0.22))
     # tower.glb removed here (audit pass): at the same 0.22 scale every
     # other exterior building uses, it rendered as a massive, flat,
     # incorrectly-shaded gray shape filling most of the screen from the
@@ -429,24 +569,36 @@ func _build_exterior() -> void:
     # simple scale-or-pivot miscalculation this pass could safely re-tune
     # blind). hq_building_exterior + 2x small + mid already read as a full
     # block without it — see docs/production/KNOWN_ISSUES.md.
+    _build_backdrop_card(ext)
 
     # One vehicle per lane, own dedicated line each — guarantees no two
     # ever occupy the same line, unlike the single-shared-line version
     # the world+NPC overhaul pass shipped. Lanes 1/3 run the same
-    # direction (a real street can have same-direction lanes); lane 2
-    # runs the opposite way, so both travel directions are represented.
-    _spawn_traffic(Vector3(-9.0, 0.15, 9.3), Vector3(9.0, 0.15, 9.3), 2.6, "res://assets/models/mega/architecture/city/car_blue.glb", ext)
-    _spawn_traffic(Vector3(7.0, 0.15, 10.5), Vector3(-8.0, 0.15, 10.5), 3.4, "res://assets/models/mega/architecture/city/car_orange.glb", ext)
-    _spawn_traffic(Vector3(-4.0, 0.15, 11.7), Vector3(6.0, 0.15, 11.7), 2.1, "res://assets/models/mega/architecture/city/delivery_van.glb", ext)
+    # direction (a real street can have same-direction lanes); lanes 2/4
+    # run the opposite way, so both travel directions are represented.
+    # Garage vertical-slice orchestrator follow-up ("2-5 vehículos
+    # visibles... velocidades ligeramente diferentes... alguna van/taxi
+    # de vez en cuando"): a 4th lane/vehicle added (the taxi) — real,
+    # distinct speeds already existed per-lane before this pass, kept as
+    # they were rather than re-tuned for no reason. generated_street/*
+    # cars: this pass's smooth-geometry replacements (real cabin/wheel/
+    # light silhouette, not a flat box-on-a-box) for the mega_pack's
+    # placeholder car meshes.
+    var street_cars := "res://assets/models/generated_street/"
+    _spawn_traffic(Vector3(-9.0, 0.15, 9.3), Vector3(9.0, 0.15, 9.3), 2.6, street_cars + "car_blue.glb", ext)
+    _spawn_traffic(Vector3(7.0, 0.15, 10.5), Vector3(-8.0, 0.15, 10.5), 3.4, street_cars + "car_orange.glb", ext)
+    _spawn_traffic(Vector3(-4.0, 0.15, 11.7), Vector3(6.0, 0.15, 11.7), 2.1, street_cars + "delivery_van.glb", ext)
+    _spawn_traffic(Vector3(8.0, 0.15, 12.9), Vector3(-9.0, 0.15, 12.9), 3.0, street_cars + "car_taxi.glb", ext)
     # CLAUDE_VISUAL_EXECUTION_MASTERPACK Phase 5 ("autos estacionados",
     # distinct from "autos/van en movimiento" above): 2 real, static
-    # (non-moving, no TrafficVehicle) cars along the far curb, past the
-    # 3 traffic lanes and in front of the background buildings — the
-    # pack ships no dedicated "parked car" model, so these reuse the
-    # same car_blue/car_orange meshes the moving lanes already use, just
-    # placed once and never animated.
-    _ext_model.call(city + "car_blue.glb", Vector3(-2.5, 0.15, 13.0), 90.0)
-    _ext_model.call(city + "car_orange.glb", Vector3(2.0, 0.15, 13.0), -90.0)
+    # (non-moving, no TrafficVehicle) cars along the far curb, between
+    # the traffic lanes and the background buildings — the pack ships no
+    # dedicated "parked car" model, so these reuse the same car meshes
+    # the moving lanes use, just placed once and never animated. Moved
+    # from z=13.0 to z=13.5 this pass — the new 4th lane at z=12.9 left
+    # too little curb clearance at the old position.
+    _ext_model.call(street_cars + "car_blue.glb", Vector3(-2.5, 0.15, 13.5), 90.0)
+    _ext_model.call(street_cars + "car_orange.glb", Vector3(2.0, 0.15, 13.5), -90.0)
 
 func _spawn_traffic(from_pos: Vector3, to_pos: Vector3, speed: float, model_path: String, parent: Node3D) -> void:
     var vehicle := TrafficVehicle.new()
