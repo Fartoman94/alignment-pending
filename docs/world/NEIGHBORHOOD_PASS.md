@@ -28,3 +28,7 @@ Through the real campaign scene at the actual default camera framing (not a synt
 
 - Exterior lighting variation ("pequeños cambios de iluminación exterior" — the brief's own phrasing, itself modest) — the exterior currently uses the same lighting as the interior scene; no separate exterior-specific lighting pass.
 - Scaling the exterior set to react to real-estate tier (premium/HQ offices) — this pass is fixed geometry regardless of tier, matching the garage-focused scope the whole `WORLD_AND_NPC_OVERHAUL` package states up front.
+
+## Follow-up: lane separation (`ALIGNMENT_PENDING_TOTAL_VISUAL_AND_SYSTEM_REWORK`'s prompt 05)
+
+The original 3-vehicle setup above shared one line (z=10) across both travel directions — functional (no crash, no visible bug in a quick look) but not actually collision-safe: two `TrafficVehicle`s ping-ponging the same bounded line will eventually pass through each other regardless of their starting directions, since it's the same 1D path traversed forever, not a one-shot crossing. The newer total-rework package named this directly ("Path3D por carril, dirección separada... sin colisiones absurdas"). Fixed: 3 separate parallel lane lines (z=9.3/10.5/11.7), one vehicle each, so no two vehicles can ever occupy the same line by construction — verified with a real top-down render showing clear separation between all three, not just reasoned about. Lanes 1 and 3 run the same direction, lane 2 the opposite way, so both travel directions are represented as the brief also asks.

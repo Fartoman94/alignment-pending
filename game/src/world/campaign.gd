@@ -235,11 +235,19 @@ func _build_exterior() -> void:
 
     # Sidewalk running the width of the building just past the open
     # front edge (z=7), then a street beyond that, both spanning the
-    # same x range the floor does.
+    # same x range the floor does. World+NPC overhaul pass's traffic
+    # shared one line in both directions — two ping-pong movers on the
+    # same line inevitably pass through each other eventually (it's a
+    # bounded 1D path both traverse forever, not a one-shot crossing).
+    # Total-rework pass ("Path3D por carril, dirección separada... sin
+    # colisiones absurdas"): 3 separate lane rows, one vehicle each, so
+    # no two vehicles ever share a line by construction.
     for i in 9:
         var sx: float = -8.0 + float(i) * 2.0
         _ext_model.call(city + "sidewalk_tile.glb", Vector3(sx, 0.0, 8.0), 0.0)
-        _ext_model.call(city + "road_straight.glb", Vector3(sx, 0.0, 10.0), 0.0)
+        _ext_model.call(city + "road_straight.glb", Vector3(sx, 0.0, 9.3), 0.0)
+        _ext_model.call(city + "road_straight.glb", Vector3(sx, 0.0, 10.5), 0.0)
+        _ext_model.call(city + "road_straight.glb", Vector3(sx, 0.0, 11.7), 0.0)
     # Trees and lamp posts along the sidewalk, alternating so it doesn't
     # read as a single repeated prop.
     _ext_model.call(city + "tree_city.glb", Vector3(-7.0, 0.0, 8.3), 0.0)
@@ -253,16 +261,19 @@ func _build_exterior() -> void:
     # from native (see _ext_model's doc comment) — verified by rendering
     # a real perspective overview alongside the office box before
     # picking this factor, not guessed.
-    _ext_model.call(city + "small_building_exterior.glb", Vector3(-6.0, 0.0, 13.0), 0.0, 0.22)
-    _ext_model.call(city + "mid_building_exterior.glb", Vector3(-1.5, 0.0, 13.5), 0.0, 0.22)
-    _ext_model.call(city + "small_building_exterior.glb", Vector3(3.5, 0.0, 13.0), 0.0, 0.22)
-    _ext_model.call(city + "tower.glb", Vector3(7.5, 0.0, 13.5), 0.0, 0.22)
+    _ext_model.call(city + "small_building_exterior.glb", Vector3(-6.0, 0.0, 14.0), 0.0, 0.22)
+    _ext_model.call(city + "mid_building_exterior.glb", Vector3(-1.5, 0.0, 14.5), 0.0, 0.22)
+    _ext_model.call(city + "small_building_exterior.glb", Vector3(3.5, 0.0, 14.0), 0.0, 0.22)
+    _ext_model.call(city + "tower.glb", Vector3(7.5, 0.0, 14.5), 0.0, 0.22)
 
-    # 3 cars on a simple loop along the street, staggered start
-    # positions/speeds so they don't move in lockstep.
-    _spawn_traffic(Vector3(-9.0, 0.15, 10.0), Vector3(9.0, 0.15, 10.0), 2.6, "res://assets/models/mega/architecture/city/car_blue.glb", ext)
-    _spawn_traffic(Vector3(7.0, 0.15, 10.0), Vector3(-8.0, 0.15, 10.0), 3.4, "res://assets/models/mega/architecture/city/car_orange.glb", ext)
-    _spawn_traffic(Vector3(-4.0, 0.15, 10.0), Vector3(6.0, 0.15, 10.0), 2.1, "res://assets/models/mega/architecture/city/delivery_van.glb", ext)
+    # One vehicle per lane, own dedicated line each — guarantees no two
+    # ever occupy the same line, unlike the single-shared-line version
+    # the world+NPC overhaul pass shipped. Lanes 1/3 run the same
+    # direction (a real street can have same-direction lanes); lane 2
+    # runs the opposite way, so both travel directions are represented.
+    _spawn_traffic(Vector3(-9.0, 0.15, 9.3), Vector3(9.0, 0.15, 9.3), 2.6, "res://assets/models/mega/architecture/city/car_blue.glb", ext)
+    _spawn_traffic(Vector3(7.0, 0.15, 10.5), Vector3(-8.0, 0.15, 10.5), 3.4, "res://assets/models/mega/architecture/city/car_orange.glb", ext)
+    _spawn_traffic(Vector3(-4.0, 0.15, 11.7), Vector3(6.0, 0.15, 11.7), 2.1, "res://assets/models/mega/architecture/city/delivery_van.glb", ext)
 
 func _spawn_traffic(from_pos: Vector3, to_pos: Vector3, speed: float, model_path: String, parent: Node3D) -> void:
     var vehicle := TrafficVehicle.new()
