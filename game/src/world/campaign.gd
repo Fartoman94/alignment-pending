@@ -159,6 +159,15 @@ func _build_environment() -> void:
 ## office" to a "corporate building" (Art Bible's own progression list)
 ## reads as a visible reward, not a purely numeric one.
 var _office_visuals: Node3D
+## Production-kit city layer: a baked (render-once, not per-frame)
+## SubViewport street scene shown through the office windows below —
+## see CityBackdrop's own doc comment for the full "decorative, not a
+## spatial city" scope statement. Lives outside _office_visuals (unlike
+## the walls/windows it feeds) so a tier rebuild can free the old one and
+## build a fresh one for the new tier before the windows that reference
+## its texture are created, without fighting _office_visuals' own
+## clear-all-children loop over the same node.
+var _city_backdrop: CityBackdrop
 
 func _build_office() -> void:
     _office_visuals = Node3D.new()
@@ -176,6 +185,11 @@ func _rebuild_office_visuals() -> void:
         child.queue_free()
     var tier: String = String(RealEstateManager.current_company_tier_def().get("id", "garage"))
     var palette: Dictionary = _office_palette(tier)
+    if _city_backdrop != null:
+        _city_backdrop.queue_free()
+    _city_backdrop = CityBackdrop.new()
+    add_child(_city_backdrop)
+    _city_backdrop.build_for_tier(tier)
     _office_box("Floor", Vector3(0,-0.25,0), Vector3(18,0.5,14), palette["floor"])
     _office_box("BackWall", Vector3(0,1.5,-7), Vector3(18,3.5,0.3), palette["wall"])
     _office_box("LeftWall", Vector3(-9,1.5,0), Vector3(0.3,3.5,14), palette["wall_side"])
@@ -190,8 +204,8 @@ func _rebuild_office_visuals() -> void:
     # "natural light" per the brief's lighting direction, and to give
     # the back wall some silhouette variety instead of one flat plane.
     # Brighter at higher tiers (more/better windows a bigger lease buys).
-    _office_window("BackWallWindowL", Vector3(-5.5, 2.0, -6.82), palette["window_energy"])
-    _office_window("BackWallWindowR", Vector3(5.5, 2.0, -6.82), palette["window_energy"])
+    _office_window("BackWallWindowL", Vector3(-5.5, 2.0, -6.82), palette["window_energy"], _city_backdrop.get_texture())
+    _office_window("BackWallWindowR", Vector3(5.5, 2.0, -6.82), palette["window_energy"], _city_backdrop.get_texture())
     if tier == "garage" or tier == "garage_plus":
         # Mega-asset-pack pass: a real modeled garage door (previously a
         # flat procedural box) — the one concrete, unmistakable "this is
@@ -302,12 +316,29 @@ func _office_palette(tier: String) -> Dictionary:
                 "trim": Color("d97b3f"), "window_energy": 0.6,
             }
 
-func _office_window(name_: String, pos: Vector3, energy: float = 0.6) -> void:
+## city_texture (CityBackdrop's baked, render-once viewport texture) is
+## used as albedo (so the skyline reads under normal scene lighting) plus
+## a much-dimmed emission of the same texture (just enough to still read
+## as "a lit window" from across the room the way the old flat-color
+## glow did, at low ambient light). CITY_EMISSION_SCALE is small and
+## deliberate: the backdrop scene's own materials are mostly light/pastel
+## (white building facades, pale sidewalk) — confirmed by rendering the
+## raw baked texture in isolation — so using it as emission at the same
+## multiplier the old flat "bfe3ff" color used way overexposes the whole
+## window to solid white. The flat emissive color stays as a fallback
+## fill so the window doesn't just go dark before city_texture is ready
+## (SubViewport rendering is a frame or two behind window creation).
+const CITY_EMISSION_SCALE: float = 0.12
+func _office_window(name_: String, pos: Vector3, energy: float = 0.6, city_texture: Texture2D = null) -> void:
     var mi: MeshInstance3D = ProceduralMeshFactory.make_box(name_, Vector3(3.2, 1.6, 0.06), Color("bfe3ff"))
     var mat: StandardMaterial3D = mi.mesh.surface_get_material(0)
     mat.emission_enabled = true
     mat.emission = Color("bfe3ff")
     mat.emission_energy_multiplier = energy
+    if city_texture != null:
+        mat.albedo_texture = city_texture
+        mat.emission_texture = city_texture
+        mat.emission_energy_multiplier = energy * CITY_EMISSION_SCALE
     mi.position = pos
     _office_visuals.add_child(mi)
 
